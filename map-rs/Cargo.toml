@@ -1,0 +1,28 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/map-identity",
+    "crates/map-core",
+    "crates/map-discovery",
+    "crates/map-tasks",
+    "crates/map-trust",
+    "crates/map-pay",
+    "crates/map-cli",
+    "adapters/ollama-provider",
+    "adapters/gateway",
+    "conformance/map-conformance",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/jesselarsen/map-rfc"
+
+[workspace.dependencies]
+ed25519-dalek = "2"
+sha2 = "0.10"
+hkdf = "0.12"
+bs58 = "0.5"
+getrandom = "0.2"
+hex = "0.4"

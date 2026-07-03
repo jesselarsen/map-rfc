@@ -2,6 +2,8 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+@memory.md
+
 ## What this project is
 
 MAP — the Manolito Agent Protocol — is a standards-track-style specification
@@ -23,8 +25,8 @@ duplicate that content here; consult it directly.
 
 ## Repository layout
 
-- `spec/` — the specification family itself. All normative and informational
-  drafts, plus the critique that justifies them, live here:
+- `map-spec/` — the specification family itself. All normative and
+  informational drafts, plus the critique that justifies them, live here:
   - `01-design-critique.md` — critical evaluation of the original source
     designs (findings C1–C15) and the disposition of every idea into the
     current family. This is the record of *why* the spec looks the way it
@@ -57,22 +59,38 @@ duplicate that content here; consult it directly.
     registries & change control, federation gateways, conformance &
     formal-analysis program, reference implementation, migration (incl.
     HEP-0.1 → MAP), compliance notes. (BCP)
-- `test-vectors/map-test-vectors.md` — TV-001 signed HELLO envelope, TV-002
-  dual-signed receipt: real Ed25519 signatures over deterministic CBOR,
-  reproducible from listed seeds. (Normative examples). Any reference
-  implementation must be validated against these vectors.
-- `implementations/` — reference implementations as they get built (`rust/`
-  primary, `go/` secondary — see `draft-map-ops-00.md` for the
-  reference-implementation and conformance program). Currently empty
-  scaffolding; see `implementations/README.md`. A conforming implementation
-  should record which spec revision (`-00`, `-01`, ...) it targets, since
-  `spec/` and `implementations/` version independently.
+- `map-spec/test-vectors/` — `map-test-vectors.md` (TV-001 signed HELLO
+  envelope, TV-002 dual-signed receipt: real Ed25519 signatures over
+  deterministic CBOR, reproducible from listed seeds) plus `gen_vectors.py`,
+  the Python regenerator (needs pynacl, cbor2, base58). Normative examples —
+  any reference implementation must reproduce these byte-for-byte.
+- `map-rs/` — the Rust reference implementation (Cargo workspace, impl #1
+  for the two-implementation rule in ops §6.1; the Go impl comes later as
+  impl #2). See `memory.md` §5 for crate status and known caveats.
+- `tasks/` — implementation-specification packages (`TASK-00N-<slug>.md`)
+  authored by the architect role and handed to downstream coding LLMs.
+  See `tasks/README.md` for the role contract and execution order.
+- `memory.md` — cross-session handoff: non-negotiable protocol decisions,
+  current state, roadmap. Loaded via the `@memory.md` include above; keep it
+  current when state changes materially.
 - `input-designs/` — the original design-goals and design-prompt documents
   that seeded this project in an earlier session. Treat as historical input,
-  not a source of truth to reconcile against — `spec/01-design-critique.md`
-  already did that reconciliation.
+  not a source of truth to reconcile against —
+  `map-spec/01-design-critique.md` already did that reconciliation.
 - `.claude/rules/` — reference material on data-intensive application design
   and domain-driven design; background reading, not repo-specific policy.
+
+## Role model for implementation work
+
+Claude in this repo acts as **Principal Software Architect / Senior Staff
+Engineer**: it reviews the specs, does the design analysis, and produces
+complete implementation-specification packages under `tasks/` for downstream
+coding LLMs to execute. It does **not** write the production Rust/Go
+implementation itself unless explicitly instructed. Each package must be
+self-contained (embedded CDDL, wire constants, invariants, vector hex) so the
+coding model needs no clarifying questions. When an implementation exposes a
+spec ambiguity, the spec is patched in the same change (spec-feedback loop —
+precedent: discovery §6 shard fix, tasks §8.1 Merkle fix).
 
 ## Working conventions
 

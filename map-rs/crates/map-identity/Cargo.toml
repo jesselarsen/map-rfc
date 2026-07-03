@@ -1,0 +1,11 @@
+[package]
+name = "map-identity"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "MAP identity bounded context: AgentID, keys, signing (draft-map-identity-00)"
+
+[dependencies]
+ed25519-dalek.workspace = true
+bs58.workspace = true
+getrandom.workspace = true
