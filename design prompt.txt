@@ -1,0 +1,396 @@
+prompt
+
+I need your help to build an ai agent network protocol. I want to leverage the manolito mp2p protocol and improve it with trust, reliability, payment, and security mechanisms. There are open source implementations of the manolito mp2p that can be used for reference. I have attached initial design attempts and an initial rfc pre-print. I want you analyze the designs and create and recommend enhancements that can be included in a unified design. My preference is for open source solutions that are independently verifiable or de facto industry standards, like ed25519.
+
+Your prompt is a good starting point, but it leaves a lot of architectural decisions implicit. If your goal is to have an LLM produce something approaching an Internet-Draft or RFC that could withstand review by experienced protocol engineers, you should ask it to think like an RFC editor rather than simply "design a protocol."
+
+Here are the major areas that are currently missing:
+
+Explicit design goals and non-goals
+Threat model
+Trust model
+Wire protocol specification
+State machines
+Message serialization
+Transport abstraction
+Version negotiation
+Capability negotiation
+Error handling
+Payment architecture
+Identity lifecycle
+Reputation system
+Resource accounting
+Agent discovery
+Routing
+NAT traversal
+Cryptographic agility
+Privacy model
+Extensibility
+Reference implementation guidance
+Compliance requirements
+Interoperability testing
+Formal security analysis
+
+I would also encourage separating the protocol into multiple RFCs instead of one enormous specification, similar to how TCP/IP, HTTP, TLS, and QUIC are specified.
+
+A possible standards track could look like:
+
+Core MP2P Agent Protocol
+Identity and Authentication
+Agent Discovery
+Trust and Reputation
+Payments and Settlement
+Resource Discovery
+Secure Messaging
+Service Advertisement
+Federation
+Governance and Registry
+
+That modular approach makes future revisions much easier.
+
+I would also significantly expand the technical objectives.
+
+Instead of simply saying "improve Manolito", define what success looks like.
+
+For example:
+
+Primary Design Goals
+decentralized
+no central authority required
+permissionless participation
+cryptographically verifiable identities
+agent autonomy
+transport agnostic
+offline tolerant
+bandwidth efficient
+suitable for billions of nodes
+resistant to Sybil attacks
+open governance
+backwards compatible where practical
+reference implementation in Rust and Go
+simple enough for embedded systems
+Explicitly define the trust model.
+
+For example:
+
+Trust assumptions
+
+No participant is trusted by default.
+
+Every interaction must be independently verifiable.
+
+Identity does not imply reputation.
+
+Reputation is earned through cryptographically provable interactions.
+
+Nodes may participate anonymously.
+
+Trust decisions remain local to each node.
+
+No global PKI is required.
+Require modern cryptography.
+
+Rather than only mentioning Ed25519, I'd specify an entire cryptographic suite.
+
+Example:
+
+Preferred cryptography
+
+Ed25519 signatures
+X25519 key exchange
+BLAKE3 hashing
+HKDF
+ChaCha20-Poly1305
+CBOR serialization
+Merkle DAG structures
+Multihash
+Multibase
+Content-addressable objects
+
+Require cryptographic agility so algorithms can be replaced without redesigning the protocol.
+
+Agent identity deserves an RFC by itself.
+
+Have the LLM define:
+
+Identity
+
+permanent identity
+rotating session keys
+delegated identities
+organization identities
+ephemeral identities
+hardware-backed identities
+DID compatibility
+OpenID interoperability
+WebAuthn support
+Service discovery
+
+One of the biggest missing areas.
+
+Describe:
+
+capability advertisements
+semantic capability descriptions
+AI model discovery
+supported tools
+pricing
+latency
+bandwidth
+GPU availability
+memory
+trust score
+reputation
+supported protocols
+AI-specific capabilities
+
+This is where the protocol becomes unique.
+
+For example, define standardized messages for:
+
+Inference request
+
+Inference response
+
+Tool request
+
+Tool response
+
+Model advertisement
+
+Capability advertisement
+
+Resource reservation
+
+Payment request
+
+Payment receipt
+
+Task delegation
+
+Task cancellation
+
+Streaming token response
+
+Memory synchronization
+
+Checkpoint exchange
+
+Agent migration
+
+Heartbeat
+
+Presence
+
+Discovery
+Resource scheduling
+
+Think Kubernetes meets BitTorrent.
+
+Include concepts like:
+
+compute leases
+reservation tokens
+job queues
+distributed scheduling
+GPU allocation
+CPU allocation
+bandwidth allocation
+storage allocation
+Payment architecture
+
+Don't tie yourself to cryptocurrency.
+
+Instead specify:
+
+Payment interface
+
+Supports
+
+Lightning
+Stripe
+Stablecoins
+ACH
+Web Monetization
+future payment providers
+
+The protocol should define payment negotiation—not a specific payment network.
+
+Trust and reputation
+
+Rather than simple reputation scores, consider:
+
+signed reviews
+proof of successful execution
+proof of payment
+proof of delivery
+challenge-response
+fraud reporting
+local trust graphs
+Web-of-Trust
+EigenTrust-inspired scoring
+stake-based trust
+proof-of-history
+Security
+
+Ask for a complete threat analysis.
+
+Examples:
+
+Threats
+
+Sybil attacks
+Eclipse attacks
+Replay attacks
+MITM
+Spam
+Resource exhaustion
+Poisoned models
+Prompt injection
+Model substitution
+Identity theft
+Payment fraud
+Reputation manipulation
+Routing attacks
+Metadata leakage
+
+For every attack require mitigations.
+
+Protocol mechanics
+
+Ask for actual packet formats.
+
+For every message define:
+
+Message ID
+
+Version
+
+Timestamp
+
+Nonce
+
+Sender
+
+Recipient
+
+Signature
+
+Capabilities
+
+Payload
+
+Compression
+
+Encryption
+
+TTL
+
+Checksum
+Extensibility
+
+Borrow ideas from HTTP.
+
+Every message should support
+
+extensions
+optional fields
+unknown field forwarding
+feature negotiation
+capability negotiation
+Versioning
+
+Require
+
+semantic versioning
+backwards compatibility
+deprecation process
+extension registry
+IANA-style registry
+RFC Style
+
+Rather than "write a design", ask for an actual standards-track document following RFC conventions.
+
+Require sections such as:
+
+Abstract
+Status of this Memo
+Terminology
+Requirements Language (using the terminology from RFC 2119 and RFC 8174: MUST, SHOULD, MAY, etc.)
+Architecture
+Protocol Overview
+Message Formats
+State Machines
+Error Handling
+Security Considerations
+Privacy Considerations
+IANA Considerations
+Examples
+Test Vectors
+Interoperability
+Future Work
+Normative References
+Informative References
+A stronger master prompt
+
+I want you to act as a senior Internet protocol architect, distributed systems engineer, cryptographer, and RFC editor. Your task is to design a production-quality open standard for a decentralized AI agent network inspired by the Manolito MP2P protocol.
+
+The goal is not merely to improve MP2P, but to evolve it into a modern, secure, scalable, interoperable protocol suitable for autonomous AI agents operating across heterogeneous networks. Use the original Manolito protocol, available open-source implementations, and the attached design documents as historical references rather than constraints. Preserve useful concepts while replacing obsolete mechanisms with contemporary best practices.
+
+Produce a standards-track Internet-Draft written in RFC style using the terminology defined in RFC 2119 and RFC 8174 (MUST, SHOULD, MAY, MUST NOT, etc.). Where existing standards solve a problem well, reuse them instead of inventing new mechanisms.
+
+The design should satisfy the following objectives:
+
+Fully decentralized and permissionless
+No mandatory central authority or PKI
+Cryptographically verifiable identities
+Secure-by-default communications
+Open-source reference implementation
+Transport agnostic (TCP, QUIC, WebSocket, libp2p transports, future transports)
+Efficient operation across LAN, WAN, NAT, mobile, and intermittently connected networks
+Cryptographic agility
+Modular architecture with independently versioned protocol extensions
+Extensible without breaking interoperability
+Suitable for billions of participating agents
+
+The protocol specification should include, at minimum:
+
+Architecture and design goals
+Threat model and trust assumptions
+Identity lifecycle and authentication
+Agent discovery and capability advertisement
+Routing and peer discovery
+NAT traversal and relay strategies
+Session establishment
+Message framing and serialization
+Version and capability negotiation
+Agent state machines
+Reliable messaging semantics
+Streaming inference support
+Distributed task delegation
+Tool invocation
+Resource reservation and scheduling
+Agent memory synchronization
+Payment negotiation interfaces (supporting multiple settlement systems without requiring any specific one)
+Reputation and trust frameworks
+Privacy protections and metadata minimization
+Cryptographic recommendations
+Security analysis with attack mitigations
+Error handling and recovery
+Extensibility framework
+Compliance requirements
+Interoperability test suites
+Reference implementation guidance
+Migration strategy from legacy Manolito implementations
+
+Prefer mature, independently verifiable, open standards wherever possible. Recommended primitives include Ed25519/X25519, ChaCha20-Poly1305, BLAKE3 (or SHA-256 where ecosystem compatibility is preferred), HKDF, CBOR, Merkle DAGs, multihash, and content-addressable data structures. The protocol must support cryptographic agility so algorithms can be upgraded without redesigning the protocol.
+
+For every protocol message, define wire format, required fields, optional fields, validation rules, processing rules, error conditions, and illustrative examples. Include normative state diagrams, sequence diagrams, message flow examples, and security rationale.
+
+Critically evaluate all attached design documents. Identify weaknesses, inconsistencies, scalability limits, and security gaps. Recommend improvements with explicit technical justification and compare alternative approaches before selecting a preferred design.
+
+Finally, organize the resulting specification into a family of complementary RFCs (Core Protocol, Identity, Discovery, Trust & Reputation, Payments, Secure Messaging, Service Advertisement, Federation, Governance, and Extension Registry) to maximize long-term maintainability and interoperability.
+
+This version pushes the model toward producing a document that resembles a genuine protocol standard rather than a high-level design proposal.
+
+One additional recommendation: I would strongly consider using libp2p as a source of transport, peer discovery, NAT traversal, and multiplexing concepts. Combined with the original Manolito architecture, it could provide a solid modern foundation while allowing your protocol to focus on AI-specific semantics rather than reinventing mature networking primitives.

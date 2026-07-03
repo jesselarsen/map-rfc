@@ -1,0 +1,524 @@
+This is a brilliant architectural blueprint. Shifting the P2P paradigm from a file graph ("Who has this data?") to a capability graph ("Who has the compute or reasoning ability to handle this task?") is exactly the leap needed for the next generation of decentralized AI.
+
+Since you already have the core concepts (Kademlia DHT, QUIC, gRPC, Hermes orchestration) laid out, let's get into the weeds of designing the actual Hermes Protocol.
+
+Here is a proposed technical blueprint for how we structure this P2P AI agent protocol.
+
+1. The Protocol Stack (Modernized MP2P)
+We build this entirely on top of libp2p so we don't have to reinvent Kademlia, QUIC, NAT traversal, or peer identity.
+
+Transport: QUIC (libp2p WebTransport)
+Identity: Ed25519 keys (inherent to libp2p PeerId)
+Discovery: Kademlia DHT for capability routing + Gossipsub for real-time load balancing.
+Serialization: Protobuf (for structured ads/meta) + standard gRPC streams (for token streaming).
+Store: Embedded vector DB (e.g., Qdrant or SQLite-vss) for local memory, exposed over the network.
+2. Semantic DHT Routing (The Capability Graph)
+Standard Kademlia uses Content IDs (CIDs) to find files. We need to map Capabilities to DHT keys. We define a deterministic taxonomy of capabilities. When a node comes online, it hashes its capabilities and puts its PeerId at those DHT keys.
+
+// Capability Hashing Function
+hash("category:sub_category:model") -> DHT Key
+
+// Example: Node BC250-West comes online
+hash("coding:rust:deepseek-coder-v3") -> Key K1
+hash("coding:c:qwen3-coder-235b") -> Key K2
+
+// Node Publishes to DHT:
+DHT.put(K1, PeerId_BC250_West)
+DHT.put(K2, PeerId_BC250_West)
+copy
+When Hermes needs to route a task, it computes the hash of the requirement. If it needs a Rust coder with 1M context, it queries DHT.get(hash("coding:rust")). The DHT returns a list of peers. Hermes then gathers real-time load/advertisements from those specific peers via Gossipsub to pick the best one.
+
+3. The Protobuf Schema (Core Messages)
+Here is a draft of the core protocol messages.
+
+syntax = "proto3";
+package hermes_protocol.v1;
+
+// 1. Node Advertisement (Broadcast via Gossipsub every 5s)
+message AgentAdvertisement {
+  string peer_id = 1;          // libp2p PeerId
+  string public_key = 2;       // Ed25519
+  repeated ModelInfo models = 3;
+  SystemMetrics load = 4;
+  EconomicInfo pricing = 5;
+  float reputation_score = 6;  // 0.0 to 1.0
+  repeated string memory_domains = 7; // e.g., ["linux_kernel", "rust_async"]
+}
+
+message ModelInfo {
+  string name = 1;             // e.g., "deepseek-coder-v3"
+  int32 max_context = 2;       // e.g., 1000000
+  repeated string tools = 3;   // e.g., ["compiler", "shell"]
+  bool supports_json_mode = 4;
+}
+
+message SystemMetrics {
+  int32 gpu_vram_free_mb = 1;
+  int32 ram_free_gb = 2;
+  int32 queue_length = 3;
+  int32 measured_latency_ms = 4;
+}
+
+message EconomicInfo {
+  float cost_per_1m_tokens = 1; // 0.0 for free/local, >0 for paid
+  bool accepts_barter = 2;      // trade compute for compute
+}
+
+// 2. Task Execution (gRPC)
+service HermesExecution {
+  // Bidirectional stream for sending prompts and receiving token streams/metadata
+  rpc ExecuteTask(stream TaskRequest) returns (stream TaskResponse);
+}
+
+message TaskRequest {
+  string task_id = 1;
+  string model = 2;             // Target model requested
+  string prompt = 3;
+  float max_temperature = 4;
+  string checkpoint_state = 5;  // For fault tolerance/resume
+  repeated string attached_files = 6; // Git manifests or file hashes
+}
+
+message TaskResponse {
+  string task_id = 1;
+  enum ResponseType {
+    TOKEN = 0;
+    STATUS = 1;
+    ERROR = 2;
+    TOOL_CALL = 3;
+    COMPLETED = 4;
+  }
+  ResponseType type = 2;
+  string content = 3;           // Token chunk, error msg, or tool call JSON
+  int32 tokens_generated = 4;
+}
+copy
+4. Swarm Decomposition & Fault Tolerance
+When a user asks VS Code/OpenCode to "Modernize Shareaza", the local Hermes orchestrator doesn't send raw strings to the network. It uses a local cheap model (or local fast model) to generate a DAG (Directed Acyclic Graph) of tasks.
+
+Decomposition: Local Hermes generates TaskA (Rust), TaskB (UI), TaskC (Networking).
+Dispatch: Hermes queries the DHT for each capability.
+Checkpointing: As BC250-West streams TaskA back, Hermes saves intermediate states to its own local disk (and optionally broadcasts a TaskCheckpoint message).
+Resilience: If BC250-West drops the gRPC connection, Hermes detects the dropped peer. It immediately finds the next best Rust peer in the DHT, sends the checkpoint_state from the last received message, and the new peer continues generation seamlessly.
+5. Distributed Memory Mesh
+Nodes advertise what they "know." Instead of a massive centralized vector store, the network stores embeddings natively.
+
+Node BC250-East indexes all Rust documentation.
+Node Intel-Arc-01 indexes all Linux kernel source code.
+When a node needs context, it asks the DHT: "Who knows about the Linux kernel?" DHT.get(hash("memory:linux_kernel")) returns Intel-Arc-01. Hermes sends an RPC: QueryMemory(embedding_vector, top_k=5). The peer executes a local vector search and returns the raw context text, which Hermes prepends to the LLM prompt.
+
+6. OpenRouter Integration (Overflow Capacity)
+To make OpenRouter a first-class citizen of this P2P network, you simply build an OpenRouter Gateway Peer. This is a libp2p node that hosts no local models but advertises every OpenRouter model in its AgentAdvertisement. It accepts TaskRequest messages, translates them to standard OpenAI-compatible HTTP API calls, translates the HTTP SSE streams back into Protobuf TaskResponse streams, and bills the local node via the economic layer.
+
+[VS Code] -> Local Hermes -> [DHT Query: "Who has Claude 3.5 Sonnet?"]
+                                   |-> Found Local Ollama Node (Load: 95%)
+                                   |-> Found OpenRouter Gateway Peer (Load: 10%)
+             Local Hermes routes to OpenRouter Gateway Peer.
+copy
+7. Reputation & Trust Ledger
+We don't want a central authority calculating trust. We use a P2P Web of Trust model. When a task completes, the requesting node signs a Receipt:
+
+{
+  "task_id": "1234",
+  "completer_id": "BC250-West",
+  "requester_id": "Hermes-Local",
+  "latency_ms": 180,
+  "hallucination_flag": false,
+  "signature": "0x..."
+}
+copy
+These receipts are published to a Gossipsub channel. Neighbors tally these receipts to compute the reputation_score dynamically. Bad actors are naturally isolated and routed around.
+
+Next Steps for Implementation
+If we were to build this, the MVP architecture would look like:
+
+Core (hermes-core): A Rust library implementing the libp2p node, Protobuf definitions, Kademlia DHT, and Gossipsub.
+Ollama Bridge (hermes-ollama): A daemon that wraps an existing Ollama instance, exposing it to the P2P network via the HermesExecution gRPC service.
+Orchestrator (hermes-mind): The VS Code extension / CLI that takes natural language, decomposes into tasks, queries the DHT, and manages the bidirectional token streams.
+By leveraging libp2p, we skip the painful parts of P2P (NAT punching, peer lifecycle, UDP congestion) and focus purely on the AI capability layer. Does this structure align with what you had in mind for the BC250/Arc/OpenRouter ecosystem?
+
+Here are the deeper technical details required to make this mesh functional, secure, and commercially viable. We need to flesh out the mechanisms for sandboxing, shared state, smart routing, and context assembly.
+
+1. Secure Tool Execution & Sandboxing
+If a local Hermes node asks a remote BC250 node to write and compile a Rust driver, that remote node is suddenly executing untrusted code (or code generated by an LLM that could be malicious). We must define a Sandboxing Protocol.
+
+B. Advertisement Extension Nodes must advertise their execution environments:
+
+message ExecutionEnvironment {
+  enum SandboxType {
+    NONE = 0;        // Dangerous, only for self-hosted trusted nodes
+    DOCKER = 1;      // Standard container isolation
+    WASM = 2;        // Wasmtime/WASMER edge execution
+    FIRECRACKER = 3; // MicroVM
+  }
+  SandboxType sandbox = 1;
+  repeated string allowed_tools = 2; // ["cargo", "rustc", "git", "ls"]
+  bool network_access = 3;
+}
+copy
+C. Authorization Credentials When a node executes a task that requires a tool call (e.g., shell.exec("cargo build")), the inference node must request authorization.
+
+Inference node sends a TOOL_CALL message to the requesting Hermes orchestrator.
+Hermes evaluates the tool call against user-defined policies. (e.g., "Only allow cargo build on nodes with FIRECRACKER sandboxes, but allow grep on NONE sandboxes").
+Hermes signs a ToolAuthorization token and sends it back. The inference node executes the command and appends the output to its context.
+2. Shared Workspace State (Git-based Swarm Sync)
+When decomposing the "Modernize Shareaza" task, we ultimately have multiple agents modifying the same codebase. Sending 500k tokens of source code back and forth over QUIC is inefficient.
+
+We use Git as the synchronization layer.
+
+The Workspace Repo: The local Hermes node initializes a bare Git repository.
+Task Assignment: When Hermes dispatches a task via gRPC, it includes a WorkspaceRef:
+message WorkspaceRef {
+  string libp2p_stream_protocol_id = 1; // e.g., "/git/1.0.0"
+  string clone_token = 2;               // Short-lived, signed auth token
+  string base_commit_hash = 3;
+}
+copy
+Execution:
+The remote BC250 peer uses the libp2p Git protocol to clone the specific commit (shallow clone) to its local sandbox.
+It makes changes, tests them, and commits to a local branch named task/{task_id}.
+It pushes the branch back to the Hermes orchestrator via libp2p.
+Merge: Hermes collects the branches from the Rust, UI, and Networking peers, resolves conflicts locally (using a capable local model or OpenRouter), and merges into main.
+3. Micro-Bidding & Smart Routing
+Simply routing to the first peer found in the DHT won't yield the best results. We need an auction-based routing layer for complex tasks.
+
+When Hermes finds 5 capable peers in the DHT, it broadcasts a TaskBidRequest directly to them.
+
+message TaskBidRequest {
+  string task_id = 1;
+  string capability_hash = 2; // "coding:rust"
+  int32 estimated_tokens = 3;
+  int32 priority = 4; // 1-10
+  WorkspaceRef workspace = 5;
+}
+
+message TaskBid {
+  string task_id = 1;
+  string peer_id = 2;
+  float estimated_cost = 3;
+  int32 estimated_latency_ms = 4;
+  int32 queue_wait_seconds = 5; // How long until it starts
+}
+copy
+Hermes calculates a Cost Function for each bid: Score = (Reputation * Capability_Match) - (Latency_Penalty) - (Monetary_Cost * Budget_Weight) + (Local_Hardware_Bonus)
+
+If the best bid is too expensive or slow, that acts as the trigger to fall back to OpenRouter via the Gateway Peer.
+
+4. Context Assembly & Distributed RAG
+A major bottleneck in current AI is the context window. If we have a distributed memory mesh, we can use a Map-Reduce approach for context injection.
+
+Suppose the task is: "Find where the memory leak is happening in the C++ networking stack."
+
+Hermes Query: Hermes queries the DHT for memory:c++_networking.
+Node A (Intel Arc) responds. It holds the AST (Abstract Syntax Tree) embeddings of the codebase.
+Node B (Ollama host) responds. It holds text embeddings of GCC compiler documentation.
+Context Retrieval: Hermes sends QueryMemory(vector="leak detection network sockets", top_k=20) to Node A. Hermes sends QueryMemory(vector="memory allocation failure modes", top_k=10) to Node B.
+Assembly: Hermes receives the raw text chunks from both nodes. It concatenates them into a standardized Context Block:
+[
+  {"source": "NodeA:AST", "text": "..."},
+  {"source": "NodeB:Docs", "text": "..."}
+]
+copy
+Inference: This assembled context is sent along with the prompt to the chosen execution node (e.g., BC250-West running DeepSeek-Coder).
+5. The OpenRouter Gateway as an "Edge Peer"
+To refine how OpenRouter fits in: the OpenRouter Gateway shouldn't just be a local daemon; it can be deployed as a public bootstrap node.
+
+Bootstrap: When a user's local Hermes turns on for the first time and knows no peers, it connects to the public OpenRouter Gateway Peer.
+Hybrid Mode: The Gateway Peer advertises the complete OpenRouter model suite. To the local Hermes, there is no difference between asking a remote community BC250 node or asking Claude 3.5 Sonnet via the Gateway.
+Fallback Chain:
+Try local Ollama (Intel Arc B60).
+If VRAM full -> Try DHT Mesh (Community BC250).
+If Mesh offline/too expensive -> Try OpenRouter Gateway.
+6. Handling Connection Drops & Checkpointing
+gRPC over QUIC handles stream multiplexing well, but network outages still happen. We implement Application-Layer Checkpointing.
+
+The state of an LLM inference task is fundamentally just the KV Cache (Key-Value Cache) and the list of generated tokens.
+
+To make a truly resilient protocol, we define an optional KVCacheSync message:
+
+message StateSync {
+  string task_id = 1;
+  int64 sequence_number = 2;   // Token count
+  bytes kv_cache_delta = 3;   // Compressed KV cache state (if supported)
+  string raw_tokens = 4;      // The generated text so far
+}
+copy
+Every N tokens (e.g., every 50 tokens), the executing node streams a StateSync message to Hermes. If the QUIC connection breaks:
+
+Hermes takes the last StateSync.
+Hermes connects to the 2nd best bidding node from the previous auction.
+Hermes sends the original prompt + raw_tokens + TaskRequest(resume=true).
+The new node reconstructs the context and continues generation. (Note: Full KV cache transfer over the wire is heavy, but passing the text tokens to "re-warm" the cache on the new node is highly feasible for modern models).
+Summary of the Stack
+Networking: libp2p (Kademlia, Gossipsub, QUIC, native Git streaming)
+Messaging: gRPC/Protobuf
+State: Git Branches + libp2p streams
+Routing: Micro-bidding based on DHT capability lookups
+Compute: Ollama (Local) <--> BC250/Arc Mesh (Community) <--> OpenRouter (Cloud Overflow)
+Security: Ed25519 + Tool Authorization Tokens + Sandbox Advertisements
+This creates a robust, self-healing network where hardware limits (like your BC250 VRAM constraints) become invisible to the end-user in VS Code. The protocol abstracts the hardware into pure capability graphs.
+
+Before we write a single line of Rust or Go, there are several architectural traps, privacy concerns, and game-theory mechanics we need to address. If we get these wrong, the network will either collapse under its own weight or become a security nightmare.
+
+Here are the critical things to consider before coding:
+
+1. The Privacy & Trust Boundary (The "Code Leakage" Problem)
+If you are using this for local coding, your source code is your intellectual property. If a Hermes node hands your codebase off to a random BC250 node it found on the public internet to refactor, you've just leaked your proprietary code.
+
+The Solution: Network Zones The protocol must support strict routing zones:
+
+Zone 0 (Local): Only this machine (e.g., local Intel Arc B60 Ollama).
+Zone 1 (Trusted): Explicitly allowlisted peers (e.g., your friend's BC250 cluster, your home server). Tasks can include proprietary code and raw Git clones.
+Zone 2 (Public): Untrusted public peers and OpenRouter. Rule: If a task requires raw source code, it cannot route to Zone 2. If Zone 2 must be used, the task must be abstracted (e.g., "Write a generic Rust function to parse this binary structure" rather than sending the actual repo).
+2. Sybil Attacks & Reputation Bootstrapping
+In a decentralized network, a malicious actor can spin up 10,000 virtual nodes on a single server to flood the DHT, win every micro-bidding auction, and act as a man-in-the-middle.
+
+The Solution:
+
+Proof of Compute: To register in the DHT, a node must periodically solve a lite computation puzzle (Hashcash-style) proportional to its advertised VRAM.
+Proof of Stake/Deposit: To participate in economic bidding, a node locks a small amount of a token (or even just a signed reputational IOU). If it fails a task or hallucinates maliciously, it is slashed and loses its deposit.
+The Bootstrap Problem: New, honest nodes start with 0.0 reputation. We need an "unproven but cheap" tier. Allow them to take low-priority or read-only tasks first to build up rep, rather than ignoring them completely.
+3. Taxonomy Normalization (Semantic Routing Pitfalls)
+I previously suggested hashing exact strings like "coding:rust" for the DHT. In reality, one node might advertise "rust", another "rust-lang", and another "systems_programming". If we use exact string hashing, DHT queries will miss most of the network.
+
+The Solution: We need a standard ontology. Define a capabilities.json schema baked into the protocol (v1).
+
+{
+  "domains": ["coding", "research", "image"],
+  "coding_languages": ["rust", "c", "python", "cuda"],
+  "frameworks": ["axum", "flutter", "tokio"]
+}
+copy
+Nodes map their free-text model descriptions to this strict schema locally before publishing to the DHT. No fuzzy DHT queries required.
+
+4. Network Churn & Timeout Guarantees
+P2P networks are chaotic. A peer might be halfway through generating a kernel driver and the user closes their laptop, or the ISP drops the connection.
+
+The Danger: If a task hangs indefinitely waiting for a dead peer, the UX in VS Code is ruined.
+The Solution: Hard timeouts and aggressive fallbacks. Every TaskBid must include a guaranteed Time-To-First-Token (TTFT). If Hermes doesn't receive a stream of tokens within that window + a 10% buffer, it immediately cancels, falls back to the next bidding node, and penalizes the dead node's reputation locally.
+5. Protocol Versioning & Forking
+AI changes monthly. In six months, KV cache syncing, tool-use formats, and agentic workflows will look entirely different.
+
+The Solution: The AgentAdvertisement must be heavily versioned.
+message AgentAdvertisement {
+  int32 protocol_version = 1; // MUST be 1
+  int32 agent_capabilities_version = 2; // MUST be >= 1
+  // ...
+}
+copy
+Peers simply drop connections from nodes advertising unsupported versions. This allows older nodes and newer nodes to coexist on the same DHT without crashing each other.
+6. Developer & User Experience (Agentic Visibility)
+If an agent mesh is a black box, users will hate it. When Hermes routes a task, the VS Code extension needs to show exactly what is happening.
+
+The UI Requirement: We need a Swarm Dashboard. It should show a topology graph of:
+Local models available.
+Connected peers and their capabilities.
+Live: Task A is executing on "Local B60". Task B is waiting for bid responses from 3 peers. Task C failed and is retrying on OpenRouter.
+Cost Metering: If OpenRouter is used, the UI must show the cost incurred in real-time.
+Recommended MVP Scope (Do not build it all at once)
+To actually get to a working state, we should scope the v0.1 ("Proof of Capability") tightly:
+
+Do NOT build: The economic bidding layer, the reputation blockchain/ledger, full-git sync, and the public internet mesh.
+DO build:
+The libp2p node wrapper.
+The Kademlia DHT capability registration.
+The AgentAdvertisement Protobufs over Gossipsub.
+The gRPC execution stream (wrapping Ollama locally to start).
+A static OpenRouter Gateway peer config.
+The Hermes Orchestrator CLI that takes a prompt, checks local load, checks DHT (if you have a second test machine), and routes to OpenRouter as fallback.
+If we start with just the capability discovery and execution routing, we can prove the latency and architecture are sound before adding the complex game-theory and economic layers.
+
+Does this MVP scope sound like the right starting point?
+
+Yes.
+Excellent. Let's roll up our sleeves and start breaking down the actual implementation. Since we are keeping the MVP tightly scoped to capability discovery and execution routing, Rust is the ideal language for this. It gives us high performance, memory safety, a mature libp2p implementation (rust-libp2p), and excellent gRPC support via tonic.
+
+Here is the step-by-step implementation roadmap for the v0.1 MVP.
+
+Step 1: Project Scaffolding (Rust Workspace)
+We will structure the project as a Cargo workspace to keep the logic separated:
+
+hermes-mesh/
+├── Cargo.toml
+├── protos/
+│   └── hermes.proto       # Shared protocol definitions
+├── crates/
+│   ├── hermes-core/       # libp2p node, Kademlia, Gossipsub, networking logic
+│   ├── hermes-ollama/     # gRPC server wrapping local Ollama instance
+│   ├── hermes-openrouter/ # The overflow gateway implementation
+│   └── hermes-cli/        # The orchestrator/entry point for VS Code integration
+copy
+Step 2: Defining the v0.1 Protobuf
+We need to strip the protocol down to the absolute bare minimum for v0.1. No bidding, no advanced economics. Just identity, capabilities, and execution streams.
+
+syntax = "proto3";
+package hermes.v1;
+
+service HermesExecution {
+  // Bidirectional stream for task execution
+  rpc ExecuteTask(stream TaskRequest) returns (stream TaskResponse);
+}
+
+message TaskRequest {
+  string task_id = 1;
+  string model = 2;          // e.g., "llama-3.3" or "claude-3.5-sonnet"
+  string prompt = 3;
+}
+
+message TaskResponse {
+  string task_id = 1;
+  enum Status {
+    TOKEN = 0;
+    COMPLETED = 1;
+    ERROR = 2;
+  }
+  Status status = 2;
+  string data = 3;           // The generated token or error message
+}
+copy
+Step 3: Building hermes-core (The P2P Layer)
+This crate handles the networking.
+
+Initialize libp2p: SwarmBuilder with QUIC transport and Noise encryption.
+Kademlia DHT: Initialize the DHT. We need a function to parse Ollama's available models and map them to a capability DHT key.
+// Psuedo-code for capability routing
+fn get_dht_key(model: &str, cap: &str) -> Key {
+    let key_string = format!("hermes:cap:{}:{}", cap, model);
+    Key::from(key_string.as_bytes())
+}
+copy
+When a peer starts, it takes its available models, hashes them, and calls kad.put(key, peer_id).
+Gossipsub: We will use Gossipsub for the AgentAdvertisement messages. Every 10 seconds, the node broadcasts a JSON/Protobuf payload announcing its local models and current Ollama queue length.
+gRPC Server: Expose the HermesExecution service on a known port. We need a way to map a discovered PeerId to a gRPC endpoint. In MVP, we can just use the Peer's advertised multiaddress (e.g., /ip4/127.0.0.1/tcp/50051).
+Step 4: Building hermes-ollama (The Local Bridge)
+This crate makes your local Ollama instance a first-class citizen of the mesh.
+
+Startup: Query http://localhost:11434/api/tags to get a list of installed models.
+Health Check: Periodically query /api/ps to see what is currently loaded in VRAM and check inference latency.
+gRPC Implementation: Implement the ExecuteTask trait from tonic. When a gRPC request comes in, forward it to Ollama's /api/generate, parse the NDJSON stream, and forward the tokens out over the gRPC stream.
+Step 5: Building hermes-openrouter (The Fallback)
+For the MVP, we don't need this to be a separate program yet. It can just be a module inside the orchestrator.
+
+If the local Ollama is busy (or if the requested model isn't local), the orchestrator checks the DHT.
+If no peers have the model, the orchestrator forms a standard HTTP POST request to https://openrouter.ai/api/v1/chat/completions.
+It reads the Server-Sent Events (SSE) stream and maps it to the same TaskResponse data structure that the P2P layer uses. To the end-user, it is completely transparent whether the tokens came from a P2P peer, Ollama, or OpenRouter.
+Step 6: Building hermes-cli (The Orchestrator)
+This is the brain. This is what the VS Code extension (or a local terminal) will talk to.
+
+Input: Accept a prompt and a target capability (e.g., coding:rust).
+Decision Tree:
+// 1. Is the requested model running locally and idle?
+if local_ollama_has_model(model) && local_load < 80 {
+    route_to_local_grpc();
+}
+// 2. Check the P2P network
+else if let Some(peer_addr) = kademlia_lookup(capability) {
+    route_to_peer_grpc(peer_addr);
+}
+// 3. Fallback to OpenRouter Overflow
+else {
+    route_to_openrouter(model);
+}
+copy
+Output: Token stream back to standard output (or an IPC socket for VS Code to read).
+First Coding Action Items
+If you want to start coding today, here is exactly what to do:
+
+Initialize the workspace: cargo new hermes-mesh --workspace
+Add dependencies: tonic, prost, libp2p (with features ["kad", "gossipsub", "noise", "quic"]), reqwest (for OpenRouter), serde.
+Write the hermes.proto and generate the Rust bindings using tonic-build in your build.rs.
+Write a basic Ollama bridge: Just get the gRPC server talking to local Ollama, completely ignoring P2P for now. Prove that you can stream tokens over gRPC.
+Add libp2p: Spin up two instances of your node on localhost. Have them connect, register a fake capability in the DHT, and successfully retrieve the IP/Port of the other node.
+We don't need to implement Merkle trees, bidding, or reputation yet. Just getting two Rust processes talking via the DHT to find each other's local Ollama instance is a massive milestone for v0.1.
+
+Do you want to tackle the hermes.proto definition first, or start scaffolding the Rust workspace with the tonic and libp2p dependencies?
+
+
+Here is the hermes.proto for the v0.1 MVP. It is designed to be strictly minimal but extensible. We define the core structures for advertising capabilities (which will be broadcast over Gossipsub and used as routing keys in Kademlia) and a bidirectional streaming RPC for execution.
+
+syntax = "proto3";
+package hermes.v1;
+
+// Hermes Protocol v1
+// Core definitions for capability discovery and task execution in the P2P mesh.
+
+// ---------------------------------------------------------
+// 1. Models & System Metrics
+// ---------------------------------------------------------
+
+message ModelInfo {
+  string name = 1;             // e.g., "llama-3.3", "deepseek-coder-v3"
+  int32 max_context = 2;       // e.g., 32768
+  string backend = 3;          // e.g., "ollama", "openrouter"
+}
+
+message SystemMetrics {
+  int32 queue_length = 1;     // Number of pending local tasks
+  int32 vram_free_mb = 2;     // Available VRAM (if applicable)
+  int32 ram_free_gb = 3;      // Available system RAM
+  bool is_busy = 4;            // Quick boolean check if node is overloaded
+}
+
+// ---------------------------------------------------------
+// 2. Agent Advertisement (Broadcast via Gossipsub)
+// ---------------------------------------------------------
+
+message AgentAdvertisement {
+  string peer_id = 1;          // libp2p Peer ID (Ed25519 base58)
+  string grpc_multiaddr = 2;   // e.g., "/ip4/127.0.0.1/tcp/50051" to connect for gRPC
+  SystemMetrics metrics = 3;
+  repeated ModelInfo models = 4; // Capabilities this node offers
+}
+
+// ---------------------------------------------------------
+// 3. Task Execution (The gRPC Service)
+// ---------------------------------------------------------
+
+message TaskRequest {
+  string task_id = 1;          // UUID generated by the orchestrator
+  string model = 2;            // Target model to run
+  string prompt = 3;           // The actual task prompt
+  
+  // Optional generation parameters
+  optional float temperature = 4;
+  optional int32 max_tokens = 5;
+}
+
+message TaskResponse {
+  string task_id = 1;
+  
+  enum Status {
+    TOKEN = 0;                 // A chunk of generated text
+    COMPLETED = 1;             // Generation finished successfully
+    ERROR = 2;                 // Generation failed (check data for error message)
+  }
+  
+  Status status = 2;
+  string data = 3;             // Token text, or error description
+}
+
+// ---------------------------------------------------------
+// 4. The Service Definition
+// ---------------------------------------------------------
+
+service HermesExecution {
+  // Bidirectional stream: Orchestrator sends request, Worker streams back tokens
+  // (Note: For MVP, we primarily just send one request and stream back, 
+  // but bidirectional is here for future tool-calling/approval flows).
+  rpc ExecuteTask(stream TaskRequest) returns (stream TaskResponse);
+}
+copy
+Design choices for v0.1:
+grpc_multiaddr in Advertisement: In rust-libp2p, a PeerId isn't enough to connect via gRPC. We need to know where the gRPC server is listening. By including a multiaddress (like /ip4/192.168.1.10/tcp/50051), an orchestrator can instantly establish a gRPC connection once it finds a peer in the DHT.
+backend in ModelInfo: This lets the orchestrator know if it's talking to Ollama, a raw PyTorch instance, or the OpenRouter gateway. This makes tracking capabilities much easier.
+Bidirectional Stream: Even though v0.1 only requires sending a prompt and receiving tokens, making it stream TaskRequest means we can easily support tool-use authorization (e.g., asking for permission to run cargo build) in v0.2 without breaking the API.
+SystemMetrics: We only track the essentials (VRAM, RAM, Queue). A node flags is_busy = true if it wants to be skipped by the orchestrator's load-balancer.
+Next Steps
+Now that the protocol is defined, the natural next step is scaffolding the Rust workspace. We need to:
+
+Initialize the Cargo workspace.
+Add tonic and prost to build the Rust types from this .proto.
+Add libp2p to handle the actual networking.
+Do you want me to write out the build.rs and Cargo.toml dependencies to get this compiling in Rust next?
+
+

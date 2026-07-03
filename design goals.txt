@@ -1,0 +1,323 @@
+Explicit design goals:
+Threat model
+Trust model
+Wire protocol specification
+State machines
+Message serialization
+Transport abstraction
+Version negotiation
+Capability negotiation
+Error handling
+Payment architecture
+Identity lifecycle
+Reputation system
+Resource accounting
+Agent discovery
+Routing
+NAT traversal
+Cryptographic agility
+Privacy model
+Extensibility
+Reference implementation guidance
+Compliance requirements
+Interoperability testing
+Formal security analysis
+
+I want you to separate the protocol into multiple RFCs instead of one enormous specification, similar to how TCP/IP, HTTP, TLS, and QUIC are specified.
+
+A possible standards track could look like:
+
+Core MP2P Agent Protocol
+Identity and Authentication
+Agent Discovery
+Trust and Reputation
+Payments and Settlement
+Resource Discovery
+Secure Messaging
+Service Advertisement
+Federation
+Governance and Registry
+
+That modular approach makes future revisions much easier.
+
+I would also significantly expand the technical objectives.
+
+Instead of simply saying "improve Manolito", define what success looks like.
+
+Primary Technical Design Goals:
+decentralized
+no central authority required
+permissionless participation
+cryptographically verifiable identities
+agent autonomy
+transport agnostic
+offline tolerant
+bandwidth efficient
+suitable for billions of nodes
+resistant to Sybil attacks
+open governance
+backwards compatible where practical
+reference implementation in Rust and Go
+simple enough for embedded systems
+Explicitly define the trust model.
+
+For example:
+
+Trust assumptions
+
+No participant is trusted by default.
+
+Every interaction must be independently verifiable.
+
+Identity does not imply reputation.
+
+Reputation is earned through cryptographically provable interactions.
+
+Nodes may participate anonymously.
+
+Trust decisions remain local to each node.
+
+No global PKI is required.
+Require modern cryptography.
+
+Rather than only mentioning Ed25519, I'd specify an entire cryptographic suite.
+
+Example:
+
+Preferred cryptography
+
+Ed25519 signatures
+X25519 key exchange
+BLAKE3 hashing
+HKDF
+ChaCha20-Poly1305
+CBOR serialization
+Merkle DAG structures
+Multihash
+Multibase
+Content-addressable objects
+
+Require cryptographic agility so algorithms can be replaced without redesigning the protocol.
+
+Agent identity deserves an RFC by itself.
+
+Have the LLM define:
+
+Identity
+
+permanent identity
+rotating session keys
+delegated identities
+organization identities
+ephemeral identities
+hardware-backed identities
+DID compatibility
+OpenID interoperability
+WebAuthn support
+Service discovery
+
+One of the biggest missing areas.
+
+Describe:
+
+capability advertisements
+semantic capability descriptions
+AI model discovery
+supported tools
+pricing
+latency
+bandwidth
+GPU availability
+memory
+trust score
+reputation
+supported protocols
+AI-specific capabilities
+
+This is where the protocol becomes unique.
+
+For example, define standardized messages for:
+
+Inference request
+
+Inference response
+
+Tool request
+
+Tool response
+
+Model advertisement
+
+Capability advertisement
+
+Resource reservation
+
+Payment request
+
+Payment receipt
+
+Task delegation
+
+Task cancellation
+
+Streaming token response
+
+Memory synchronization
+
+Checkpoint exchange
+
+Agent migration
+
+Heartbeat
+
+Presence
+
+Discovery
+Resource scheduling
+
+Think Kubernetes meets BitTorrent.
+
+Include concepts like:
+
+compute leases
+reservation tokens
+job queues
+distributed scheduling
+GPU allocation
+CPU allocation
+bandwidth allocation
+storage allocation
+Payment architecture
+
+Don't tie yourself to cryptocurrency.
+
+Instead specify:
+
+Payment interface
+
+Supports
+
+Lightning
+Stripe
+Stablecoins
+ACH
+Web Monetization
+future payment providers
+
+The protocol should define payment negotiation—not a specific payment network.
+
+Trust and reputation
+
+Rather than simple reputation scores, consider:
+
+signed reviews
+proof of successful execution
+proof of payment
+proof of delivery
+challenge-response
+fraud reporting
+local trust graphs
+Web-of-Trust
+EigenTrust-inspired scoring
+stake-based trust
+proof-of-history
+Security
+
+Ask for a complete threat analysis.
+
+Examples:
+
+Threats
+
+Sybil attacks
+Eclipse attacks
+Replay attacks
+MITM
+Spam
+Resource exhaustion
+Poisoned models
+Prompt injection
+Model substitution
+Identity theft
+Payment fraud
+Reputation manipulation
+Routing attacks
+Metadata leakage
+
+For every attack require mitigations.
+
+Protocol mechanics
+
+Ask for actual packet formats.
+
+For every message define:
+
+Message ID
+
+Version
+
+Timestamp
+
+Nonce
+
+Sender
+
+Recipient
+
+Signature
+
+Capabilities
+
+Payload
+
+Compression
+
+Encryption
+
+TTL
+
+Checksum
+Extensibility
+
+Borrow ideas from HTTP.
+
+Every message should support
+
+extensions
+optional fields
+unknown field forwarding
+feature negotiation
+capability negotiation
+Versioning
+
+Require
+
+semantic versioning
+backwards compatibility
+deprecation process
+extension registry
+IANA-style registry
+RFC Style
+
+Rather than "write a design", ask for an actual standards-track document following RFC conventions.
+
+Require sections such as:
+
+Abstract
+Status of this Memo
+Terminology
+Requirements Language (using the terminology from RFC 2119 and RFC 8174: MUST, SHOULD, MAY, etc.)
+Architecture
+Protocol Overview
+Message Formats
+State Machines
+Error Handling
+Security Considerations
+Privacy Considerations
+IANA Considerations
+Examples
+Test Vectors
+Interoperability
+Future Work
+Normative References
+Informative References

@@ -1,0 +1,239 @@
+HEP: Hermes Agent Protocol v0.1 Specification
+Status: Preprint for Open-Source Implementation
+Version: 0.1.0-draft
+Authors: [Your Name/Team], Community Contributors
+License: MIT OR Apache-2.0
+Repository: github.com/hep-protocol/hep-spec
+Last Updated: 2024-06-15
+
+Abstract
+The Hermes Agent Protocol (HEP) defines a decentralized, capability-aware networking layer for heterogeneous AI inference agents. Unlike identity- or file-centric routing, HEP routes tasks by semantic capability, resource availability, latency, and reputation. Built on a modern stack (QUIC + libp2p Kademlia DHT + Protobuf + gRPC), HEP enables fault-tolerant swarm decomposition, distributed vector memory, and reputation-weighted routing without centralized coordinators. This preprint outlines the architecture, message schemas, routing algorithms, reputation mechanics, and security model to serve as the foundation for an open-source reference implementation.
+
+1. Introduction
+Modern AI development is shifting from monolithic cloud inference to heterogeneous, decentralized clusters: local GPUs (BC250, Arc B60), Ollama-hosted models, overflow to APIs (OpenRouter), and IDE-integrated agents. Current orchestration tools lack native capability discovery, weighted routing, and stateful fault recovery across heterogeneous nodes.
+
+HEP addresses this by treating the network as a capability graph. Nodes do not advertise IP addresses; they advertise models, VRAM, latency, trust scores, pricing, and domain expertise. Routing becomes semantic, weighted, and dynamic. Tasks are decomposed into DAGs, dispatched to capable peers, checkpointed for resilience, and merged by a lightweight orchestrator (Hermes).
+
+This specification targets:
+
+Local AI coding clusters and research meshes
+IDE-integrated agent workflows (VS Code / OpenCode)
+Mixed private/public inference fabrics
+Open-source, vendor-neutral deployment
+Non-Goals: Centralized cloud orchestration, general-purpose P2P file sharing, blockchain-native tokenomics, model training/fine-tuning pipelines.
+
+2. Requirements Language
+The key words MUST, MUST NOT, REQUIRED, SHALL, SHALL NOT, SHOULD, SHOULD NOT, RECOMMENDED, MAY, and OPTIONAL in this document are to be interpreted as described in RFC 2119, adapted for open-source implementation maturity.
+
+3. Architecture & Design Principles
+HEP operates as a layered, peer-to-peer capability mesh:
+
+Application (Hermes Orchestrator / IDE Plugin)
+   ↓
+Protocol Layer (HEP Message Semantics, DAG Router, Merger)
+   ↓
+Transport (gRPC streams over QUIC + TLS 1.3)
+   ↓
+Discovery (libp2p Kademlia DHT + gossip heartbeat)
+   ↓
+Identity (Ed25519 DIDs, signed advertisements & payloads)
+3.1 Core Principles
+Capability-First Routing: Peers are selected by CapabilityQuery matching, not topology.
+Weighted Greedy Forwarding: Next-hop chosen via multi-factor scoring (trust, latency, load, cost).
+Stateful Swarm Decomposition: Tasks split into dependency DAGs with checkpointed streaming.
+Reputation-Backed Trust: Category-specific scores drive routing weights and pricing.
+Zero-Trust by Default: Signed payloads, optional TEE attestation, sandboxed execution.
+Vendor-Neutral Stack: No proprietary telephony, no cloud lock-in, fully open-source.
+4. Protocol Specification
+4.1 Node Advertisement
+Each node broadcasts a signed NodeAdvertisement every 5–10 seconds via libp2p DHT announcements. Stale entries decay after 30s TTL.
+
+syntax = "proto3";
+package hep.v1;
+
+message NodeAdvertisement {
+  string node_id = 1;            // did:hep:<ed25519_pubkey_base58>
+  string version = 2;            // "hep-0.1"
+  repeated ModelSpec models = 3;
+  HardwareSpec hardware = 4;
+  repeated Capability caps = 5;
+  LoadMetrics load = 6;
+  TrustScore trust = 7;
+  PricingSpec pricing = 8;
+  SecuritySpec security = 9;
+  repeated MemoryTopic memory = 10;
+  bytes signature = 11;          // Ed25519 over fields 1-10
+  int64 timestamp = 12;          // Unix epoch ms
+}
+copy
+Field Semantics:
+
+ModelSpec: name, version, context window, quantization flag, baseline tokens/sec
+HardwareSpec: GPU model, VRAM/RAM (GB), CPU cores, bandwidth (Mbps)
+Capability: semantic tag (e.g., rust/compiler), confidence (0–1), optional domain scope
+LoadMetrics: CPU/GPU util, queue length, avg latency (ms), throughput (tok/s)
+TrustScore: overall, category map, tasks completed, hallucination/timeout rates
+PricingSpec: cost per 1M tokens, cost per minute compute, currency unit
+SecuritySpec: sandboxed, TEE attested, code-signed, audit level
+MemoryTopic: domain, vector count, Merkle summary hash of embedding index
+signature: Ed25519 over concatenation of fields 1–12 (UTF-8)
+4.2 Capability Query & Routing
+Clients issue CapabilityQuery to the DHT. Peers evaluate locally and respond if constraints are met.
+
+message CapabilityQuery {
+  string task_type = 1;          // e.g., "kernel_driver", "flutter_ui"
+  string language = 2;
+  int32 required_context = 3;    // tokens
+  bool requires_gpu = 4;
+  float max_latency_ms = 5;
+  float max_cost_per_token = 6;  // in currency unit
+  float reputation_floor = 7;    // 0.0–1.0
+  repeated string exclude_nodes = 8;
+}
+copy
+Routing Score Formula
+When multiple peers respond, the orchestrator computes:
+
+score(p) = 0.35·norm(p.trust.overall)
+         + 0.25·norm(1.0 / p.load.avg_latency_ms)
+         + 0.20·norm(p.load.tokens_per_sec / 1000.0)
+         + 0.15·norm(1.0 / p.pricing.cost_per_million_tokens)
+         + 0.05·capability_match(task, p.caps)
+norm(x) = min-max scaled to [0, 1] using local window (last 60s) or global caps
+capability_match = 1.0 if tag+domain fully covers task, 0.5 for partial, 0.0 for none
+Top-K peers (default K=3) are selected for parallel dispatch or fallback routing
+4.3 Task Lifecycle & Swarm Decomposition
+HEP treats tasks as directed acyclic graphs (DAGs) with streaming I/O.
+
+State Machine
+PENDING → DECOMPOSED → ROUTED → EXECUTING → MERGING → COMPLETE | FAILED | ROLLBACK
+Decomposition
+Orchestrator parses intent → generates subtask nodes
+Each edge encodes dependency, context slice, and tool requirements
+Leaves route to peers via CapabilityQuery
+Bidirectional gRPC streams carry:
+Streaming prompts & context deltas
+Tool call results & sandbox outputs
+Intermediate checkpoints (every 500 tokens or boundary event)
+Checkpoint Protocol
+message TaskCheckpoint {
+  string task_id = 1;
+  int64 step = 2;
+  bytes state_snapshot = 3;    // serialized generator/agent state
+  float progress = 4;          // 0.0–1.0
+  string next_hop_hint = 5;    // preferred peer for resume
+  bytes merkle_root = 6;       // SHA256 of outputs so far
+}
+copy
+On peer failure, DHT re-routes with checkpoint_id. Resumed peer downloads delta via chunked gRPC. Rollback verifies Merkle root against parent step.
+
+Merge Strategy
+Leaves stream outputs to orchestrator
+Orchestrator validates diffs, resolves conflicts (last-writer-wins or semantic patch)
+Re-embeds context, updates DHT memory index, signs final artifact
+Releases reputation credits to contributors
+4.4 Distributed Memory & Context Routing
+Each node maintains a topic-indexed vector store (Chroma/Milvus/local)
+MemoryTopic advertised with domain + embedding hash
+Query routes to nodes where cosine_similarity(domain_vec, query_vec) > 0.85
+Sync uses delta updates with Merkle verification; no full resync unless drift > threshold
+Context sharding by domain; versioned snapshots enable rollback
+5. Reputation & Economic Layer
+5.1 Trust Dynamics
+trust_new = α·trust_old + (1−α)·task_feedback   (α = 0.85)
+task_feedback = 0.4·accuracy + 0.3·latency_score + 0.2·cost_efficiency + 0.1·user_rating
+
+Category scores updated independently (e.g., rust, medical, ui)
+Slashing: if hallucination_rate > 0.05 over sliding window, score penalized by 20%
+Rejuvenation: consistent high scores restore trust over 24h
+5.2 Micropayment & Escrow
+Orchestrator locks credits in escrow (off-chain ledger or smart contract)
+On merge success, credits released proportionally to contribution weight
+Dispute window: 10 minutes; challenge subtree triggers arbitration
+Optional: Lightning-style payment channels for high-frequency routing
+6. Security & Trust Model
+Layer	Mechanism	Requirement
+Identity	Ed25519 DIDs, signed ads & payloads	MUST verify signature before routing
+Transport	QUIC + TLS 1.3, optional mTLS	REQUIRED for sensitive tasks
+Execution	OCI containers, cgroups, seccomp	RECOMMENDED for all executors
+Attestation	TPM/TEE measurements → security_spec	OPTIONAL, boosts routing priority
+Output Signing	Node signs final outputs with ED25519	REQUIRED for production
+Audit	Merkle-rooted logs, ZK proofs (optional)	OPTIONAL, enhances compliance
+Threat Mitigations:
+
+Sybil attacks mitigated by reputation decay & resource anchoring
+Prompt injection isolated in sandboxes; output filtering required
+Model poisoning mitigated by versioned model spec + checksum validation
+DDoS mitigated by rate-limited query responses & load-aware routing
+7. Implementation Notes & Best Practices
+7.1 Reference Architecture
+Language: Rust or Go (low-latency, async I/O)
+Modules: dht/, routing/, decomposer/, merger/, reputation/, pricing/
+CLI + API: gRPC REST gateway, WebSocket for IDE streaming
+IDE Plugin: VS Code / OpenCode extension via LSP + live tab overlay
+7.2 Hardware Adapters
+Ollama: ollama-adaptor exposes /hep/advertise endpoint
+BC250 / Arc B60: Driver-level VRAM monitoring, queue depth telemetry
+OpenRouter: Treated as external peer; security_spec.sandboxed = false, higher pricing, fallback routing when local load > 80%
+7.3 Testing & Maturity
+Phase	Deliverable	Acceptance Criteria
+v0.1	DHT + signed ads + basic routing	10-node testnet, <200ms query latency
+v0.2	DAG decomposer + streaming + checkpoints	50% fault tolerance, merge success >90%
+v0.3	Reputation engine + weighted routing	Trust-driven routing reduces hallucination >30%
+v0.4	Memory indexing + context routing	Domain query hit rate >85%
+v0.5	IDE extension + CLI + overflow adapter	End-to-end dispatch <500ms
+v0.6	Economic layer + dispute resolution	Production-ready for BC250 cluster
+8. Security Considerations
+Zero-Trust Defaults: Never trust unsigned advertisements or unverified checkpoints
+Rate Limiting: Enforce per-node query caps; expose load.queue_length for backpressure
+Data Minimization: Stream only necessary context slices; purge intermediates after merge
+Compliance: Optional TEE attestation for regulated domains (medical, financial)
+Open Supply Chain: Require model checksums, verify quantization integrity, sandbox untrusted plugins
+9. References
+libp2p Documentation: https://docs.libp2p.io
+QUIC Transport Protocol (RFC 9000)
+Protobuf v3 Language Guide
+RFC 2119: Key words for use in RFCs to Indicate Requirement Levels
+MP2P Architecture (Manolito Project) – Historical context for capability routing
+Ollama API Specification
+Ed25519 Digital Signature Algorithm (RFC 8032)
+Distributed Vector Databases: Milvus, Chroma, Qdrant
+A. Appendix: Routing Pseudocode
+def select_next_hop(query, peers):
+    scores = {}
+    for p in peers:
+        if p.trust.overall < query.reputation_floor:
+            continue
+        if p.load.avg_latency_ms > query.max_latency_ms:
+            continue
+        if p.pricing.cost_per_million_tokens > query.max_cost_per_token:
+            continue
+        caps = match_capabilities(query.task_type, p.caps)
+        scores[p.node_id] = (
+            0.35 * norm(p.trust.overall) +
+            0.25 * norm(1.0 / p.load.avg_latency_ms) +
+            0.20 * norm(p.load.tokens_per_sec / 1000.0) +
+            0.15 * norm(1.0 / p.pricing.cost_per_million_tokens) +
+            0.05 * caps
+        )
+    return sorted(scores.items(), key=lambda x: x[1], reverse=True)[:3]
+copy
+B. Appendix: Example Flow
+User: @HEP Build a Linux kernel driver for USB serial
+Hermes: Generates DAG → C/compiler, kernel_docs, CI_testing, security_review
+Query DHT: task_type=kernel_driver, language=C, requires_gpu=false, rep_floor=0.8
+Peers Respond: 3 matches from BC250-west-01, Arc-B60-03, OpenRouter-overflow
+Score & Dispatch: Local BC250 routed to C/compiler & kernel_docs; overflow to security_review
+Stream & Checkpoint: Each peer streams diffs, logs Merkle roots, reports load
+Merge: Orchestrator resolves, signs artifact, updates memory index, distributes credits
+IDE: VS Code tab shows live diff, checkpoint restore button, trust badges per node
+Acknowledgments
+Inspired by the Manolito (MP2P) capability-routing paradigm, modern libp2p/QUIC ecosystems, and distributed inference research. Contributions welcome via GitHub Issues & RFC pull requests.
+
+Submission & Contribution Guidelines
+License: Dual-licensed MIT / Apache-2.0
+Repo Structure: /spec, /impl, /testnets, /docs, /adapters
+Contribution Flow: Fork → Draft RFC → RFC Review (48h) → Merge → v0.2-draft
+Testnet: Public bootstrap nodes at bootstrap.hep.local:443 (QUIC)
+Contact: hepgit@open-ai-mesh.org | #hep-protocol on open-source Discord
+This document is a preprint for community review. Implementations, testnets, and reference adapters will follow in v0.2. Comments, threat models, and routing optimizations are welcome.
