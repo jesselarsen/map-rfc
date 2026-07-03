@@ -181,10 +181,23 @@ transcript as kind-4 chunks — auditable end to end.
 
 ### 8.1 Transcript commitment
 
-`transcript-root` = Merkle root (suite hash) over the ordered leaf hashes
-of output/tool chunks `H(chunk-seq || kind || content)`. Incremental,
-streaming-friendly, and shared by checkpoints, COMPLETE, receipts, and
-disputes — one commitment structure everywhere.
+`transcript-root` = the Merkle root (suite hash H) over the output/tool
+chunks (kinds 0, 1, 4) in `chunk-seq` order, constructed as follows:
+
+```
+leaf(c)        = H(0x00 || enc([c.chunk-seq, c.kind, c.content]))
+                 ; enc = deterministic CBOR (core §4.2) of the triple —
+                 ; bare concatenation would be ambiguous across
+                 ; variable-length fields
+parent(l, r)   = H(0x01 || l || r)      ; domain-separated from leaves
+odd node       = promoted unchanged to the next level
+empty root     = H(0x00 || enc([]))     ; zero output chunks
+```
+
+Incremental, streaming-friendly, and shared by checkpoints, COMPLETE,
+receipts, and disputes — one commitment structure everywhere. The 0x00/
+0x01 domain separation prevents leaf/interior confusion attacks; the CBOR
+leaf encoding makes leaves injective in (seq, kind, content).
 
 ### 8.2 CHECKPOINT / CHECKPOINT_ACK
 

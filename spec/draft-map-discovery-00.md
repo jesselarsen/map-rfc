@@ -182,7 +182,11 @@ Popular capabilities would concentrate millions of provider records on one
 DHT neighborhood. Therefore every capability key is sharded 256 ways:
 
 ```
-shard(agent) = first byte of multihash(suite-hash, AgentID)
+shard(agent) = first byte of the DIGEST carried in
+               multihash(suite-hash, AgentID)
+               ; NOT the first byte of the multihash itself, which is the
+               ; constant hash-code prefix and would put every agent in
+               ; one shard
 K'(cap, s)   = multihash(suite-hash, "map:idx:1:" || CapURI || ":" || s)
 ```
 
