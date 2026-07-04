@@ -112,7 +112,7 @@ with the installed GNU toolchain: `cargo +stable-x86_64-pc-windows-gnu build`.
 | crates/map-cli | done (TASK-001) + 6 unit tests | `keygen` (seed/pubkey/AgentID hex+multibase/did:key; random or `--seed`), `projection-rebuild-demo` (synth dual-signed receipts → incremental vs `rebuild`, ops §8); hand-rolled argv, deps: identity/tasks/trust/sha2/hex/getrandom |
 | adapters/ollama-provider | done (TASK-002) + 4 unit tests | `InferenceBackend` trait + deterministic `MockBackend`, `result_to_chunks`/`run_task` glue (kind-0 text + kind-3 usage CBOR, seq 0/1). No HTTP — real localhost:11434 backend still future |
 | adapters/gateway | done (TASK-002) + 4 unit tests | provenance per ops §5: `GatewayAdvert` wrapper + `label_descriptor`/`is_gateway_advert` (G-1), `effective_zone` tighten-only (G-3), `valid_namespace` DNS/mesh (G-4). Descriptor wire format untouched |
-| conformance/map-conformance | stub (TASK-003) | empty lib, compiles; must reproduce TV-001/TV-002 **byte-for-byte** |
+| conformance/map-conformance | done (TASK-003) + 16 unit tests | reproduces TV-001 (166 B) + TV-002 (327 B) **byte-for-byte** from seeds; ops §6.2 negative catalog N1–N10 (tamper/aad/non-canonical/truncation/wrong-tag/stale-seq/wrong-shard/dup/swapped-roles/role-domain); `run_all() -> Report` (FR-7). Encoder needed NO fix — vectors matched first try |
 
 **Build-breaking fact (RESOLVED by TASK-001):** the workspace `Cargo.toml`
 lists all ten members; the four formerly-missing ones now exist (map-cli
@@ -167,11 +167,14 @@ File: `map-spec/test-vectors/map-test-vectors.md`. Regenerate with
 3. ~~`cargo build/test --workspace` until green.~~ DONE (TASK-001): green,
    zero warnings, DDIA rebuild test passes. TASK-002 (adapters) and TASK-003
    (conformance) can now run in parallel.
-4. Conformance crate: reproduce TV-001 envelope and TV-002 receipt
-   byte-for-byte from seeds; add negative tests per ops §6.2 (tampered
-   byte, wrong external_aad, non-canonical CBOR variants, stale
-   descriptor seq, wrong-shard key, duplicate ingest).
-5. Package/commit; note in ops §8 that the scaffold exists.
+4. ~~Conformance crate: reproduce TV-001/TV-002 byte-for-byte + ops §6.2
+   negatives.~~ DONE (TASK-003): 16 tests green; the RFC 8949 encoder matched
+   the cbor2-canonical vectors on the first run (no encoder fix needed),
+   confirming the R2 ordering note below. ops §6.2 minimum negative suite for
+   impl #1 is satisfied.
+5. Package/commit; note in ops §8 that the scaffold exists. Remaining task:
+   TASK-004 (test-vector expansion) — extend `gen_vectors.py` and add a const
+   block to `conformance/src/vectors.rs` per new TV.
 
 ## 8. Roadmap after the scaffold is green (ops §8 MVP ordering)
 

@@ -209,6 +209,15 @@ dependencies = [
 [[package]]
 name = "map-conformance"
 version = "0.1.0"
+dependencies = [
+ "hex",
+ "map-core",
+ "map-discovery",
+ "map-identity",
+ "map-tasks",
+ "map-trust",
+ "sha2",
+]
 
 [[package]]
 name = "map-core"

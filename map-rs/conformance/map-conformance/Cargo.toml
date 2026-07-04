@@ -3,4 +3,13 @@ name = "map-conformance"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
-description = "MAP conformance vectors and harness (stub — implemented in TASK-003)"
+description = "MAP conformance suite: byte-exact TV-001/TV-002 reproduction + ops §6.2 negative catalog"
+
+[dependencies]
+map-identity = { path = "../../crates/map-identity" }
+map-core = { path = "../../crates/map-core" }
+map-discovery = { path = "../../crates/map-discovery" }
+map-tasks = { path = "../../crates/map-tasks" }
+map-trust = { path = "../../crates/map-trust" }
+sha2.workspace = true
+hex.workspace = true

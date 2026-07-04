@@ -223,6 +223,15 @@ implementation exposes ambiguity) binds every package. The Rust workspace
 `map-rs/` (impl #1 toward the §6.1 two-implementation rule) is the first
 target of this process.
 
+Status (TASK-001..003): the `map-rs/` scaffold builds and its full test
+suite is green. The `conformance/map-conformance` crate reproduces TV-001
+and TV-002 byte-for-byte from the seeds and rejects the §6.2 negative
+catalog (N1–N10), satisfying the §6.2 minimum negative suite for impl #1;
+the deterministic-CBOR encoder reproduced the cbor2-canonical vectors
+without modification. Adapter seams (`ollama-provider`, `gateway`) and the
+`map-cli` tool (`keygen`, projection rebuild) exist; live transport,
+delegation, and payments remain future work per the MVP ordering above.
+
 ## 9. Compliance and regulatory notes (informative)
 
 Receipts and descriptors are pseudonymous personal data under GDPR-like
