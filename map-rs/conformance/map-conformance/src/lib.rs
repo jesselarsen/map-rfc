@@ -11,9 +11,11 @@
 //! re-serializing before verification, that is a critical map-core bug (§11):
 //! stop and escalate, do not adapt the vector.
 
+pub mod extended;
 pub mod negative;
 pub mod positive;
 pub mod vectors;
+pub mod vectors2;
 
 /// Programmatic result for a future CLI/CI (FR-7).
 #[derive(Debug, Default)]
@@ -49,6 +51,21 @@ pub fn cases() -> Vec<(&'static str, fn() -> Result<(), String>)> {
         ("N8 duplicate receipt", negative::case_n8_duplicate_receipt),
         ("N9 swapped roles", negative::case_n9_swapped_roles),
         ("N10 wrong role domain", negative::case_n10_role_domain),
+        // TASK-004: TV-003..010 consume, derived constants, NV-001..005 reject.
+        ("TV-003 HELLO_ACK", extended::case_tv003_hello_ack),
+        ("TV-004 ERROR", extended::case_tv004_error),
+        ("TV-005 DESCRIPTOR", extended::case_tv005_descriptor),
+        ("TV-006 OFFER", extended::case_tv006_offer),
+        ("TV-007 ASSIGN", extended::case_tv007_assign),
+        ("TV-008 CHUNK", extended::case_tv008_chunk),
+        ("TV-009 COMPLETE", extended::case_tv009_complete),
+        ("TV-010 PAY_QUOTE", extended::case_tv010_pay_quote),
+        ("Derived constants", extended::case_derived_constants),
+        ("NV-001 tampered", extended::case_nv001_tampered),
+        ("NV-002 wrong tag", extended::case_nv002_wrong_tag),
+        ("NV-003 non-canonical", extended::case_nv003_non_canonical),
+        ("NV-004 stale seq", extended::case_nv004_stale_seq),
+        ("NV-005 swapped sigs", extended::case_nv005_swapped_sigs),
     ]
 }
 
@@ -123,6 +140,20 @@ mod tests {
     case_test!(n8_duplicate_receipt, negative::case_n8_duplicate_receipt);
     case_test!(n9_swapped_roles, negative::case_n9_swapped_roles);
     case_test!(n10_role_domain, negative::case_n10_role_domain);
+    case_test!(tv003_hello_ack, extended::case_tv003_hello_ack);
+    case_test!(tv004_error, extended::case_tv004_error);
+    case_test!(tv005_descriptor, extended::case_tv005_descriptor);
+    case_test!(tv006_offer, extended::case_tv006_offer);
+    case_test!(tv007_assign, extended::case_tv007_assign);
+    case_test!(tv008_chunk, extended::case_tv008_chunk);
+    case_test!(tv009_complete, extended::case_tv009_complete);
+    case_test!(tv010_pay_quote, extended::case_tv010_pay_quote);
+    case_test!(derived_constants, extended::case_derived_constants);
+    case_test!(nv001_tampered, extended::case_nv001_tampered);
+    case_test!(nv002_wrong_tag, extended::case_nv002_wrong_tag);
+    case_test!(nv003_non_canonical, extended::case_nv003_non_canonical);
+    case_test!(nv004_stale_seq, extended::case_nv004_stale_seq);
+    case_test!(nv005_swapped_sigs, extended::case_nv005_swapped_sigs);
 
     #[test]
     fn run_all_is_green_and_complete() {
@@ -132,7 +163,7 @@ mod tests {
             "conformance failures: {:?}",
             report.failed
         );
-        assert_eq!(report.passed.len(), 15);
-        assert_eq!(report.total(), 15);
+        assert_eq!(report.passed.len(), 29);
+        assert_eq!(report.total(), 29);
     }
 }

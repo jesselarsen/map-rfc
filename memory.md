@@ -135,7 +135,23 @@ Known code caveats:
 
 File: `map-spec/test-vectors/map-test-vectors.md`. Regenerate with
 `python3 gen_vectors.py` (run from its directory; needs
-`pip install pynacl cbor2 base58`). Facts the conformance crate needs:
+`pip install pynacl cbor2 base58`; writes UTF-8 explicitly — don't drop
+`encoding="utf-8"` or Windows cp1252 mangles the em-dashes). The script
+self-tests (verifies every signature + a TV-001/TV-002 regression assert)
+and is idempotent. Facts the conformance crate needs:
+
+TASK-004 status: expanded to TV-003..TV-010 (HELLO_ACK/ERROR/DESCRIPTOR/
+OFFER/ASSIGN/CHUNK/COMPLETE/PAY_QUOTE — one signed envelope per family),
+NV-001..005 (MUST-reject bytes with core §9 class), and a Derived-constants
+section (TH, CB, shard(B)=141, DHT keys, transcript root). The Rust
+conformance crate consumes/rejects all of them (`extended.rs`, `vectors2.rs`;
+29 cases total, all green). **Field-number gaps surfaced (draft wins over the
+TASK-004 doc; recorded for the architect, NOT yet patched into the drafts):**
+TASK-004 §2's field layouts for TV-004 (ERROR), TV-005 (DESCRIPTOR), TV-006
+(OFFER, conflated ASSIGN's InputSpec) contradict core §9 / discovery §2 /
+tasks §2. Genuine *draft* under-specification: `PayRef`/`PayQuoteRef`/
+`PayAgreeRef` are referenced but never defined (tasks §2, pay §3), and
+PayQuote has no task-id field — all optional, so omitted in the vectors.
 
 - Seeds: `seed_A = SHA-256("MAP-TEST-VECTOR-KEY-A")`,
   `seed_B = SHA-256("MAP-TEST-VECTOR-KEY-B")` — derive in Rust, then
