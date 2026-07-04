@@ -1,0 +1,6 @@
+[package]
+name = "map-conformance"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "MAP conformance vectors and harness (stub — implemented in TASK-003)"

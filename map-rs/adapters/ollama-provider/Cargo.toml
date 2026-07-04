@@ -1,0 +1,6 @@
+[package]
+name = "ollama-provider"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "MAP Ollama provider adapter (stub — implemented in TASK-002)"

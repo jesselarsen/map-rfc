@@ -89,10 +89,17 @@ processing thinly exampled; reservations (tasks §6) are a sketch; formal
 analysis (ops §6.3) is a plan, not a result; two-independent-
 implementations rule (ops §6.1) unmet — the Rust scaffold is impl #1.
 
-## 5. Current state — Rust workspace (`map-rs/`) — **NEVER COMPILED**
+## 5. Current state — Rust workspace (`map-rs/`) — **BUILDS + TESTS GREEN**
 
-Written carefully but **no `cargo build` has ever run** (toolchain was
-still installing when the session ended). Expect a small fix loop.
+TASK-001 (2026-07-03) took the workspace from never-compiled to
+`cargo build --workspace` + `cargo test --workspace` green, zero warnings.
+The six pre-existing crates needed **no code changes** — the "small fix loop"
+was empty; all their unit tests passed unmodified. Build toolchain note: this
+machine has no MSVC C++ build tools installed, so the default
+`stable-x86_64-pc-windows-msvc` fails at link (`link.exe` not found). Build/test
+with the installed GNU toolchain: `cargo +stable-x86_64-pc-windows-gnu build`.
+(Also, run cargo from PowerShell, not the Git-Bash shell — Bash's coreutils
+`link` shadows any MSVC linker.)
 
 | Crate | Status | Contents |
 |---|---|---|
@@ -102,14 +109,14 @@ still installing when the session ended). Expect a small fix loop.
 | crates/map-tasks | written + unit tests | TaskId, ChunkKind, TranscriptBuilder (patched Merkle), FlowAccount (dual-unit credits), requester state machine (ReqState/step; refines spec with explicit OfferSent) |
 | crates/map-trust | written + unit tests | ReceiptCore/Receipt (TV-002 wire format), role signing, append-only idempotent ReceiptStore, TrustProjection (Beta, decay 0.98/day) with rebuild==incremental test |
 | crates/map-pay | written + unit tests | Amount (tag-4 decimal, Display), Asset validation, InvoiceId/QuoteId, SettlementLedger (settle-once idempotency) |
-| crates/map-cli | **MISSING** | planned: `keygen`, `projection-rebuild-demo` (ops §8 wants rebuild as first-class CLI op) |
-| adapters/ollama-provider | **MISSING** | stub trait only for now (no HTTP deps yet; real impl talks to localhost:11434 later) |
-| adapters/gateway | **MISSING** | stub: provenance labeling per ops §5 G-1..G-4 |
-| conformance/map-conformance | **MISSING** | must reproduce TV-001/TV-002 **byte-for-byte** |
+| crates/map-cli | done (TASK-001) + 6 unit tests | `keygen` (seed/pubkey/AgentID hex+multibase/did:key; random or `--seed`), `projection-rebuild-demo` (synth dual-signed receipts → incremental vs `rebuild`, ops §8); hand-rolled argv, deps: identity/tasks/trust/sha2/hex/getrandom |
+| adapters/ollama-provider | stub (TASK-002) | empty lib, compiles; real impl talks to localhost:11434 later |
+| adapters/gateway | stub (TASK-002) | empty lib, compiles; provenance labeling per ops §5 G-1..G-4 |
+| conformance/map-conformance | stub (TASK-003) | empty lib, compiles; must reproduce TV-001/TV-002 **byte-for-byte** |
 
-**Build-breaking fact:** the workspace `Cargo.toml` lists all ten members,
-including the four missing ones — `cargo build` fails until they exist (or
-members are temporarily trimmed). Create them first.
+**Build-breaking fact (RESOLVED by TASK-001):** the workspace `Cargo.toml`
+lists all ten members; the four formerly-missing ones now exist (map-cli
+implemented, the other three as compiling stubs), so the workspace resolves.
 
 Workspace deps pinned: ed25519-dalek 2, sha2 0.10, hkdf 0.12, bs58 0.5,
 getrandom 0.2, hex 0.4. Edition 2021. No async/network deps yet by design.
@@ -153,11 +160,13 @@ File: `map-spec/test-vectors/map-test-vectors.md`. Regenerate with
 > the architect authors packages, coding LLMs execute the §17 prompts,
 > reviewers validate per §18. Do not implement ahead of a package.
 
-1. Ensure toolchain: `rustup default stable`.
-2. Create the four missing members (cli, two adapter stubs, conformance).
-3. `cargo build --workspace && cargo test --workspace`; fix until green.
-   All existing unit tests should pass, including the DDIA projection
-   rebuild test in map-trust.
+1. Ensure toolchain: `rustup default stable` (but see §5 — this box builds
+   only with the GNU toolchain; no MSVC C++ tools installed).
+2. ~~Create the four missing members.~~ DONE (TASK-001): map-cli implemented,
+   three stubs created.
+3. ~~`cargo build/test --workspace` until green.~~ DONE (TASK-001): green,
+   zero warnings, DDIA rebuild test passes. TASK-002 (adapters) and TASK-003
+   (conformance) can now run in parallel.
 4. Conformance crate: reproduce TV-001 envelope and TV-002 receipt
    byte-for-byte from seeds; add negative tests per ops §6.2 (tampered
    byte, wrong external_aad, non-canonical CBOR variants, stale

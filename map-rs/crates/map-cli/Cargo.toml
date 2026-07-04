@@ -1,0 +1,18 @@
+[package]
+name = "map-cli"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "MAP command-line tooling: keygen, projection-rebuild demo (TASK-001)"
+
+[[bin]]
+name = "map-cli"
+path = "src/main.rs"
+
+[dependencies]
+map-identity = { path = "../map-identity" }
+map-tasks = { path = "../map-tasks" }
+map-trust = { path = "../map-trust" }
+sha2.workspace = true
+hex.workspace = true
+getrandom.workspace = true
