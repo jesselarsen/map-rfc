@@ -138,6 +138,10 @@ checksum = "28dea519a9695b9977216879a3ebfddf92f1c08c05d984f8996aecd6ecdc811d"
 [[package]]
 name = "gateway"
 version = "0.1.0"
+dependencies = [
+ "map-discovery",
+ "map-identity",
+]
 
 [[package]]
 name = "generic-array"
@@ -263,6 +267,10 @@ dependencies = [
 [[package]]
 name = "ollama-provider"
 version = "0.1.0"
+dependencies = [
+ "map-core",
+ "map-tasks",
+]
 
 [[package]]
 name = "pkcs8"

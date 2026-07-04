@@ -110,8 +110,8 @@ with the installed GNU toolchain: `cargo +stable-x86_64-pc-windows-gnu build`.
 | crates/map-trust | written + unit tests | ReceiptCore/Receipt (TV-002 wire format), role signing, append-only idempotent ReceiptStore, TrustProjection (Beta, decay 0.98/day) with rebuild==incremental test |
 | crates/map-pay | written + unit tests | Amount (tag-4 decimal, Display), Asset validation, InvoiceId/QuoteId, SettlementLedger (settle-once idempotency) |
 | crates/map-cli | done (TASK-001) + 6 unit tests | `keygen` (seed/pubkey/AgentID hex+multibase/did:key; random or `--seed`), `projection-rebuild-demo` (synth dual-signed receipts → incremental vs `rebuild`, ops §8); hand-rolled argv, deps: identity/tasks/trust/sha2/hex/getrandom |
-| adapters/ollama-provider | stub (TASK-002) | empty lib, compiles; real impl talks to localhost:11434 later |
-| adapters/gateway | stub (TASK-002) | empty lib, compiles; provenance labeling per ops §5 G-1..G-4 |
+| adapters/ollama-provider | done (TASK-002) + 4 unit tests | `InferenceBackend` trait + deterministic `MockBackend`, `result_to_chunks`/`run_task` glue (kind-0 text + kind-3 usage CBOR, seq 0/1). No HTTP — real localhost:11434 backend still future |
+| adapters/gateway | done (TASK-002) + 4 unit tests | provenance per ops §5: `GatewayAdvert` wrapper + `label_descriptor`/`is_gateway_advert` (G-1), `effective_zone` tighten-only (G-3), `valid_namespace` DNS/mesh (G-4). Descriptor wire format untouched |
 | conformance/map-conformance | stub (TASK-003) | empty lib, compiles; must reproduce TV-001/TV-002 **byte-for-byte** |
 
 **Build-breaking fact (RESOLVED by TASK-001):** the workspace `Cargo.toml`

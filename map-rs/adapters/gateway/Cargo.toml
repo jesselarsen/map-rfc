@@ -3,4 +3,8 @@ name = "gateway"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
-description = "MAP gateway adapter (stub — implemented in TASK-002)"
+description = "MAP federation gateway adapter: provenance labeling and zone tightening (draft-map-ops-00 §5)"
+
+[dependencies]
+map-discovery = { path = "../../crates/map-discovery" }
+map-identity = { path = "../../crates/map-identity" }
