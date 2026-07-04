@@ -213,6 +213,16 @@ MVP ordering (adapted from design3's scope, which was sound): core +
 identity handshake → descriptor publish/fetch → echo task with streaming
 and flow credit → receipts → payments last.
 
+The reference-implementation program is executed through
+implementation-specification packages in the repository's `tasks/`
+directory (see `tasks/README.md`): an architect role authors complete,
+self-contained engineering specifications; coding agents implement them;
+each package carries its own acceptance criteria and validation checklist,
+and the spec-feedback rule of §2 (patch the spec in the same change when
+implementation exposes ambiguity) binds every package. The Rust workspace
+`map-rs/` (impl #1 toward the §6.1 two-implementation rule) is the first
+target of this process.
+
 ## 9. Compliance and regulatory notes (informative)
 
 Receipts and descriptors are pseudonymous personal data under GDPR-like

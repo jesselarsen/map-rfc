@@ -148,6 +148,11 @@ File: `map-spec/test-vectors/map-test-vectors.md`. Regenerate with
 
 ## 7. Immediate next steps (in order)
 
+> 2026-07-03: steps 2–4 are now packaged as implementation specifications
+> in `tasks/` (TASK-001..004; see `tasks/README.md`). Split-role model:
+> the architect authors packages, coding LLMs execute the §17 prompts,
+> reviewers validate per §18. Do not implement ahead of a package.
+
 1. Ensure toolchain: `rustup default stable`.
 2. Create the four missing members (cli, two adapter stubs, conformance).
 3. `cargo build --workspace && cargo test --workspace`; fix until green.
