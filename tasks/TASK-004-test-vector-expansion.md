@@ -33,20 +33,30 @@ one (+42000 for completion-side messages).
   with it) and `CB = HKDF-SHA256(salt=TH, ikm=h'00'*32, info="map cb",
   L=32)` using an all-zero 32-byte stand-in exporter (label it clearly:
   stand-in, since no real transport exists in vectors).
-- TV-004 `ERROR` (0x0006), signed by B: content {1: 1003 (REPLAY),
-  2: "replayed msg-id", 3: h'000102030405060708090a0b0c0d0e0f'} — field
-  meanings per core §9 (code, reason, offending msg-id).
-- TV-005 `DESCRIPTOR` (0x0100), signed by B: minimal AgentDescriptor with
-  the scaffold-supported fields (1 agent-id B, 2 seq 1, 3 caps
-  ["map:cap:inference/text-generation"], 4 protocols ["/map/1.0.0"],
-  5 issued-at, 6 validity 21600, 12 zone 2) exactly matching
-  discovery §2 field numbering (verify against the draft before coding).
+- TV-004 `ERROR` (0x0006), signed by B: content per core §9 `ErrorMsg`
+  {1: 1003 (replay), 2: false (retryable), 3: "replayed msg-id",
+  4: h'000102030405060708090a0b0c0d0e0f' (offending MsgID)}.
+  *[Erratum 2026-07-04: originally listed a (code, reason, msg-id)
+  layout that contradicted core §9; the generated vector follows the
+  draft — key 2 is the retryable bool, text is key 3, MsgID is key 4.]*
+- TV-005 `DESCRIPTOR` (0x0100), signed by B: minimal Descriptor per
+  discovery §2 {1: AgentID B, 2: seq 1, 3: [0x0100] versions,
+  4: [1] suites, 5: ["/map/1.0.0"] multiaddrs,
+  6: [{1: "map:cap:inference/text-generation"}] CapEntry list,
+  12: [2] zones}.
+  *[Erratum 2026-07-04: originally misnumbered fields (caps at 3,
+  protocols at 4, issued-at/validity at 5/6); discovery §2 assigns
+  3=versions, 4=suites, 5=addresses, 6=capabilities — the vector
+  follows the draft.]*
   Also print `shard(B)` and the sharded capability DHT key hex for the
   capability (discovery §6: first byte of SHA-256 digest of AgentID).
-- TV-006 `OFFER` (0x0200), signed by A: task-id = TV-002's task-id
-  constant, cap URI as above, InputSpec digest = multihash-sha256 of the
-  ASCII bytes `"MAP-TV-INPUT"`, max_price {exp:-6, mantissa: 5_000_000,
-  asset "USD"} — follow tasks §2 OFFER CDDL field numbers exactly.
+- TV-006 `OFFER` (0x0200), signed by A: per tasks §2 `Offer` {1: task-id
+  = TV-002's task-id constant, 2: cap URI as above,
+  3: {} (empty TaskConstraints)}; PayRef (key 4) omitted.
+  *[Erratum 2026-07-04: originally put an InputSpec digest and max_price
+  inside OFFER; InputSpec belongs to ASSIGN (tasks §2.1), and pricing
+  expectations ride `Offer.4 => PayRef` — now defined in pay §3.1. The
+  vector follows the draft.]*
 - TV-007 `ASSIGN` (0x0202), signed by A: same task, FlowInit credits
   {msgs: 64, bytes: 1_048_576}, per tasks §2/§3.
 - TV-008 `CHUNK` (0x0205), signed by B: seq 0, kind 0, content
@@ -56,10 +66,15 @@ one (+42000 for completion-side messages).
   `H(0x00 || enc([0, 0, b"Hello, MAP!"]))` — single leaf IS the root),
   usage {1:1523, 2:812, 3:431, 4:42000}, per tasks §4. Print the root hex
   separately (implementations test their TranscriptBuilder against it).
-- TV-010 `PAY_QUOTE` (0x0400), signed by B: quote-id `bytes([0x10]*16)`,
-  amount {exp:-6, mantissa 4_200_000, asset "USD"} (tag-4 decimal per pay
-  §3), method "pay:credit-ledger", expiry 1780000600000, task-id bound —
-  per pay §3 CDDL field numbers.
+- TV-010 `PAY_QUOTE` (0x0400), signed by B: per pay §3 `PayQuote`
+  {1: quote-id `bytes([0x10]*16)`, 2: 0 (flat pricing), 3: rate table
+  {0: ["iso4217:USD", tag4([-6, 4_200_000])]}, 5: [{1:
+  "pay:credit-ledger", 2: h''}], 6: expiry 1780000600000}.
+  *[Erratum 2026-07-04: originally required "task-id bound", but
+  PayQuote had no task-binding field at generation time — the vector is
+  an unbound standing quote. Pay §3 has since gained optional key 9
+  (TaskID binding, MUST when answering an OFFER); a future vector
+  revision should add a bound variant.]*
 
 Negative vectors (bytes that MUST be rejected; publish hex + reason +
 required error class, per ops §6.2):

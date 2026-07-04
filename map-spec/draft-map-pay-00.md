@@ -80,7 +80,8 @@ PayQuote = {                          ; msg-type 0x0400
   6 => Timestamp,                     ; expiry
   ? 7 => uint,                        ; terms: 0 postpaid, 1 prepaid,
                                       ;  2 escrow, 3 metered-incremental
-  ? 8 => ExtMap
+  ? 8 => ExtMap,
+  ? 9 => bstr .size 32                ; task binding: TaskID (tasks §1)
 }
 MethodOffer = { 1 => tstr /*method URI, §5*/, 2 => bstr /*opaque params*/ }
 
@@ -98,6 +99,44 @@ Quotes are binding until expiry (unlike descriptor PricingHints, which are
 advertisements only). The authorized cap is a hard constraint: usage
 beyond it without a fresh agreement is unbillable — the requester-side
 runaway-cost defense.
+
+Task binding (key 9): when a PAY_QUOTE answers an OFFER that carries a
+TaskID (tasks §2), key 9 MUST be present and equal that TaskID, and the
+requester MUST treat a mismatching or absent binding as a quote for a
+different task (reject or re-quote). Quotes without key 9 are standing
+quotes: they MAY be agreed to and then bound to a task only via the
+ASSIGN's PayAgreeRef. This closes quote replay across tasks; replay of
+the quote bytes themselves is already excluded by the envelope msg-id
+and the PAY_AGREE digest binding.
+
+### 3.1 Payment references (exported reference types)
+
+Other documents refer to payment state by identity only (ops §2). The
+following types are the canonical cross-context references; digests are
+computed over the **received envelope bytes** of the referenced message
+(core invariant I1 — never over a re-serialization):
+
+```cddl
+PayQuoteRef = {                       ; reference to a PAY_QUOTE
+  1 => bstr .size 16,                 ; quote-id
+  2 => Multihash                      ; digest of received PAY_QUOTE envelope
+}
+PayAgreeRef = {                       ; reference to a PAY_AGREE
+  1 => bstr .size 16,                 ; quote-id
+  2 => Multihash                      ; digest of received PAY_AGREE envelope
+}
+PayRef = {                            ; pre-quote pricing expectation (OFFER)
+  ? 1 => uint,                        ; acceptable pricing model (as PayQuote.2)
+  ? 2 => [Asset, Amount],             ; maximum acceptable total
+  ? 3 => [+ tstr],                    ; acceptable settlement method URIs (§5)
+  ? 4 => PayAgreeRef                  ; standing agreement to price under
+}                                     ; at least one member MUST be present
+```
+
+`Quote.2` (tasks §2) is a `PayQuoteRef`; `Assign.6` (tasks §2.1) is a
+`PayAgreeRef`; `Offer.4` (tasks §2) is a `PayRef`. A `PayRef` is an
+expectation, not a commitment: a provider MAY quote outside it, and the
+requester's remedy is simply not to agree.
 
 ## 4. Metering and incremental settlement
 

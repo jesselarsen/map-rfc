@@ -58,7 +58,7 @@ Offer = {
   1 => TaskID,
   2 => CapURI,
   3 => TaskConstraints,
-  ? 4 => PayRef,            ; expected pricing envelope (pay §3)
+  ? 4 => PayRef,            ; pricing expectation (pay §3.1)
   ? 5 => Timestamp          ; offer expiry
 }
 TaskConstraints = {
@@ -71,7 +71,7 @@ TaskConstraints = {
   ? 7 => Multihash,         ; required model weights digest (hard if set)
   ? 8 => ExtMap
 }
-Quote = { 1 => TaskID, 2 => PayQuoteRef, 3 => uint /*guaranteed ttft-ms*/,
+Quote = { 1 => TaskID, 2 => PayQuoteRef /*pay §3.1*/, 3 => uint /*guaranteed ttft-ms*/,
           4 => Timestamp /*expiry*/, ? 5 => ExtMap }
 ```
 
@@ -86,7 +86,7 @@ CHUNK does not arrive within guarantee × 1.1, the requester SHOULD CANCEL
 ```cddl
 Assign = {
   1 => TaskID, 2 => CapURI, 3 => TaskConstraints,
-  4 => InputSpec, 5 => FlowInit, ? 6 => PayAgreeRef, ? 7 => ExtMap }
+  4 => InputSpec, 5 => FlowInit, ? 6 => PayAgreeRef /*pay §3.1*/, ? 7 => ExtMap }
 InputSpec = {
   ? 1 => bstr,              ; inline input (<= negotiated size)
   ? 2 => [+ Multihash],     ; content-addressed blocks to fetch (Zone<=1

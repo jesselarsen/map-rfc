@@ -82,6 +82,12 @@ it found real bugs):
   original `H(seq || kind || content)` concatenation was ambiguous).
 - tasks §1 and discovery §5: explicit data-ownership paragraphs (DDIA
   policy).
+- pay §3.1 (2026-07-04, from TASK-004 feedback): `PayQuoteRef` /
+  `PayAgreeRef` / `PayRef` defined — refs are (quote-id, digest of
+  received envelope bytes) pairs per I1; `PayRef` is a pre-quote pricing
+  expectation. PayQuote gained optional key 9 (TaskID binding; MUST when
+  quoting against an OFFER) closing quote replay across tasks. tasks §2
+  comments now cite pay §3.1.
 
 Honest rev-00 gaps (spec side): extensions TBD-BID / TBD-KVX / TBD-GIT
 have no code points and only sketch definitions; delegation `crit`/`ext`
@@ -145,13 +151,14 @@ OFFER/ASSIGN/CHUNK/COMPLETE/PAY_QUOTE — one signed envelope per family),
 NV-001..005 (MUST-reject bytes with core §9 class), and a Derived-constants
 section (TH, CB, shard(B)=141, DHT keys, transcript root). The Rust
 conformance crate consumes/rejects all of them (`extended.rs`, `vectors2.rs`;
-29 cases total, all green). **Field-number gaps surfaced (draft wins over the
-TASK-004 doc; recorded for the architect, NOT yet patched into the drafts):**
-TASK-004 §2's field layouts for TV-004 (ERROR), TV-005 (DESCRIPTOR), TV-006
-(OFFER, conflated ASSIGN's InputSpec) contradict core §9 / discovery §2 /
-tasks §2. Genuine *draft* under-specification: `PayRef`/`PayQuoteRef`/
-`PayAgreeRef` are referenced but never defined (tasks §2, pay §3), and
-PayQuote has no task-id field — all optional, so omitted in the vectors.
+29 cases total, all green). **Field-number gaps: RESOLVED 2026-07-04.**
+TASK-004 §2's TV-004/005/006/010 layouts contradicted the drafts; the
+vectors followed the drafts, and the task doc now carries errata blocks
+correcting each item. The genuine draft gaps are patched: pay §3.1 defines
+`PayQuoteRef`/`PayAgreeRef`/`PayRef`, and PayQuote gained optional key 9
+(TaskID binding). TV-010 remains a valid *unbound standing quote*; a bound
+variant is future vector work. TV-001..TV-010/NV-001..005 are now safe to
+treat as the frozen interop contract.
 
 - Seeds: `seed_A = SHA-256("MAP-TEST-VECTOR-KEY-A")`,
   `seed_B = SHA-256("MAP-TEST-VECTOR-KEY-B")` — derive in Rust, then
