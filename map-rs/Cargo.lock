@@ -255,6 +255,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "map-session"
+version = "0.1.0"
+dependencies = [
+ "getrandom",
+ "map-core",
+ "map-identity",
+]
+
+[[package]]
 name = "map-tasks"
 version = "0.1.0"
 dependencies = [

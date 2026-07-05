@@ -115,14 +115,24 @@ with the installed GNU toolchain: `cargo +stable-x86_64-pc-windows-gnu build`.
 | crates/map-tasks | written + unit tests | TaskId, ChunkKind, TranscriptBuilder (patched Merkle), FlowAccount (dual-unit credits), requester state machine (ReqState/step; refines spec with explicit OfferSent) |
 | crates/map-trust | written + unit tests | ReceiptCore/Receipt (TV-002 wire format), role signing, append-only idempotent ReceiptStore, TrustProjection (Beta, decay 0.98/day) with rebuild==incremental test |
 | crates/map-pay | written + unit tests | Amount (tag-4 decimal, Display), Asset validation, InvoiceId/QuoteId, SettlementLedger (settle-once idempotency) |
+| crates/map-session | done (TASK-005) + 21 tests | in-memory session layer: HELLO/HELLO_ACK handshake, TH/CB, core §12 state machine, in-session send/recv with seq+replay+size enforcement, PING/PONG/CLOSE. `Transport`/`Clock`/`MsgIdSource` traits + `InMemoryDuplex` (mpsc). Deps: identity/core only (no tasks/trust/pay). Handshake=empty aad, in-session=CB (the anti-relay boundary). Real libp2p exporter still future |
 | crates/map-cli | done (TASK-001) + 6 unit tests | `keygen` (seed/pubkey/AgentID hex+multibase/did:key; random or `--seed`), `projection-rebuild-demo` (synth dual-signed receipts → incremental vs `rebuild`, ops §8); hand-rolled argv, deps: identity/tasks/trust/sha2/hex/getrandom |
 | adapters/ollama-provider | done (TASK-002) + 4 unit tests | `InferenceBackend` trait + deterministic `MockBackend`, `result_to_chunks`/`run_task` glue (kind-0 text + kind-3 usage CBOR, seq 0/1). No HTTP — real localhost:11434 backend still future |
 | adapters/gateway | done (TASK-002) + 4 unit tests | provenance per ops §5: `GatewayAdvert` wrapper + `label_descriptor`/`is_gateway_advert` (G-1), `effective_zone` tighten-only (G-3), `valid_namespace` DNS/mesh (G-4). Descriptor wire format untouched |
 | conformance/map-conformance | done (TASK-003) + 16 unit tests | reproduces TV-001 (166 B) + TV-002 (327 B) **byte-for-byte** from seeds; ops §6.2 negative catalog N1–N10 (tamper/aad/non-canonical/truncation/wrong-tag/stale-seq/wrong-shard/dup/swapped-roles/role-domain); `run_all() -> Report` (FR-7). Encoder needed NO fix — vectors matched first try |
 
 **Build-breaking fact (RESOLVED by TASK-001):** the workspace `Cargo.toml`
-lists all ten members; the four formerly-missing ones now exist (map-cli
-implemented, the other three as compiling stubs), so the workspace resolves.
+lists eleven members (map-session added by TASK-005); all exist and build.
+
+Pending spec-feedback from TASK-005 (for the architect; drafts NOT yet
+patched): (a) **HELLO_ACK shape** — core §6.1 specifies singletons
+(1=>Version, 2=>uint) but map-core has no `HelloAck` type and `Hello::from_value`
+requires arrays; map-session hand-rolls a singleton codec and wraps the parsed
+answer as a 1-element `Hello` to run `negotiate`. Consider a first-class
+`HelloAck` in map-core. (b) **session-id echo** — this impl requires the
+responder to echo the initiator's Body-key-6 session-id; core §6 doesn't yet
+mandate it. (c) **FR-7 order** — TASK-005 §FR-7 lists sender before size but the
+parenthetical forces raw-size-first; implemented size→open→sender→replay→seq.
 
 Workspace deps pinned: ed25519-dalek 2, sha2 0.10, hkdf 0.12, bs58 0.5,
 getrandom 0.2, hex 0.4. Edition 2021. No async/network deps yet by design.
@@ -211,10 +221,12 @@ treat as the frozen interop contract.
 
 ## 8. Roadmap after the scaffold is green (ops §8 MVP ordering)
 
-1. **Session layer**: HELLO/HELLO_ACK over an in-memory duplex first, then
-   libp2p `/map/1.0.0` (rust-libp2p; PeerID must equal the AgentID key —
-   identity §3.2 B1). Wire real channel binding from the transport
-   exporter/Noise hash.
+1. **Session layer**: ~~HELLO/HELLO_ACK over an in-memory duplex first~~ DONE
+   (TASK-005): `crates/map-session` handshake + state machine + seq/replay/size
+   over `InMemoryDuplex`, 21 tests green. REMAINING: libp2p `/map/1.0.0`
+   binding (rust-libp2p; PeerID must equal the AgentID key — identity §3.2 B1);
+   wire real channel binding from the transport exporter/Noise hash (the
+   `Transport::exporter()` seam is ready for it).
 2. **Descriptor publish/fetch**: envelope-wrapped descriptors, Kademlia
    provider records under sharded capability keys, republish ≤6 h.
 3. **Echo task end-to-end**: ASSIGN → CHUNK stream under FlowAccount →

@@ -1,0 +1,11 @@
+[package]
+name = "map-session"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "MAP session layer: HELLO handshake, channel binding, state machine, seq/replay/size enforcement over a pluggable transport (draft-map-core-00 §6/§7/§12)"
+
+[dependencies]
+map-identity = { path = "../map-identity" }
+map-core = { path = "../map-core" }
+getrandom.workspace = true
