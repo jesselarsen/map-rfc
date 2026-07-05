@@ -195,9 +195,19 @@ treat as the frozen interop contract.
    the cbor2-canonical vectors on the first run (no encoder fix needed),
    confirming the R2 ordering note below. ops §6.2 minimum negative suite for
    impl #1 is satisfied.
-5. Package/commit; note in ops §8 that the scaffold exists. Remaining task:
-   TASK-004 (test-vector expansion) — extend `gen_vectors.py` and add a const
-   block to `conformance/src/vectors.rs` per new TV.
+5. ~~Package/commit; note in ops §8 that the scaffold exists. TASK-004
+   (test-vector expansion).~~ DONE (TASK-004, 2026-07-04): TV-003..010 +
+   NV-001..005 + derived constants; `gen_vectors.py` extended, conformance
+   crate mirrors it in `extended.rs`/`vectors2.rs` (29 cases green). All four
+   packages TASK-001..004 committed/pushed to `master`.
+6. **Next package (architect-suggested, 2026-07-05) — bound PAY_QUOTE
+   coverage.** A small vector revision: add a *bound* PAY_QUOTE variant with
+   the new optional **key 9 (TaskID binding)** present, plus a negative case
+   where the task binding is mismatched and MUST be rejected — giving the new
+   normative MUST in **pay §3.1** executable coverage. Extend `gen_vectors.py`
+   (a bound TV-010b + an NV) and mirror in the conformance crate
+   (`vectors2.rs`/`extended.rs`). TV-010 stays the valid *unbound standing
+   quote*; the bound variant is additive (don't disturb frozen TV-001..010).
 
 ## 8. Roadmap after the scaffold is green (ops §8 MVP ordering)
 

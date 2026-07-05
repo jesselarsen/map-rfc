@@ -36,12 +36,13 @@ implementer needs no clarifying questions.
 
 | # | Package | Depends on | Status |
 |---|---------|-----------|--------|
-| 001 | [TASK-001-workspace-build-repair-and-map-cli.md](TASK-001-workspace-build-repair-and-map-cli.md) — make `map-rs/` build & test green; implement `map-cli` (keygen, projection-rebuild-demo); stub the 3 remaining members | — | READY |
-| 002 | [TASK-002-adapter-stubs.md](TASK-002-adapter-stubs.md) — `ollama-provider` trait + mock, `gateway` provenance rules G-1..G-4 | 001 | blocked |
-| 003 | [TASK-003-conformance-crate.md](TASK-003-conformance-crate.md) — TV-001/TV-002 byte-exact produce+consume, negative suite N1–N10 (ops §6.2) | 001 | blocked |
-| 004 | [TASK-004-test-vector-expansion.md](TASK-004-test-vector-expansion.md) — TV-003..TV-010 + NV-001..005 via `gen_vectors.py` (spec-side, Python) | 003 (recommended) | blocked |
+| 001 | [TASK-001-workspace-build-repair-and-map-cli.md](TASK-001-workspace-build-repair-and-map-cli.md) — make `map-rs/` build & test green; implement `map-cli` (keygen, projection-rebuild-demo); stub the 3 remaining members | — | DONE (2026-07-03) |
+| 002 | [TASK-002-adapter-stubs.md](TASK-002-adapter-stubs.md) — `ollama-provider` trait + mock, `gateway` provenance rules G-1..G-4 | 001 | DONE (2026-07-03) |
+| 003 | [TASK-003-conformance-crate.md](TASK-003-conformance-crate.md) — TV-001/TV-002 byte-exact produce+consume, negative suite N1–N10 (ops §6.2) | 001 | DONE (2026-07-03) |
+| 004 | [TASK-004-test-vector-expansion.md](TASK-004-test-vector-expansion.md) — TV-003..TV-010 + NV-001..005 via `gen_vectors.py` (spec-side, Python) | 003 (recommended) | DONE (errata applied 2026-07-04) |
+| 005 | [TASK-005-session-layer-in-memory.md](TASK-005-session-layer-in-memory.md) — `map-session` crate: HELLO/HELLO_ACK handshake, TH/CB, core §12 state machine, seq/replay/limits enforcement over an in-memory duplex | 001, 003 | READY |
 
-002 and 003 may run in parallel once 001 is green.
+001–004 are complete (workspace green; TV-001..010/NV-001..005 frozen).
 
 ## Future packages (roadmap, memory.md §8 — not yet authored)
 
