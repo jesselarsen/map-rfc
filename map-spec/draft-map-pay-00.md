@@ -6,7 +6,16 @@ category: std
 
 # MAP Payments and Settlement
 
-**Status:** preprint, work in progress. BCP 14 language applies.
+**Status:** preprint, work in progress. BCP 14 language applies (see
+Requirements Language, below).
+
+## Requirements Language
+
+The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+"SHOULD", "SHOULD NOT", "RECOMMENDED", "NOT RECOMMENDED", "MAY", and
+"OPTIONAL" in this document family are to be interpreted as described in
+BCP 14 [RFC2119] [RFC8174] when, and only when, they appear in all
+capitals, as shown here. No adaptation or weakening of these terms applies.
 
 ## Abstract
 
@@ -235,3 +244,7 @@ can exclude rails inconsistent with the task's sensitivity.
 
 Registers: settlement method URIs (Specification Required); pricing model
 codes; terms codes; dispute claim codes; unit codes for rate tables.
+
+## References (selected)
+
+[RFC2119] [RFC8174] BCP 14 requirement levels.

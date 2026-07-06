@@ -6,7 +6,16 @@ category: std
 
 # MAP Discovery and Service Advertisement
 
-**Status:** preprint, work in progress. BCP 14 language applies.
+**Status:** preprint, work in progress. BCP 14 language applies (see
+Requirements Language, below).
+
+## Requirements Language
+
+The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+"SHOULD", "SHOULD NOT", "RECOMMENDED", "NOT RECOMMENDED", "MAY", and
+"OPTIONAL" in this document family are to be interpreted as described in
+BCP 14 [RFC2119] [RFC8174] when, and only when, they appear in all
+capitals, as shown here. No adaptation or weakening of these terms applies.
 
 ## Abstract
 
@@ -100,7 +109,7 @@ MemoryTopic = {
 }
 ```
 
-Validation: signature per core §4.3; `seq` must exceed any cached seq for
+Validation: signature per core §4.3; `seq` MUST exceed any cached seq for
 the subject (else stale — keep newer); validity ≤ 24 h; descriptors with
 trust/latency/load-shaped extension fields SHOULD be treated as
 non-conformant by public-mesh policy. Model claims are *claims*; the
@@ -272,3 +281,7 @@ fields to public descriptors (arch §8.2).
 
 Registries established: MAP Capability Ontology; MAP CapEntry Parameter
 keys (per branch); MAP HardwareClass code points; MAP Sandbox Classes.
+
+## References (selected)
+
+[RFC2119] [RFC8174] BCP 14 requirement levels.

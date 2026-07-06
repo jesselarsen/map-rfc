@@ -7,8 +7,16 @@ category: std
 # MAP Core Protocol
 
 **Status of This Memo:** Internet-Draft-style preprint for community
-review; work in progress. Requirements language per BCP 14
-(draft-map-arch-00 §2).
+review; work in progress. Requirements language per BCP 14 (see
+Requirements Language, below).
+
+## Requirements Language
+
+The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+"SHOULD", "SHOULD NOT", "RECOMMENDED", "NOT RECOMMENDED", "MAY", and
+"OPTIONAL" in this document family are to be interpreted as described in
+BCP 14 [RFC2119] [RFC8174] when, and only when, they appear in all
+capitals, as shown here. No adaptation or weakening of these terms applies.
 
 ## Abstract
 
@@ -341,7 +349,7 @@ Code space (registry; Specification Required):
   settlement failed, 6003 dispute opened, 6004 method unsupported.
 
 Retryability semantics: `retryable = true` means the identical request MAY
-succeed later at the same peer; false means the requester must change
+succeed later at the same peer; false means the requester MUST change
 something (peer, parameters, payment) — this drives orchestrator fallback
 logic deterministically (adopting design3's TTFT/fallback discipline).
 
@@ -424,3 +432,7 @@ windows and accept the enlarged replay cache, or deploy roughtime.
 This document establishes (initial contents above; policies in ops §3):
 MAP Cryptographic Suites; MAP Message Types; MAP Body Keys; MAP Extension
 Keys; MAP Error Codes; MAP Transport Bindings (ALPN/protocol-ID strings).
+
+## References (selected)
+
+[RFC2119] [RFC8174] BCP 14 requirement levels.

@@ -6,7 +6,16 @@ category: std
 
 # MAP Trust and Reputation
 
-**Status:** preprint, work in progress. BCP 14 language applies.
+**Status:** preprint, work in progress. BCP 14 language applies (see
+Requirements Language, below).
+
+## Requirements Language
+
+The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+"SHOULD", "SHOULD NOT", "RECOMMENDED", "NOT RECOMMENDED", "MAY", and
+"OPTIONAL" in this document family are to be interpreted as described in
+BCP 14 [RFC2119] [RFC8174] when, and only when, they appear in all
+capitals, as shown here. No adaptation or weakening of these terms applies.
 
 ## Abstract
 
@@ -101,7 +110,7 @@ ReceiptCore = {
 
 Validation: both signatures verify over the *received* core bytes with the
 role-tagged structure shown (roles prevent signature confusion between
-parties); `2`/`3` identities must match core fields 2/3 or chain to them
+parties); `2`/`3` identities MUST match core fields 2/3 or chain to them
 via delegation (identity §4); timestamps sane (`5 ≤ 6`, within object
 freshness policy). The transcript-root links the receipt to the concrete
 output commitment, so a receipt can anchor a dispute or an audit without
@@ -126,7 +135,7 @@ EvidenceSet = {                   ; msg-type 0x0303; flows under FLOW_CREDIT
 }
 ```
 
-Any holder may answer for any subject — typically you ask a *candidate
+Any holder MAY answer for any subject — typically you ask a *candidate
 provider* for its own receipts, then discount by your trust in each
 receipt's requester-signer. Holders choose their audiences (a receipt is
 the holder's data; disclosure is voluntary), MAY redact field 9 or supply
@@ -210,7 +219,7 @@ is compatible but OPTIONAL and never on the routing critical path
 vs. verified transcript root) SHOULD feed the same α/β as strong signals.
 Rebuild rule (normative even though the formula is not): whatever function
 you choose, recomputing it from the receipt store MUST reproduce your
-scores — no write path may update a score without its evidence.
+scores — no write path MAY update a score without its evidence.
 
 ## 8. Challenges and audits
 
@@ -254,3 +263,7 @@ diversifying `ModelEntry.weights-digest` across the redundant set.
 
 Registers: receipt outcome codes; evidence query parameters; vouch caveat
 keys; challenge disclosure modes.
+
+## References (selected)
+
+[RFC2119] [RFC8174] BCP 14 requirement levels.

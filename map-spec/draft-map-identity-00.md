@@ -6,7 +6,16 @@ category: std
 
 # MAP Identity
 
-**Status:** preprint, work in progress. BCP 14 language applies.
+**Status:** preprint, work in progress. BCP 14 language applies (see
+Requirements Language, below).
+
+## Requirements Language
+
+The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+"SHOULD", "SHOULD NOT", "RECOMMENDED", "NOT RECOMMENDED", "MAY", and
+"OPTIONAL" in this document family are to be interpreted as described in
+BCP 14 [RFC2119] [RFC8174] when, and only when, they appear in all
+capitals, as shown here. No adaptation or weakening of these terms applies.
 
 ## Abstract
 
@@ -91,7 +100,7 @@ DelegateBody = {                      ; carried in Body key 10
 Chain validation: each cert's issuer key signs its envelope; each child is
 the next cert's issuer; scopes/zones/depth only ever *attenuate* (a child
 scope MUST be a subset of the parent's; violations ⇒ 2003); all validity
-windows must cover the verification time; the chain root must equal the
+windows MUST cover the verification time; the chain root MUST equal the
 envelope `kid`. Semantics deliberately parallel UCAN (informative
 reference) so existing tooling and audit intuition transfer. Tool-grant
 tokens in tasks §7 are DelegationCerts with task-pinning caveats — one
@@ -166,7 +175,7 @@ implementations MUST cap chain length (default 5) and total cert bytes.
 Rotation records signed only by old keys allow an attacker holding a stolen
 key to rotate away from the victim; hence the countersignature requirement
 and grace period during which *both* keys' signatures are accepted and
-either may REVOKE (reason 1) — a compromise observed during grace is
+either MAY REVOKE (reason 1) — a compromise observed during grace is
 recoverable. Timestamp trust follows core §14. Privacy: delegation chains
 reveal organizational structure; Zone-2/3 interactions SHOULD present
 minimal chains (leaf + one parent).
@@ -175,3 +184,7 @@ minimal chains (leaf + one parent).
 
 Registries established: MAP Key Types (multicodec bindings); MAP Delegation
 Caveats; MAP Revocation Reasons.
+
+## References (selected)
+
+[RFC2119] [RFC8174] BCP 14 requirement levels.

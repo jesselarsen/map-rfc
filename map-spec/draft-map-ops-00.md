@@ -6,7 +6,16 @@ category: bcp
 
 # MAP Operations, Governance, and Interoperability
 
-**Status:** preprint, work in progress. BCP 14 language applies.
+**Status:** preprint, work in progress. BCP 14 language applies (see
+Requirements Language, below).
+
+## Requirements Language
+
+The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+"SHOULD", "SHOULD NOT", "RECOMMENDED", "NOT RECOMMENDED", "MAY", and
+"OPTIONAL" in this document family are to be interpreted as described in
+BCP 14 [RFC2119] [RFC8174] when, and only when, they appear in all
+capitals, as shown here. No adaptation or weakening of these terms applies.
 
 ## 1. Scope
 
@@ -44,15 +53,15 @@ locally, so reviewers can check any change against one list):
    commands are requests (ASSIGN, CANCEL, PAY_AGREE); the two are never
    conflated in naming or semantics.
 3. **Idempotency everywhere delivery is uncertain**: TaskID, invoice-id,
-   msg-id, content addresses. No handler may have unrepeatable side
-   effects; no design may assume exactly-once delivery.
+   msg-id, content addresses. No handler MAY have unrepeatable side
+   effects; no design MAY assume exactly-once delivery.
 4. **Ordering is scoped, never global** — and each scope is written down.
 5. **Distinguish accepted / durable / applied** (visible in pay §1's
    agreed/submitted/settled and tasks' countersigned-checkpoint boundary).
 6. **Schema evolution is additive within a major version**; contract
    changes ride registries and version negotiation; fields are never
    reused with new meaning (registry policy forbids re-assignment, §3.3).
-7. **Projections must be rebuildable** (trust scores from receipts, DHT
+7. **Projections MUST be rebuildable** (trust scores from receipts, DHT
    index from descriptors) and their staleness observable.
 
 Changes to any MAP document that violate a row or rule above MUST be
@@ -68,7 +77,7 @@ Registries are documents plus process — never runtime services (arch G1).
 | Message Types, Body Keys, Error Codes | Specification Required | ranges per core §5; 0xF000+ private |
 | Extension Keys | Specification Required | HELLO-negotiated before use |
 | Capability Ontology | Expert Review | additive; aliases at majors only |
-| Settlement Methods | Specification Required | must define proof verification & reversal model |
+| Settlement Methods | Specification Required | MUST define proof verification & reversal model |
 | Delegation Caveats, Chunk Kinds, HW/Sandbox classes | Expert Review | |
 
 ### 3.1 Designated experts
@@ -138,13 +147,13 @@ implementations** passing the full matrix against each other.
 ### 6.2 Required negative tests (minimum)
 Duplicate delivery of every idempotent message (ASSIGN, RECEIPT,
 PAY_INVOICE, PAY_PROOF) — observable effect exactly once. Replayed
-envelopes within and across sessions (must fail 1003; cross-session must
+envelopes within and across sessions (MUST fail 1003; cross-session MUST
 fail channel binding). Out-of-order and gapped `seq`/`chunk-seq`.
-Truncated/duplicate-key/indefinite-length CBOR (must fail 1000). Stale
-descriptor `seq` (must not regress). Wrong-shard provider records (must be
-discarded). Delegation chains that widen scope/zone/depth (must fail
+Truncated/duplicate-key/indefinite-length CBOR (MUST fail 1000). Stale
+descriptor `seq` (MUST NOT regress). Wrong-shard provider records (MUST be
+discarded). Delegation chains that widen scope/zone/depth (MUST fail
 2003). Signature over re-serialized rather than received bytes (vector
-constructed to differ — must fail). **Projection rebuild**: delete trust
+constructed to differ — MUST fail). **Projection rebuild**: delete trust
 scores, recompute from receipt store, byte-compare decisions; same for
 DHT index from descriptors.
 
@@ -252,3 +261,7 @@ appealable expert review; no registry is a runtime dependency, so capture
 degrades coordination, not operation. Federation gateways concentrate
 trust by construction — G-1/G-2 make that concentration visible and
 priced rather than hidden.
+
+## References (selected)
+
+[RFC2119] [RFC8174] BCP 14 requirement levels.

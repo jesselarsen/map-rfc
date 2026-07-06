@@ -6,7 +6,16 @@ category: std
 
 # MAP Task Execution and Secure Messaging
 
-**Status:** preprint, work in progress. BCP 14 language applies.
+**Status:** preprint, work in progress. BCP 14 language applies (see
+Requirements Language, below).
+
+## Requirements Language
+
+The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+"SHOULD", "SHOULD NOT", "RECOMMENDED", "NOT RECOMMENDED", "MAY", and
+"OPTIONAL" in this document family are to be interpreted as described in
+BCP 14 [RFC2119] [RFC8174] when, and only when, they appear in all
+capitals, as shown here. No adaptation or weakening of these terms applies.
 
 ## Abstract
 
@@ -97,7 +106,7 @@ FlowInit = { 1 => uint /*msg credits*/, 2 => uint /*byte credits*/ }
 
 ### 2.2 Bidding extension (OPTIONAL, ext key TBD-BID)
 
-Where markets are wanted, OFFER may be broadcast to k candidates; QUOTEs
+Where markets are wanted, OFFER MAY be broadcast to k candidates; QUOTEs
 compete; the requester's selection function is local policy. The extension
 adds only `bid-deadline` and `queue-wait-ms` fields; no auction clearing
 rules are standardized (they are policy and were dimensionally incoherent
@@ -239,7 +248,7 @@ The task zone label (Constraints.5) governs everything attached to the
 task: ASSIGN MUST NOT go to a peer whose zone level exceeds the label
 (arch Z1); InputSpec content-addressed fetches of proprietary blocks are
 Zone ≤1; TOOL_GRANTs inherit the label; DELEGATE (§10) propagates it and
-may only tighten it (Z2). Violations: 2004, non-retryable, receiptable.
+MAY only tighten it (Z2). Violations: 2004, non-retryable, receiptable.
 The Git-workspace extension (TBD-GIT, from design3) — shallow, path-scoped,
 token-gated clone/push over a dedicated stream — is defined for Zone ≤1
 only and MUST be rejected in Zone ≥2.
@@ -318,3 +327,7 @@ execution behind stricter sandbox classes than the default.
 
 Registers: chunk kinds; reservation/lease fields; caveat keys `delegable`,
 `budget`, `args-digest`; extensions TBD-BID, TBD-KVX, TBD-GIT.
+
+## References (selected)
+
+[RFC2119] [RFC8174] BCP 14 requirement levels.
