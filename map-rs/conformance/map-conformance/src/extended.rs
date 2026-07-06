@@ -12,7 +12,7 @@ use crate::from_hex;
 use map_core::cbor::{encode, CborError};
 use map_core::envelope::{open, EnvelopeError, Opened};
 use map_core::errors::ErrorMsg;
-use map_core::hello::{channel_binding, transcript_hash};
+use map_core::hello::{channel_binding, transcript_hash, HelloAck};
 use map_core::msg_type;
 use map_discovery::{Descriptor, DescriptorCache, Ingest};
 use map_identity::{IdentityError, Keypair};
@@ -35,7 +35,17 @@ fn expect_open(env_hex: &str, signer: &Keypair, msg_type: u16) -> Result<Opened,
 }
 
 pub fn case_tv003_hello_ack() -> Result<(), String> {
-    expect_open(TV003_ENV_HEX, &key_b(), msg_type::HELLO_ACK).map(|_| ())
+    let opened = expect_open(TV003_ENV_HEX, &key_b(), msg_type::HELLO_ACK)?;
+    // Produce-guard (TASK-006 FR-1 / R1): the HelloAck codec must reproduce the
+    // vector bytes, not merely parse them. Round-trip via from_value → to_value
+    // and compare encodings — the same discipline as the DESCRIPTOR check.
+    let re = encode(&HelloAck::from_value(&opened.body.content).map_err(|e| format!("HelloAck: {e:?}"))?.to_value())
+        .map_err(|e| format!("encode: {e}"))?;
+    let orig = encode(&opened.body.content).map_err(|e| format!("encode content: {e}"))?;
+    if re != orig {
+        return Err("HelloAck did not round-trip byte-for-byte".into());
+    }
+    Ok(())
 }
 
 pub fn case_tv004_error() -> Result<(), String> {

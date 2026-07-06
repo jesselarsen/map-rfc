@@ -8,6 +8,7 @@ members = [
     "crates/map-trust",
     "crates/map-pay",
     "crates/map-session",
+    "crates/map-mesh",
     "crates/map-cli",
     "adapters/ollama-provider",
     "adapters/gateway",

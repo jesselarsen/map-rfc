@@ -248,6 +248,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "map-mesh"
+version = "0.1.0"
+dependencies = [
+ "map-core",
+ "map-discovery",
+ "map-identity",
+ "map-session",
+]
+
+[[package]]
 name = "map-pay"
 version = "0.1.0"
 dependencies = [

@@ -14,4 +14,4 @@ pub mod msg_type;
 pub mod replay;
 
 pub use envelope::{open, seal, Body, EnvelopeError, MsgId, Opened, PROTOCOL_VERSION_1_0};
-pub use hello::{channel_binding, negotiate, transcript_hash, Hello, Negotiated};
+pub use hello::{channel_binding, negotiate, transcript_hash, Hello, HelloAck, Negotiated};

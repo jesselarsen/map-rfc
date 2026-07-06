@@ -88,6 +88,13 @@ it found real bugs):
   expectation. PayQuote gained optional key 9 (TaskID binding; MUST when
   quoting against an OFFER) closing quote replay across tasks. tasks §2
   comments now cite pay §3.1.
+- discovery §7 (2026-07-05, from TASK-006): CAP_QUERY/CAP_RESPONSE content
+  maps assigned — `CapQuery {1:CapURI, ?2:shard, ?3:limit}`,
+  `CapResponse {1:[* descriptor-envelope bstr], ?2:more}` (envelopes inline,
+  querier verifies each; batch ≤ 8). NOTE for the architect: TASK-006 FR-5
+  wrote STATUS_QUERY as `{1: CapURI}` (single, required) but §3 already had
+  `StatusQuery {?1: [+CapURI], ?2: echo}` (array, optional); map-mesh
+  implemented §3's array form (draft-wins) — FR-5 text should be corrected.
 
 Honest rev-00 gaps (spec side): extensions TBD-BID / TBD-KVX / TBD-GIT
 have no code points and only sketch definitions; delegation `crit`/`ext`
@@ -115,11 +122,12 @@ with the installed GNU toolchain: `cargo +stable-x86_64-pc-windows-gnu build`.
 | crates/map-tasks | written + unit tests | TaskId, ChunkKind, TranscriptBuilder (patched Merkle), FlowAccount (dual-unit credits), requester state machine (ReqState/step; refines spec with explicit OfferSent) |
 | crates/map-trust | written + unit tests | ReceiptCore/Receipt (TV-002 wire format), role signing, append-only idempotent ReceiptStore, TrustProjection (Beta, decay 0.98/day) with rebuild==incremental test |
 | crates/map-pay | written + unit tests | Amount (tag-4 decimal, Display), Asset validation, InvoiceId/QuoteId, SettlementLedger (settle-once idempotency) |
-| crates/map-session | done (TASK-005) + 21 tests | in-memory session layer: HELLO/HELLO_ACK handshake, TH/CB, core §12 state machine, in-session send/recv with seq+replay+size enforcement, PING/PONG/CLOSE. `Transport`/`Clock`/`MsgIdSource` traits + `InMemoryDuplex` (mpsc). Deps: identity/core only (no tasks/trust/pay). Handshake=empty aad, in-session=CB (the anti-relay boundary). Real libp2p exporter still future |
+| crates/map-session | done (TASK-005; HelloAck refactor TASK-006) + 21 tests | in-memory session layer: HELLO/HELLO_ACK handshake, TH/CB, core §12 state machine, in-session send/recv with seq+replay+size enforcement, PING/PONG/CLOSE. `Transport`/`Clock`/`MsgIdSource` traits + `InMemoryDuplex` (mpsc). Uses `map_core::HelloAck` (private codec deleted, TASK-006). Deps: identity/core only. Handshake=empty aad, in-session=CB. Real libp2p exporter still future |
+| crates/map-mesh | done (TASK-006) + 12 tests | discovery flows over sessions: `publish_descriptor`/`ingest_descriptor_envelope` (self-signed, ttl, seq-LWW), `MeshIndex` (in-process DHT stand-in; order-independent ingest ⇒ `rebuild==incremental`), CAP_QUERY/CAP_RESPONSE + STATUS over a live session (`serve_one`/`query_caps`/`query_status`). Index is untrusted transport — client verifies every envelope. Deps: identity/core/session/discovery (no tasks/trust/pay) |
 | crates/map-cli | done (TASK-001) + 6 unit tests | `keygen` (seed/pubkey/AgentID hex+multibase/did:key; random or `--seed`), `projection-rebuild-demo` (synth dual-signed receipts → incremental vs `rebuild`, ops §8); hand-rolled argv, deps: identity/tasks/trust/sha2/hex/getrandom |
 | adapters/ollama-provider | done (TASK-002) + 4 unit tests | `InferenceBackend` trait + deterministic `MockBackend`, `result_to_chunks`/`run_task` glue (kind-0 text + kind-3 usage CBOR, seq 0/1). No HTTP — real localhost:11434 backend still future |
 | adapters/gateway | done (TASK-002) + 4 unit tests | provenance per ops §5: `GatewayAdvert` wrapper + `label_descriptor`/`is_gateway_advert` (G-1), `effective_zone` tighten-only (G-3), `valid_namespace` DNS/mesh (G-4). Descriptor wire format untouched |
-| conformance/map-conformance | done (TASK-003) + 16 unit tests | reproduces TV-001 (166 B) + TV-002 (327 B) **byte-for-byte** from seeds; ops §6.2 negative catalog N1–N10 (tamper/aad/non-canonical/truncation/wrong-tag/stale-seq/wrong-shard/dup/swapped-roles/role-domain); `run_all() -> Report` (FR-7). Encoder needed NO fix — vectors matched first try |
+| conformance/map-conformance | done (TASK-003/004) + 30 cases | reproduces TV-001..010 + NV-001..005 **byte-for-byte**; ops §6.2 negatives; `run_all() -> Report`. TV-003 upgraded (TASK-006) to a HelloAck PRODUCE-guard (from_value→to_value must reproduce the vector bytes — the tripwire for any HELLO_ACK codec regression), same discipline as the DESCRIPTOR round-trip. Encoder needed NO fix |
 
 **Build-breaking fact (RESOLVED by TASK-001):** the workspace `Cargo.toml`
 lists eleven members (map-session added by TASK-005); all exist and build.
@@ -127,7 +135,10 @@ lists eleven members (map-session added by TASK-005); all exist and build.
 Spec-feedback from TASK-005: RESOLVED 2026-07-04. (a) HELLO_ACK — core
 §6.1 already had singleton HelloAck CDDL; the gap is code-side (map-core
 has no HelloAck type; map-session hand-rolls the codec). A first-class
-`HelloAck` in map-core is folded into TASK-006's prep work. (b) core §6.1
+`HelloAck` in map-core is folded into TASK-006's prep work. **DONE
+(TASK-006): `map_core::hello::HelloAck` added (to_value/from_value + `as_hello`
++ `Negotiated::to_ack`); map-session's private codec deleted; TV-003 bytes
+unchanged (now a produce-guard).** (b) core §6.1
 now mandates the responder MUST echo the initiator's SessionID (Body key
 6); mismatch = 1006 + close — matching the implementation. (c) core §6.3
 now says receivers SHOULD check the raw frame size before any decode/
@@ -240,8 +251,13 @@ treat as the frozen interop contract.
 > ext code points+reservations=TASK-011, formal=TASK-014,
 > Go=TASK-015, gateway=TASK-016.
 
-2. **Descriptor publish/fetch**: envelope-wrapped descriptors, Kademlia
-   provider records under sharded capability keys, republish ≤6 h.
+2. **Descriptor publish/fetch**: ~~envelope-wrapped descriptors, provider
+   records under sharded capability keys, republish ≤6 h.~~ DONE (TASK-006):
+   `crates/map-mesh` — publish/ingest, `MeshIndex` (DHT stand-in), CAP_QUERY +
+   STATUS over sessions, 12 tests. `map_core::HelloAck` landed (map-session
+   refactored off its private codec). REMAINING: real Kademlia (provider
+   records, disjoint-path lookups, anti-eclipse) replaces `MeshIndex` behind
+   the same API in TASK-012.
 3. **Echo task end-to-end**: ASSIGN → CHUNK stream under FlowAccount →
    COMPLETE with transcript root; TTFT ×1.1 cancel rule; requester state
    machine driving it.

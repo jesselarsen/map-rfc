@@ -124,6 +124,102 @@ impl Hello {
     }
 }
 
+/// HELLO_ACK content (core §6.1): the responder's chosen singletons — keys
+/// 1,2,3,4 always present, ?5 max-tasks. Key 8 (transcript-hash) is not modeled
+/// (TH is derived over envelope bytes, §6.2, not embedded). This is the wire
+/// form TV-003 fixes; `Hello`'s array shape is for HELLO only.
+#[derive(Clone, Debug, PartialEq)]
+pub struct HelloAck {
+    pub version: u16,
+    pub suite: u16,
+    pub extensions: Vec<(u64, u64)>,
+    pub max_message_size: u32,
+    pub max_tasks: Option<u64>,
+}
+
+impl HelloAck {
+    /// Build the answer from a negotiation result. Per core §6.1, key 4 is the
+    /// **responder's own** max-message-size (NOT the negotiated min) and key 5
+    /// its own max-tasks — the initiator recomputes `min(local, ack)` itself.
+    pub fn from_negotiated(n: &Negotiated, responder_max: u32, responder_max_tasks: Option<u64>) -> Self {
+        HelloAck {
+            version: n.version,
+            suite: n.suite,
+            extensions: n.extensions.clone(),
+            max_message_size: responder_max,
+            max_tasks: responder_max_tasks,
+        }
+    }
+
+    pub fn to_value(&self) -> Value {
+        let ext = Value::Map(
+            self.extensions
+                .iter()
+                .map(|(k, v)| (Value::Uint(*k), Value::Uint(*v)))
+                .collect(),
+        );
+        let mut m = vec![
+            (Value::Uint(1), Value::Uint(self.version as u64)),
+            (Value::Uint(2), Value::Uint(self.suite as u64)),
+            (Value::Uint(3), ext), // always emitted, even when empty (TV-003: 3:{})
+            (Value::Uint(4), Value::Uint(self.max_message_size as u64)),
+        ];
+        if let Some(t) = self.max_tasks {
+            m.push((Value::Uint(5), Value::Uint(t)));
+        }
+        Value::Map(m)
+    }
+
+    pub fn from_value(v: &Value) -> Result<HelloAck, EnvelopeError> {
+        let u16_at = |k: u64| -> Result<u16, EnvelopeError> {
+            v.map_get(k)
+                .ok_or(EnvelopeError::MissingBodyField(k))?
+                .as_uint()
+                .and_then(|n| u16::try_from(n).ok())
+                .ok_or(EnvelopeError::BadBodyField(k))
+        };
+        let version = u16_at(1)?;
+        let suite = u16_at(2)?;
+        let extensions = v
+            .map_get(3)
+            .ok_or(EnvelopeError::MissingBodyField(3))?
+            .as_map()
+            .ok_or(EnvelopeError::BadBodyField(3))?
+            .iter()
+            .map(|(k, val)| {
+                Ok((
+                    k.as_uint().ok_or(EnvelopeError::BadBodyField(3))?,
+                    val.as_uint().ok_or(EnvelopeError::BadBodyField(3))?,
+                ))
+            })
+            .collect::<Result<Vec<_>, EnvelopeError>>()?;
+        let max_message_size = v
+            .map_get(4)
+            .ok_or(EnvelopeError::MissingBodyField(4))?
+            .as_uint()
+            .and_then(|n| u32::try_from(n).ok())
+            .ok_or(EnvelopeError::BadBodyField(4))?;
+        let max_tasks = match v.map_get(5) {
+            None => None,
+            Some(x) => Some(x.as_uint().ok_or(EnvelopeError::BadBodyField(5))?),
+        };
+        Ok(HelloAck { version, suite, extensions, max_message_size, max_tasks })
+    }
+
+    /// View the answer as a one-element `Hello` so the initiator can re-run
+    /// [`negotiate`] to validate the responder's choice is within its offer.
+    pub fn as_hello(&self) -> Hello {
+        Hello {
+            versions: vec![self.version],
+            suites: vec![self.suite],
+            extensions: self.extensions.clone(),
+            max_message_size: self.max_message_size,
+            max_tasks: self.max_tasks,
+            zones: Vec::new(),
+        }
+    }
+}
+
 #[derive(Debug, PartialEq)]
 pub enum NegotiateError {
     NoCommonVersion,
@@ -138,6 +234,14 @@ pub struct Negotiated {
     pub extensions: Vec<(u64, u64)>,
     /// Effective size cap: min of both peers (each enforces its own too).
     pub max_message_size: u32,
+}
+
+impl Negotiated {
+    /// The HELLO_ACK a responder sends for this result (core §6.1); pass the
+    /// responder's own max-message-size and max-tasks (see [`HelloAck::from_negotiated`]).
+    pub fn to_ack(&self, responder_max: u32, responder_max_tasks: Option<u64>) -> HelloAck {
+        HelloAck::from_negotiated(self, responder_max, responder_max_tasks)
+    }
 }
 
 /// Responder-side selection (core §6.1): highest mutual version; first
@@ -221,6 +325,24 @@ mod tests {
 
         let disjoint = Hello { suites: vec![9], ..init.clone() };
         assert_eq!(negotiate(&disjoint, &local).unwrap_err(), NegotiateError::NoCommonSuite);
+    }
+
+    #[test]
+    fn hello_ack_round_trips_and_omits_empty_max_tasks() {
+        let n = Negotiated { version: 0x0100, suite: 1, extensions: vec![(100, 2)], max_message_size: 131_072 };
+        let ack = n.to_ack(262_144, None); // key 4 = responder's own max, not the min
+        assert_eq!(ack.max_message_size, 262_144);
+        let v = ack.to_value();
+        // key 3 present (even if it had been empty); key 5 absent when None.
+        assert!(v.map_get(3).is_some());
+        assert!(v.map_get(5).is_none());
+        assert_eq!(HelloAck::from_value(&v).unwrap(), ack);
+        // as_hello round-trips through negotiate to the same chosen singletons.
+        let back = negotiate(&ack.as_hello(), &ack.as_hello()).unwrap();
+        assert_eq!((back.version, back.suite), (0x0100, 1));
+
+        let with_tasks = n.to_ack(262_144, Some(4));
+        assert!(with_tasks.to_value().map_get(5).is_some());
     }
 
     #[test]

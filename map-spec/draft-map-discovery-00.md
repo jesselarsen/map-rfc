@@ -208,6 +208,25 @@ size, zone, sandbox class) MUST be honored by responders — the normative
 filter semantics that replace the rejected global score formula
 (critique C5); ranking of survivors is querier policy.
 
+Content maps (registry assignment; added 2026-07-05 from TASK-006):
+
+```cddl
+CapQuery    = { 1 => CapURI, ? 2 => uint /*shard*/, ? 3 => uint /*limit*/ }
+CapResponse = {
+  1 => [* bstr],      ; descriptor ENVELOPES (not bare CIDs) — the querier
+                      ;  MUST verify each independently; the index is
+                      ;  untrusted transport (§8)
+  ? 2 => bool         ; more — the responder capped the batch (limit, ≤ 8)
+}
+```
+
+The querier verifies every returned envelope (signature + self-signature
+kid == subject + ttl) before caching; a forged or stale entry is dropped,
+never cached. Responders SHOULD cap a CAP_RESPONSE at 8 descriptors and set
+`more = true` when truncating. (A responder MAY answer with bare descriptor
+CIDs for a follow-up fetch instead of inline envelopes; this profile inlines
+the envelopes so a single round-trip yields verifiable descriptors.)
+
 ## 8. Anti-eclipse and record integrity
 
 Queriers MUST use disjoint-path Kademlia lookups (≥3 disjoint paths) for

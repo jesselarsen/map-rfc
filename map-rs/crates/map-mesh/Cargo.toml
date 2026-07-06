@@ -1,0 +1,12 @@
+[package]
+name = "map-mesh"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "MAP discovery message flows over sessions: descriptor publish/ingest, in-process MeshIndex (DHT stand-in), CAP_QUERY/STATUS (draft-map-discovery-00 §2-§7)"
+
+[dependencies]
+map-identity = { path = "../map-identity" }
+map-core = { path = "../map-core" }
+map-session = { path = "../map-session" }
+map-discovery = { path = "../map-discovery" }

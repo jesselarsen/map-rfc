@@ -10,7 +10,7 @@ use crate::clock::{Clock, MsgIdSource};
 use crate::transport::Transport;
 use map_core::cbor::Value;
 use map_core::errors::{codes, ErrorMsg};
-use map_core::hello::{channel_binding, negotiate, transcript_hash, Hello, Negotiated, NegotiateError};
+use map_core::hello::{channel_binding, negotiate, transcript_hash, Hello, HelloAck, Negotiated, NegotiateError};
 use map_core::replay::{ReplayCache, ReplayCheck, SeqTracker};
 use map_core::{msg_type, open, seal, Body, EnvelopeError, MsgId};
 use map_identity::{AgentId, Keypair};
@@ -158,10 +158,10 @@ impl<T: Transport, C: Clock, M: MsgIdSource> Session<T, C, M> {
             _ => return Err(SessionError::Replay),
         }
 
-        // Wrap the chosen singletons as a one-element Hello and re-run negotiate
-        // (FR-3): this validates the responder's choice is within our offer.
-        let ack_hello = parse_hello_ack(&opened.body.content)?;
-        let negotiated = negotiate(&cfg.hello, &ack_hello).map_err(SessionError::Handshake)?;
+        // Parse the singleton HELLO_ACK and re-run negotiate against its
+        // one-element Hello view (FR-3): validates the choice is within our offer.
+        let ack = HelloAck::from_value(&opened.body.content).map_err(|_| SessionError::Malformed)?;
+        let negotiated = negotiate(&cfg.hello, &ack.as_hello()).map_err(SessionError::Handshake)?;
 
         let th = transcript_hash(&hello_env, &ack_env);
         let cb = channel_binding(&th, transport.exporter());
@@ -208,8 +208,8 @@ impl<T: Transport, C: Clock, M: MsgIdSource> Session<T, C, M> {
             }
         };
 
-        // HELLO_ACK content: singletons per core §6.1 (key 4 = OUR max).
-        let ack_content = hello_ack_value(&negotiated, cfg.hello.max_message_size);
+        // HELLO_ACK: singletons per core §6.1 (key 4 = OUR max, key 5 = OUR max-tasks).
+        let ack_content = negotiated.to_ack(cfg.hello.max_message_size, cfg.hello.max_tasks).to_value();
         let ack_env = {
             let body = handshake_body(msg_type::HELLO_ACK, negotiated.version, ids.next_msg_id(), clock.now_ms(), session_id, ack_content);
             seal(&cfg.keypair, &body, b"")?
@@ -384,6 +384,11 @@ impl<T: Transport, C: Clock, M: MsgIdSource> Session<T, C, M> {
     pub fn session_id(&self) -> &[u8; 16] {
         &self.session_id
     }
+    /// The session's injected clock reading — lets layered protocols timestamp
+    /// without a wall-clock read of their own (used by map-mesh serve/query).
+    pub fn now_ms(&self) -> u64 {
+        self.clock.now_ms()
+    }
     pub fn pings_unanswered(&self) -> u32 {
         self.pings_unanswered
     }
@@ -464,66 +469,6 @@ fn handshake_body(msg_type: u16, version: u16, msg_id: [u8; 16], ts: u64, sessio
         seq: None,
         content,
     }
-}
-
-/// HELLO_ACK content per core §6.1: chosen version/suite as **singletons**
-/// (not lists), accepted extensions, responder's own max-message-size. Key 8
-/// (transcript-hash) is omitted — TH is derived over envelope bytes (§6.2).
-fn hello_ack_value(negotiated: &Negotiated, responder_max: u32) -> Value {
-    let ext = Value::Map(
-        negotiated
-            .extensions
-            .iter()
-            .map(|(k, v)| (Value::Uint(*k), Value::Uint(*v)))
-            .collect(),
-    );
-    Value::Map(vec![
-        (Value::Uint(1), Value::Uint(negotiated.version as u64)),
-        (Value::Uint(2), Value::Uint(negotiated.suite as u64)),
-        (Value::Uint(3), ext),
-        (Value::Uint(4), Value::Uint(responder_max as u64)),
-    ])
-}
-
-/// Parse a singleton HELLO_ACK back into a one-element `Hello` so `negotiate`
-/// can validate it (map-core has no dedicated HelloAck type — see report).
-fn parse_hello_ack(content: &Value) -> Result<Hello, SessionError> {
-    let u16_at = |k: u64| {
-        content
-            .map_get(k)
-            .and_then(|v| v.as_uint())
-            .and_then(|n| u16::try_from(n).ok())
-            .ok_or(SessionError::Malformed)
-    };
-    let version = u16_at(1)?;
-    let suite = u16_at(2)?;
-    let max_message_size = content
-        .map_get(4)
-        .and_then(|v| v.as_uint())
-        .and_then(|n| u32::try_from(n).ok())
-        .ok_or(SessionError::Malformed)?;
-    let extensions = match content.map_get(3) {
-        None => Vec::new(),
-        Some(v) => v
-            .as_map()
-            .ok_or(SessionError::Malformed)?
-            .iter()
-            .map(|(k, val)| {
-                Ok((
-                    k.as_uint().ok_or(SessionError::Malformed)?,
-                    val.as_uint().ok_or(SessionError::Malformed)?,
-                ))
-            })
-            .collect::<Result<Vec<_>, SessionError>>()?,
-    };
-    Ok(Hello {
-        versions: vec![version],
-        suites: vec![suite],
-        extensions,
-        max_message_size,
-        max_tasks: None,
-        zones: Vec::new(),
-    })
 }
 
 fn incoming(body: Body, seq: u64) -> Incoming {
