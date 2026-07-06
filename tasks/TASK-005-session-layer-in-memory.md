@@ -54,15 +54,18 @@ logic end-to-end in-process, fully testable and clock-free.
   (16 bytes, initiator-chosen at handshake, carried in HELLO's envelope
   Body key 6 and echoed by the responder), seq from a per-direction
   `SeqTracker` (key 7), content (key 10); seals with `external_aad = CB`.
-- FR-7 In-session recv: open with `external_aad = CB` (wrong session →
-  signature failure, the anti-relay property), then enforce in order:
-  sender == peer (2000), size ≤ negotiated max_message_size (1004, check
-  BEFORE signature work on the raw frame length), replay/timestamp window
-  via `ReplayCache` (1003), seq monotonic via `SeqTracker::accept` (1003),
+- FR-7 In-session recv: enforce in order: raw frame size ≤ negotiated
+  max_message_size (1004, BEFORE any decode or signature work), open with
+  `external_aad = CB` (wrong session → signature failure, the anti-relay
+  property), sender == peer (2000), replay/timestamp window via
+  `ReplayCache` (1003), seq monotonic via `SeqTracker::accept` (1003),
   state == Established (1006). Violations: return typed error AND send an
   ERROR envelope with the named code (except when the frame is unverifiable
   — bad signature/oversize — where the session MUST NOT echo content back,
   core §14; send ERROR with detail omitted).
+  *[Erratum 2026-07-04: the original list put sender-check first while the
+  parenthetical demanded size-first; the implemented and correct order is
+  size → open → sender → replay → seq, now also reflected in core §6.3.]*
 - FR-8 PING/PONG (0x0003/0x0004): `Session::ping()` sends PING with empty
   map content; the recv loop auto-replies PONG carrying the PING's msg-id
   bytes as content key 1. Three consecutive unanswered pings is the

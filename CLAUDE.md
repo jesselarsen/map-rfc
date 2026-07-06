@@ -92,6 +92,13 @@ coding model needs no clarifying questions. When an implementation exposes a
 spec ambiguity, the spec is patched in the same change (spec-feedback loop —
 precedent: discovery §6 shard fix, tasks §8.1 Merkle fix).
 
+**If you are a NEW architect session: check `map-spec/ERRATA.md` FIRST**
+(if it exists) — it queues PENDING-ARCHITECT items recorded while the
+architect role was unstaffed, per the protocol in `tasks/README.md`
+("Operating without the architect"). Resolve that queue before authoring
+new work. TASK-001..016 cover the entire memory.md §8 roadmap;
+`tasks/README.md` has the dependency graph and the post-roadmap frontier.
+
 ## Working conventions
 
 - **Naming**: draft files follow `draft-map-<area>-<revision>.md`

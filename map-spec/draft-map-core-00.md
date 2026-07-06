@@ -201,6 +201,11 @@ supported sets and closes. Both peers MUST verify each envelope's signer
 matches the transport-authenticated identity (§7.3) — the HELLO exchange is
 therefore itself authenticated and MITM-resistant.
 
+The initiator's HELLO envelope carries a fresh SessionID (Body key 6);
+the responder MUST echo the same SessionID in its HELLO_ACK envelope,
+and every subsequent in-session envelope carries it. A SessionID
+mismatch is a state violation (1006) and the session MUST be closed.
+
 ### 6.2 Downgrade resistance
 
 Both peers compute the negotiation transcript hash
@@ -214,6 +219,8 @@ and every subsequent signature check fails — closing threat TH14.
 Default/floor limits: max-message-size 256 KiB (floor 64 KiB); larger
 payloads MUST use chunked CHUNK streams or content-addressed fetch. Peers
 MUST enforce their advertised limits and MUST NOT send beyond the peer's.
+Receivers SHOULD enforce the size limit on the raw received frame before
+any decoding or signature work (cheapest check first; DoS posture §6.5).
 
 ### 6.4 Version policy
 

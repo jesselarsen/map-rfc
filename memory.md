@@ -124,15 +124,15 @@ with the installed GNU toolchain: `cargo +stable-x86_64-pc-windows-gnu build`.
 **Build-breaking fact (RESOLVED by TASK-001):** the workspace `Cargo.toml`
 lists eleven members (map-session added by TASK-005); all exist and build.
 
-Pending spec-feedback from TASK-005 (for the architect; drafts NOT yet
-patched): (a) **HELLO_ACK shape** — core §6.1 specifies singletons
-(1=>Version, 2=>uint) but map-core has no `HelloAck` type and `Hello::from_value`
-requires arrays; map-session hand-rolls a singleton codec and wraps the parsed
-answer as a 1-element `Hello` to run `negotiate`. Consider a first-class
-`HelloAck` in map-core. (b) **session-id echo** — this impl requires the
-responder to echo the initiator's Body-key-6 session-id; core §6 doesn't yet
-mandate it. (c) **FR-7 order** — TASK-005 §FR-7 lists sender before size but the
-parenthetical forces raw-size-first; implemented size→open→sender→replay→seq.
+Spec-feedback from TASK-005: RESOLVED 2026-07-04. (a) HELLO_ACK — core
+§6.1 already had singleton HelloAck CDDL; the gap is code-side (map-core
+has no HelloAck type; map-session hand-rolls the codec). A first-class
+`HelloAck` in map-core is folded into TASK-006's prep work. (b) core §6.1
+now mandates the responder MUST echo the initiator's SessionID (Body key
+6); mismatch = 1006 + close — matching the implementation. (c) core §6.3
+now says receivers SHOULD check the raw frame size before any decode/
+signature work; TASK-005 doc carries an erratum fixing its FR-7 ordering
+text (implemented order size→open→sender→replay→seq is correct).
 
 Workspace deps pinned: ed25519-dalek 2, sha2 0.10, hkdf 0.12, bs58 0.5,
 getrandom 0.2, hex 0.4. Edition 2021. No async/network deps yet by design.
@@ -227,6 +227,19 @@ treat as the frozen interop contract.
    binding (rust-libp2p; PeerID must equal the AgentID key — identity §3.2 B1);
    wire real channel binding from the transport exporter/Noise hash (the
    `Transport::exporter()` seam is ready for it).
+> 2026-07-04: EVERY remaining roadmap item below now has an authored
+> implementation-spec package — TASK-006..TASK-016 in `tasks/` (see
+> tasks/README.md for the dependency graph and recommended order:
+> 006 → 007 → 008&009 ∥ → 012&013 ∥, 010/011 anytime, then 014/015,
+> 016 last). The architect departs 2026-07-06; tasks/README.md
+> "Operating without the architect" defines the PENDING-ARCHITECT
+> protocol (map-spec/ERRATA.md) for anything the packages don't
+> pre-decide. Mapping: step 1-remaining(libp2p)=TASK-012 ·
+> step 2=TASK-006 · step 3=TASK-007 · step 4=TASK-008 ·
+> step 5=TASK-009 · step 6: delegation=TASK-010, Ollama=TASK-013,
+> ext code points+reservations=TASK-011, formal=TASK-014,
+> Go=TASK-015, gateway=TASK-016.
+
 2. **Descriptor publish/fetch**: envelope-wrapped descriptors, Kademlia
    provider records under sharded capability keys, republish ≤6 h.
 3. **Echo task end-to-end**: ASSIGN → CHUNK stream under FlowAccount →
