@@ -11,6 +11,8 @@ use map_core::cbor::{encode, Value};
 use sha2::{Digest, Sha256};
 use std::fmt;
 
+pub mod msg;
+
 /// 32-byte requester-chosen idempotency key (tasks §1).
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub struct TaskId(pub [u8; 32]);

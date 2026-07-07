@@ -82,7 +82,12 @@ TaskConstraints = {
 }
 Quote = { 1 => TaskID, 2 => PayQuoteRef /*pay §3.1*/, 3 => uint /*guaranteed ttft-ms*/,
           4 => Timestamp /*expiry*/, ? 5 => ExtMap }
+Accept = { }                                 ; empty content map
+Reject = { 1 => uint /*reason-code, §14*/ }
 ```
+
+(Accept/Reject content maps assigned 2026-07-06 from TASK-007 FR-1; the
+negotiation diagram above showed them only inline.)
 
 Fields marked *hard* MUST be satisfiable or the provider MUST REJECT
 (3xxx/4xxx); accepting then violating them is receipt-recordable breach.
@@ -263,10 +268,12 @@ accountability survives subcontracting. Default is non-delegable.
 
 ## 11. Cancellation
 
-CANCEL {TaskID, reason-code} from either side; provider stops within one
-chunk boundary, emits a final CHECKPOINT and COMPLETE(outcome=partial).
-Usage to the countersigned boundary is payable (pay §4); this makes
-cancellation cheap to honor and removes the incentive to ignore it.
+CANCEL content `{ 1 => TaskID, 2 => uint /*reason-code, §14*/ }` (field
+numbers assigned 2026-07-06 from TASK-007 FR-1) from either side; provider
+stops within one chunk boundary, emits a final CHECKPOINT and
+COMPLETE(outcome=partial). Usage to the countersigned boundary is payable
+(pay §4); this makes cancellation cheap to honor and removes the incentive to
+ignore it.
 
 ## 12. Memory / context retrieval
 
