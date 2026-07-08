@@ -184,6 +184,15 @@ pay_quote = {1: bytes([0x10]) * 16, 2: 0,
              6: 1780000600000}
 tv010 = sealed(kb, 0x0400, msgid(10), pay_quote)
 
+# TV-010b PAY_QUOTE BOUND to a task (0x0400), signed by B. pay §3.1 key 9:
+#   when a PAY_QUOTE answers an OFFER carrying a TaskID (tasks §2), key 9 MUST be
+#   present and equal that TaskID. This is TV-010 + the mandatory binding; the
+#   TaskID is the TV-006 OFFER's (= TV-002 core[1]). Additive — TV-010 stays the
+#   valid *unbound standing quote*; frozen TV-001..010 bytes are undisturbed.
+pay_quote_bound = dict(pay_quote); pay_quote_bound[9] = task_id
+tv010b = sealed(kb, 0x0400, msgid(11), pay_quote_bound)
+assert len(task_id) == 32
+
 # =====================================================================
 # Derived constants (core §6.2 / §7.3, discovery §6, tasks §8.1)
 # =====================================================================
@@ -233,6 +242,15 @@ try:
     raise SystemExit("NV-005 swapped requester sig unexpectedly verified")
 except BadSignatureError:
     pass
+
+# NV-006 PAY_QUOTE with a MISMATCHED task binding -> pay §3.1 policy REJECT.
+#   key 9 is present but != the OFFER's TaskID. The envelope is well-formed and
+#   correctly signed by B (it OPENS); the rejection is the requester's binding
+#   check, not a core §9 wire error (cf. NV-004, a discovery §5 cache decision).
+bad_task = bytes([task_id[0] ^ 0xFF]) + task_id[1:]
+assert bad_task != task_id and len(bad_task) == 32
+pay_quote_badbind = dict(pay_quote); pay_quote_badbind[9] = bad_task
+nv006 = sealed(kb, 0x0400, msgid(12), pay_quote_badbind)["envelope"]
 
 # =====================================================================
 # Emit markdown. Existing sections (through Verification procedure) are kept
@@ -355,6 +373,30 @@ new += tv_block(9, "COMPLETE", "0x020D", "B", "tasks §4 / §8.1",
                 "{1: h'" + task_id.hex() + "', 2: 0, 3: h'" + (bytes([0x12, 0x20]) + transcript_root).hex() + "', 4: {1: 1523, 2: 812, 3: 431, 4: 42000}}", tv009)
 new += tv_block(10, "PAY_QUOTE", "0x0400", "B", "pay §3",
                 "{1: h'" + (bytes([0x10]) * 16).hex() + "', 2: 0, 3: {0: [\"iso4217:USD\", 4([-6, 4200000])]}, 5: [{1: \"pay:credit-ledger\", 2: h''}], 6: 1780000600000}", tv010)
+new += f"""
+## TV-010b — PAY_QUOTE bound to a task (0x0400), signed by Key B
+
+Field numbers per pay §3 / §3.1. msg-id = h'{msgid(11).hex()}', timestamp {TS}.
+TV-010 plus the mandatory task binding: key 9 (TaskID) MUST be present and equal
+the OFFER's TaskID when a PAY_QUOTE answers an OFFER carrying one (pay §3.1).
+Key 9 = h'{task_id.hex()}' (= the TV-006 OFFER TaskID). TV-010 remains the valid
+*unbound standing quote*; this bound variant is additive.
+
+Content (diagnostic):
+  {{1: h'{(bytes([0x10]) * 16).hex()}', 2: 0, 3: {{0: ["iso4217:USD", 4([-6, 4200000])]}}, 5: [{{1: "pay:credit-ledger", 2: h''}}], 6: 1780000600000, 9: h'{task_id.hex()}'}}
+
+payload (bstr contents, hex):
+  {tv010b['payload'].hex()}
+
+Sig_structure = ["Signature1", protected, h'', payload], encoded (hex):
+  {tv010b['sig_struct'].hex()}
+
+signature (Ed25519 by Key B, hex):
+  {tv010b['sig'].hex()}
+
+Complete envelope 18([protected, {{}}, payload, signature]) (hex, {len(tv010b['envelope'])} bytes):
+  {tv010b['envelope'].hex()}
+"""
 
 negatives = f"""
 ## Negative vectors (MUST reject)
@@ -391,6 +433,16 @@ TV-002 with signature fields 2 and 3 swapped; each MAPReceipt role tag binds a
 specific signer, so both signatures fail to verify.
 receipt (hex, {len(nv005)} bytes):
   {nv005.hex()}
+
+### NV-006 — mismatched task binding → pay §3.1 REJECT (policy, not core §9)
+A PAY_QUOTE whose key 9 (task binding) is present but ≠ the OFFER's TaskID. The
+envelope is well-formed and correctly signed by Key B — it OPENS — but pay §3.1
+requires the requester to treat a mismatching binding as a quote for a different
+task and reject it. This is the executable counterpart of TV-010b (the matching
+bound quote). Key 9 = h'{bad_task.hex()}' (the TaskID h'{task_id.hex()}' with its
+first byte flipped). Like NV-004, this is a policy rejection, not a wire error.
+envelope (hex, {len(nv006)} bytes):
+  {nv006.hex()}
 """
 
 derived = f"""
@@ -420,4 +472,5 @@ out = prefix + new + negatives + derived
 open("map-test-vectors.md", "w", encoding="utf-8").write(out)
 print("OK - vectors written and all signatures verified.")
 print("TV-001", len(envelope), "| TV-002", len(receipt),
-      "| new TVs 3..10 +", "5 negatives + derived constants")
+      "| new TVs 3..10 + 10b (bound quote) +", "6 negatives + derived constants")
+print("TV-010b", len(tv010b["envelope"]), "| NV-006", len(nv006))

@@ -214,6 +214,7 @@ dependencies = [
  "map-core",
  "map-discovery",
  "map-identity",
+ "map-pay",
  "map-tasks",
  "map-trust",
  "sha2",

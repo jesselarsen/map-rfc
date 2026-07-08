@@ -52,6 +52,7 @@ pub fn cases() -> Vec<(&'static str, fn() -> Result<(), String>)> {
         ("N9 swapped roles", negative::case_n9_swapped_roles),
         ("N10 wrong role domain", negative::case_n10_role_domain),
         // TASK-004: TV-003..010 consume, derived constants, NV-001..005 reject.
+        // Bound-quote pass: TV-010b consume + NV-006 reject (pay §3.1 key 9).
         ("TV-003 HELLO_ACK", extended::case_tv003_hello_ack),
         ("TV-004 ERROR", extended::case_tv004_error),
         ("TV-005 DESCRIPTOR", extended::case_tv005_descriptor),
@@ -60,12 +61,14 @@ pub fn cases() -> Vec<(&'static str, fn() -> Result<(), String>)> {
         ("TV-008 CHUNK", extended::case_tv008_chunk),
         ("TV-009 COMPLETE", extended::case_tv009_complete),
         ("TV-010 PAY_QUOTE", extended::case_tv010_pay_quote),
+        ("TV-010b PAY_QUOTE bound", extended::case_tv010b_pay_quote_bound),
         ("Derived constants", extended::case_derived_constants),
         ("NV-001 tampered", extended::case_nv001_tampered),
         ("NV-002 wrong tag", extended::case_nv002_wrong_tag),
         ("NV-003 non-canonical", extended::case_nv003_non_canonical),
         ("NV-004 stale seq", extended::case_nv004_stale_seq),
         ("NV-005 swapped sigs", extended::case_nv005_swapped_sigs),
+        ("NV-006 task-binding mismatch", extended::case_nv006_task_binding_mismatch),
     ]
 }
 
@@ -148,12 +151,14 @@ mod tests {
     case_test!(tv008_chunk, extended::case_tv008_chunk);
     case_test!(tv009_complete, extended::case_tv009_complete);
     case_test!(tv010_pay_quote, extended::case_tv010_pay_quote);
+    case_test!(tv010b_pay_quote_bound, extended::case_tv010b_pay_quote_bound);
     case_test!(derived_constants, extended::case_derived_constants);
     case_test!(nv001_tampered, extended::case_nv001_tampered);
     case_test!(nv002_wrong_tag, extended::case_nv002_wrong_tag);
     case_test!(nv003_non_canonical, extended::case_nv003_non_canonical);
     case_test!(nv004_stale_seq, extended::case_nv004_stale_seq);
     case_test!(nv005_swapped_sigs, extended::case_nv005_swapped_sigs);
+    case_test!(nv006_task_binding_mismatch, extended::case_nv006_task_binding_mismatch);
 
     #[test]
     fn run_all_is_green_and_complete() {
@@ -163,7 +168,7 @@ mod tests {
             "conformance failures: {:?}",
             report.failed
         );
-        assert_eq!(report.passed.len(), 29);
-        assert_eq!(report.total(), 29);
+        assert_eq!(report.passed.len(), 31);
+        assert_eq!(report.total(), 31);
     }
 }

@@ -4,11 +4,17 @@
 //! and the derived constants (TH, CB, transcript root) recomputed from the
 //! primitives. Several message families (OFFER/ASSIGN/COMPLETE/PAY_QUOTE) have
 //! no Rust body type yet, so their check is the uniform envelope-level baseline.
+//!
+//! Bound-quote pass (pay §3.1 key 9 TaskID binding): TV-010b is a bound
+//! PAY_QUOTE whose key 9 equals the OFFER's TaskID (consumed + verified via the
+//! real `PayQuote` codec); NV-006 carries a mismatching binding and MUST be
+//! rejected by the §3.1 rule — the executable coverage of that normative MUST.
 
 use crate::positive::{key_a, key_b};
-use crate::vectors::TV001_HEX;
+use crate::vectors::{TV001_HEX, TV002_TASK_ID_HEX};
 use crate::vectors2::*;
 use crate::from_hex;
+use map_pay::codec::PayQuote;
 use map_core::cbor::{encode, CborError};
 use map_core::envelope::{open, EnvelopeError, Opened};
 use map_core::errors::ErrorMsg;
@@ -88,6 +94,41 @@ pub fn case_tv009_complete() -> Result<(), String> {
 }
 pub fn case_tv010_pay_quote() -> Result<(), String> {
     expect_open(TV010_ENV_HEX, &key_b(), msg_type::PAY_QUOTE).map(|_| ())
+}
+
+/// The OFFER's TaskID (= TV-002 core[1]); the bound quote MUST carry it in key 9.
+fn offer_task_id() -> Result<[u8; 32], String> {
+    <[u8; 32]>::try_from(from_hex(TV002_TASK_ID_HEX)?.as_slice())
+        .map_err(|_| "TV-002 task-id not 32 bytes".into())
+}
+
+/// TV-010b — bound PAY_QUOTE: key 9 present and equal the OFFER's TaskID (pay
+/// §3.1). Typed check via the real PayQuote codec, mirroring the payments runtime.
+pub fn case_tv010b_pay_quote_bound() -> Result<(), String> {
+    let opened = expect_open(TV010B_ENV_HEX, &key_b(), msg_type::PAY_QUOTE)?;
+    let q = PayQuote::from_value(&opened.body.content).map_err(|e| format!("PayQuote: {e:?}"))?;
+    match q.task_binding {
+        Some(tb) if tb == offer_task_id()? => Ok(()),
+        Some(_) => Err("TV-010b task binding present but != OFFER TaskID".into()),
+        None => Err("TV-010b missing key 9 task binding (pay §3.1 MUST)".into()),
+    }
+}
+
+/// NV-006 — mismatched task binding. The envelope is valid and OPENS; the pay
+/// §3.1 binding rule (task_binding MUST equal the OFFER TaskID) is what rejects
+/// it, exactly as `map-taskrun::payments` does before agreeing to a quote.
+pub fn case_nv006_task_binding_mismatch() -> Result<(), String> {
+    // It is a well-formed, correctly-signed PAY_QUOTE — opening must succeed.
+    let opened = expect_open(NV006_HEX, &key_b(), msg_type::PAY_QUOTE)
+        .map_err(|e| format!("NV-006 must open (valid envelope): {e}"))?;
+    let q = PayQuote::from_value(&opened.body.content).map_err(|e| format!("PayQuote: {e:?}"))?;
+    // pay §3.1: absent-or-mismatching binding => reject as a different-task quote.
+    match q.task_binding {
+        Some(tb) if tb == offer_task_id()? => {
+            Err("NV-006 binding unexpectedly matched the OFFER TaskID".into())
+        }
+        _ => Ok(()), // mismatch (or absence) correctly triggers the §3.1 reject
+    }
 }
 
 /// Recompute TH, CB, and the transcript root from primitives and match them.

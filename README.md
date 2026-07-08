@@ -109,5 +109,5 @@ table are rejected in review.
 4. Hard constraints are protocol; ranking is local policy.
 5. Zones 0–3 gate where payloads may flow, normatively.
 
-License: MIT OR Apache-2.0 (proposed). Naming: "MAP" honors the MP2P
+License: Apache-2.0. Naming: "MAP" honors the MP2P
 lineage; "Hermes" remains free as an implementation name.

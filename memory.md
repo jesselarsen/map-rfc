@@ -265,14 +265,24 @@ treat as the frozen interop contract.
    NV-001..005 + derived constants; `gen_vectors.py` extended, conformance
    crate mirrors it in `extended.rs`/`vectors2.rs` (29 cases green). All four
    packages TASK-001..004 committed/pushed to `master`.
-6. **Next package (architect-suggested, 2026-07-05) — bound PAY_QUOTE
-   coverage.** A small vector revision: add a *bound* PAY_QUOTE variant with
-   the new optional **key 9 (TaskID binding)** present, plus a negative case
-   where the task binding is mismatched and MUST be rejected — giving the new
-   normative MUST in **pay §3.1** executable coverage. Extend `gen_vectors.py`
-   (a bound TV-010b + an NV) and mirror in the conformance crate
-   (`vectors2.rs`/`extended.rs`). TV-010 stays the valid *unbound standing
-   quote*; the bound variant is additive (don't disturb frozen TV-001..010).
+6. ~~**Next package (architect-suggested, 2026-07-05) — bound PAY_QUOTE
+   coverage.**~~ DONE (2026-07-08): added a *bound* **TV-010b** (PAY_QUOTE with
+   key 9 = the TV-006 OFFER's TaskID, pay §3.1 MUST) + **NV-006** (key 9 present
+   but mismatched → §3.1 policy REJECT, cf. NV-004 — envelope is valid and OPENS;
+   the binding check rejects). Both are additive: frozen TV-001..010 / NV-001..005
+   bytes are byte-for-byte undisturbed (markdown diff = 33 insertions, 0 deletions;
+   gen_vectors.py re-verified idempotent). Conformance mirrors them via the REAL
+   `map_pay::codec::PayQuote` (new dep on map-pay) — `case_tv010b_pay_quote_bound`
+   asserts `task_binding == Some(offer_task_id)`, `case_nv006_task_binding_mismatch`
+   asserts the §3.1 reject, exactly as `map-taskrun::payments` does. run_all now
+   31 cases (was 29); workspace green, zero warnings. NOT yet committed/pushed.
+   Files: `map-spec/test-vectors/gen_vectors.py` + regenerated `map-test-vectors.md`;
+   `map-rs/conformance/map-conformance/{Cargo.toml,src/vectors2.rs,src/extended.rs,src/lib.rs}`.
+
+7. **Uncommitted, unrelated to the above:** working-tree `README.md` edit
+   changes the license line from "MIT OR Apache-2.0 (proposed)" to "Apache-2.0"
+   (inherited from before this session — decide whether to include or drop it
+   when committing).
 
 ## 8. Roadmap after the scaffold is green (ops §8 MVP ordering)
 
