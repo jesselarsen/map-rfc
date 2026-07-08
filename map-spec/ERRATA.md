@@ -30,3 +30,23 @@ TASK-015 (Go impl "at frozen-vector parity" — ops §6.1 two-implementation
 gate). Not fixed here (echo mints its own inline ASSIGNs). Proposal: a later
 package models InputSpec keys 2/3 and adds a TV-007 produce/consume guard to
 the conformance crate; until then, TV-007 is "consume-only" for Rust.
+
+PENDING-ARCHITECT: 2026-07-06 TASK-008 — no core §9 error code exists for a
+provider REJECTING a RECEIPT because the requester's claimed usage/timestamps
+fall outside the countersignature tolerance (trust §3). The 5xxx range is
+execution (5000 task-failed, 5001 deadline, 5002 cancelled, …); none means
+"receipt claim rejected / observation mismatch". TASK-008 assigns no new code
+point (code points are immutable, assign-only-where-a-package-declares-FINAL).
+Interim: map-taskrun `provider_countersign` replies ERROR 5000 (TASK_FAILED).
+Proposal: register a dedicated code — candidate 2006 (auth/authz: "receipt
+countersignature refused") or a trust-family 7xxx range — and update
+map-taskrun's `RECEIPT_REJECT_CODE`.
+
+PENDING-ARCHITECT: 2026-07-06 TASK-008 — trust §2's lifecycle diagram shows the
+countersignature returned as `RECEIPT_ACK {sig_prov}` (just the provider
+signature), but TASK-008 FR-2 (and this implementation) return the FULL
+dual-signed `Receipt {1: core, 2: sig_req, 3: sig_prov}` as the RECEIPT_ACK
+content — simpler for the requester (no reassembly) and there is no frozen
+vector for the ACK. Draft-vs-task-doc divergence on a wire-message shape.
+Proposal: update the §2 diagram to `RECEIPT_ACK {full dual Receipt}`; no code
+change. (Recorded rather than silently absorbed, per the Quote.2 precedent.)

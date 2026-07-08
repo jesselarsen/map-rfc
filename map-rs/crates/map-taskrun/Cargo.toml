@@ -6,9 +6,8 @@ license.workspace = true
 description = "MAP task runtimes: pump-driven provider/requester state machines for OFFER→ASSIGN→CHUNK→COMPLETE with credit + transcript verification (draft-map-tasks-00 §2-§4)"
 
 [dependencies]
+map-identity = { path = "../map-identity" }
 map-core = { path = "../map-core" }
 map-session = { path = "../map-session" }
 map-tasks = { path = "../map-tasks" }
-
-[dev-dependencies]
-map-identity = { path = "../map-identity" }
+map-trust = { path = "../map-trust" }

@@ -9,12 +9,14 @@
 //! threads, no wall-clock reads, no transport calls inside the runtimes — so
 //! every transition is unit-testable in isolation.
 //!
-//! Depends only on identity/core/session/tasks: receipts (TASK-008) and
-//! payment (TASK-009) hook in via the exposed [`ReceiptInputs`] artifact and
-//! the already-present (but omitted) pay-ref codec fields — NOT via a
-//! dependency on trust/pay/mesh.
+//! Task runtimes depend on identity/core/session/tasks; the receipt lifecycle
+//! (TASK-008) additionally depends on trust. Payment (TASK-009) still hooks in
+//! via the exposed [`ReceiptInputs`] artifact and the pay-ref codec fields — NOT
+//! via a dependency on pay/mesh.
 
+pub mod evidence;
 pub mod provider;
+pub mod receipts;
 pub mod requester;
 
 #[cfg(test)]
@@ -24,7 +26,12 @@ use map_core::cbor::Value;
 use map_tasks::msg::Usage;
 use map_tasks::TaskId;
 
+pub use evidence::{apply_verified_evidence, query_evidence, serve_evidence, EvidenceError};
 pub use provider::{EchoExecutor, Executor, ProviderState, ProviderTask};
+pub use receipts::{
+    make_receipt_core, provider_countersign, requester_issue, requester_on_ack, ReceiptError,
+    TaskOutcome,
+};
 pub use requester::RequesterTask;
 
 /// A message the caller should seal + send over its session.

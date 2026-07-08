@@ -116,6 +116,25 @@ freshness policy). The transcript-root links the receipt to the concrete
 output commitment, so a receipt can anchor a dispute or an audit without
 disclosing the output itself.
 
+Countersignature agreement tolerance (assigned 2026-07-06 from TASK-008; the
+numeric window trust §3 previously left open). A provider countersigns only if
+the requester's claimed core matches its own observation: task-id, capability,
+and identities (fields 1–4) MUST be exactly equal, and each usage field (8.1–8.4)
+MUST be within ±5% of the provider's OBSERVED value (minimum ±1), with started/
+ended timestamps (5,6) within ±2000 ms. The tolerance band is anchored to the
+observed (provider, trusted) value, NOT `max(claimed, observed)`, so an inflated
+claim cannot widen its own acceptance band — this is the countersignature-farming
+defense (§11). A mismatch → the provider replies ERROR and does not countersign;
+the requester keeps a unilateral receipt. (The exact wire error code is a
+PENDING-ARCHITECT item — no dedicated "receipt claim rejected" code exists in
+core §9; implementations use 5000 in the interim. See map-spec/ERRATA.md.)
+
+Outcome mapping (field 7) from the requester's task terminal (tasks §13):
+a Verified completion → 0 (ok); a Failed task → 1 (failed); a TTFT-timeout
+CANCEL (tasks §2, error 5001) → 3 (cancelled). Codes 2 (timeout) and 4
+(disputed) are set by other paths (provider-side deadline miss; the dispute
+protocol, pay §6) and are not requester-task-terminal.
+
 ## 4. Evidence exchange — selective disclosure
 
 Global receipt gossip is NOT RECOMMENDED (it publishes a who-computed-

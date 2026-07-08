@@ -2,7 +2,7 @@
 //! `Starved` when out of credit rather than overrunning), build the transcript,
 //! and send COMPLETE with the root + usage.
 
-use crate::Outgoing;
+use crate::{Outgoing, ReceiptInputs};
 use map_core::cbor::Value;
 use map_core::msg_type;
 use map_session::Incoming;
@@ -54,6 +54,7 @@ pub struct ProviderTask<E: Executor> {
     executor: E,
     state: ProviderState,
     task: Option<TaskId>,
+    capability: Option<String>,
     flow: FlowAccount,
     transcript: TranscriptBuilder,
     pending: VecDeque<ChunkMsg>,
@@ -62,6 +63,9 @@ pub struct ProviderTask<E: Executor> {
     tokens_in: u64,
     tokens_out: u64,
     chunks_sent: u64,
+    /// The provider's own record of the finished task — what a received RECEIPT
+    /// is checked against before countersigning (TASK-008 §6/§11).
+    observation: Option<ReceiptInputs>,
 }
 
 impl<E: Executor> ProviderTask<E> {
@@ -70,6 +74,7 @@ impl<E: Executor> ProviderTask<E> {
             executor,
             state: ProviderState::AwaitAssign,
             task: None,
+            capability: None,
             flow: FlowAccount::new(),
             transcript: TranscriptBuilder::new(),
             pending: VecDeque::new(),
@@ -78,6 +83,7 @@ impl<E: Executor> ProviderTask<E> {
             tokens_in: 0,
             tokens_out: 0,
             chunks_sent: 0,
+            observation: None,
         }
     }
 
@@ -86,6 +92,11 @@ impl<E: Executor> ProviderTask<E> {
     }
     pub fn chunks_sent(&self) -> u64 {
         self.chunks_sent
+    }
+    /// The provider's own observation of the completed task (Some once COMPLETE
+    /// was emitted) — the trusted side of the receipt tolerance check.
+    pub fn observation(&self) -> Option<&ReceiptInputs> {
+        self.observation.as_ref()
     }
 
     /// The provider has no self-timed deadlines; present for API symmetry.
@@ -144,6 +155,7 @@ impl<E: Executor> ProviderTask<E> {
             }
         };
         self.task = Some(assign.task);
+        self.capability = Some(assign.capability.clone());
         self.started_ms = now_ms;
         let input = assign.input.inline.unwrap_or_default();
         self.tokens_in = input.len() as u64;
@@ -193,16 +205,27 @@ impl<E: Executor> ProviderTask<E> {
             self.chunks_sent += 1;
             out.push((msg_type::CHUNK, chunk.to_value()));
         }
+        let task = self.task.expect("task set at ASSIGN");
+        let usage = Usage {
+            tokens_in: self.tokens_in,
+            tokens_out: self.tokens_out,
+            ttft_ms: 0,
+            wall_ms: now_ms.saturating_sub(self.started_ms),
+        };
+        // Record the provider's own observation for the later countersign check.
+        self.observation = Some(ReceiptInputs {
+            task,
+            capability: self.capability.clone().unwrap_or_default(),
+            started_ms: self.started_ms,
+            ended_ms: now_ms,
+            usage: usage.clone(),
+            outcome: 0,
+        });
         let complete = Complete {
-            task: self.task.expect("task set at ASSIGN"),
+            task,
             outcome: 0,
             transcript_root: self.transcript.root(),
-            usage: Usage {
-                tokens_in: self.tokens_in,
-                tokens_out: self.tokens_out,
-                ttft_ms: 0,
-                wall_ms: now_ms.saturating_sub(self.started_ms),
-            },
+            usage,
             ext: None,
         };
         self.state = ProviderState::Completed;

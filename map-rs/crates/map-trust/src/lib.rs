@@ -14,6 +14,8 @@ use sha2::{Digest, Sha256};
 use std::collections::{HashMap, HashSet};
 use std::fmt;
 
+pub mod lifecycle;
+
 pub const ROLE_REQUESTER: u8 = 1;
 pub const ROLE_PROVIDER: u8 = 2;
 
@@ -261,6 +263,46 @@ impl Receipt {
 
     pub fn decode_bytes(b: &[u8]) -> Result<Receipt, TrustError> {
         let v = decode(b)?;
+        let core_bytes = v
+            .map_get(1)
+            .ok_or(TrustError::MissingField(1))?
+            .as_bytes()
+            .ok_or(TrustError::BadField(1))?
+            .to_vec();
+        let sig = |k: u64| -> Result<Option<[u8; 64]>, TrustError> {
+            match v.map_get(k) {
+                None => Ok(None),
+                Some(x) => Ok(Some(
+                    x.as_bytes()
+                        .and_then(|b| <[u8; 64]>::try_from(b).ok())
+                        .ok_or(TrustError::BadField(k))?,
+                )),
+            }
+        };
+        Ok(Receipt {
+            core_bytes,
+            sig_requester: sig(2)?,
+            sig_provider: sig(3)?,
+        })
+    }
+
+    /// The receipt as a CBOR map value — the content of a RECEIPT/RECEIPT_ACK
+    /// message or an EvidenceSet entry. `core_bytes` (key 1) is carried verbatim
+    /// so a countersigner signs the *received* bytes (I1); `encode`/`decode_bytes`
+    /// (the frozen TV-002 wire form) are unchanged.
+    pub fn to_value(&self) -> Value {
+        let mut m: Vec<(Value, Value)> =
+            vec![(Value::Uint(1), Value::Bytes(self.core_bytes.clone()))];
+        if let Some(s) = &self.sig_requester {
+            m.push((Value::Uint(2), Value::Bytes(s.to_vec())));
+        }
+        if let Some(s) = &self.sig_provider {
+            m.push((Value::Uint(3), Value::Bytes(s.to_vec())));
+        }
+        Value::Map(m)
+    }
+
+    pub fn from_value(v: &Value) -> Result<Receipt, TrustError> {
         let core_bytes = v
             .map_get(1)
             .ok_or(TrustError::MissingField(1))?

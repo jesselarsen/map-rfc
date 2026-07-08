@@ -383,3 +383,216 @@ fn echo_over_two_live_sessions() {
 
     assert!(verified, "echo task verified end-to-end over live sessions");
 }
+
+// ===========================================================================
+// TASK-008 — receipts and evidence
+// ===========================================================================
+
+mod receipts_evidence {
+    use super::*;
+    use crate::{
+        apply_verified_evidence, make_receipt_core, provider_countersign, query_evidence,
+        requester_issue, requester_on_ack, serve_evidence, ReceiptInputs, TaskOutcome,
+    };
+    use map_identity::Keypair;
+    use map_tasks::msg::Usage;
+    use map_trust::{
+        sign_receipt, Outcome, ProjParams, Receipt, ReceiptStore, TrustProjection, ROLE_PROVIDER,
+        ROLE_REQUESTER,
+    };
+
+    fn ka() -> Keypair {
+        Keypair::from_seed([1u8; 32])
+    }
+    fn kb() -> Keypair {
+        Keypair::from_seed([2u8; 32])
+    }
+    fn kc() -> Keypair {
+        Keypair::from_seed([3u8; 32])
+    }
+    fn inputs_n(task_n: u8) -> ReceiptInputs {
+        ReceiptInputs {
+            task: TaskId([task_n; 32]),
+            capability: CAP.into(),
+            started_ms: TS,
+            ended_ms: TS + 1000,
+            usage: Usage { tokens_in: 10, tokens_out: 10, ttft_ms: 0, wall_ms: 1000 },
+            outcome: 0,
+        }
+    }
+    /// A receipt from `req` about `prov`, dual-signed iff `dual`.
+    fn receipt_n(req: &Keypair, prov: &Keypair, dual: bool, task_n: u8) -> Receipt {
+        let core = make_receipt_core(&inputs_n(task_n), &req.agent_id(), &prov.agent_id(), TaskOutcome::Verified, None, None);
+        let core_bytes = core.encode().unwrap();
+        Receipt {
+            sig_requester: Some(sign_receipt(req, ROLE_REQUESTER, &core_bytes)),
+            sig_provider: dual.then(|| sign_receipt(prov, ROLE_PROVIDER, &core_bytes)),
+            core_bytes,
+        }
+    }
+
+    #[test]
+    fn make_receipt_core_outcome_mapping() {
+        let i = inputs_n(1);
+        let (a, b) = (ka().agent_id(), kb().agent_id());
+        assert_eq!(make_receipt_core(&i, &a, &b, TaskOutcome::Verified, None, None).outcome, Outcome::Ok);
+        assert_eq!(make_receipt_core(&i, &a, &b, TaskOutcome::Failed, None, None).outcome, Outcome::Failed);
+        assert_eq!(make_receipt_core(&i, &a, &b, TaskOutcome::Cancelled, None, None).outcome, Outcome::Cancelled);
+    }
+
+    /// FR-2 requester→provider→ack lifecycle by direct calls; both stores end
+    /// holding the dual-signed receipt.
+    fn run_receipt_flow(a_store: &mut ReceiptStore, b_store: &mut ReceiptStore, observation: &ReceiptInputs) -> Vec<Outgoing> {
+        let root = [7u8; 32];
+        let issued = requester_issue(observation, root, &ka(), &kb().agent_id(), TaskOutcome::Verified, Some(80), a_store).unwrap();
+        assert_eq!(issued[0].0, msg_type::RECEIPT);
+        let ack = provider_countersign(&mk(msg_type::RECEIPT, issued[0].1.clone()), observation, &kb(), b_store);
+        ack
+    }
+
+    #[test]
+    fn receipt_lifecycle_dual_signs_and_stores() {
+        let (mut a_store, mut b_store) = (ReceiptStore::new(), ReceiptStore::new());
+        let obs = inputs_n(9);
+        let ack = run_receipt_flow(&mut a_store, &mut b_store, &obs);
+        assert_eq!(ack[0].0, msg_type::RECEIPT_ACK);
+        requester_on_ack(&mk(msg_type::RECEIPT_ACK, ack[0].1.clone()), &mut a_store).unwrap();
+        // B holds one dual receipt; verify() confirms dual.
+        assert_eq!(b_store.len(), 1);
+        let v = b_store.iter().next().unwrap().verify().unwrap();
+        assert!(v.dual);
+    }
+
+    #[test]
+    fn duplicate_receipt_is_idempotent() {
+        let (mut a_store, mut b_store) = (ReceiptStore::new(), ReceiptStore::new());
+        let obs = inputs_n(9);
+        let issued = requester_issue(&obs, [7u8; 32], &ka(), &kb().agent_id(), TaskOutcome::Verified, None, &mut a_store).unwrap();
+        let ack1 = provider_countersign(&mk(msg_type::RECEIPT, issued[0].1.clone()), &obs, &kb(), &mut b_store);
+        let ack2 = provider_countersign(&mk(msg_type::RECEIPT, issued[0].1.clone()), &obs, &kb(), &mut b_store);
+        assert_eq!(ack1, ack2); // same ACK re-derived (deterministic countersign)
+        assert_eq!(b_store.len(), 1); // duplicate not double-stored
+    }
+
+    #[test]
+    fn tolerance_violation_not_countersigned() {
+        // Requester claims 10x the observed usage → outside ±5% → ERROR.
+        let mut a_store = ReceiptStore::new();
+        let claimed = ReceiptInputs { usage: Usage { tokens_in: 100, tokens_out: 100, ttft_ms: 0, wall_ms: 1000 }, ..inputs_n(9) };
+        let observed = inputs_n(9); // tokens 10
+        let issued = requester_issue(&claimed, [7u8; 32], &ka(), &kb().agent_id(), TaskOutcome::Verified, None, &mut a_store).unwrap();
+        let out = provider_countersign(&mk(msg_type::RECEIPT, issued[0].1.clone()), &observed, &kb(), &mut ReceiptStore::new());
+        assert_eq!(out[0].0, msg_type::ERROR);
+    }
+
+    #[test]
+    fn receipt_for_unknown_task_not_countersigned() {
+        // §11(c): provider's observation is task 9, receipt claims task 5.
+        let mut a_store = ReceiptStore::new();
+        let issued = requester_issue(&inputs_n(5), [7u8; 32], &ka(), &kb().agent_id(), TaskOutcome::Verified, None, &mut a_store).unwrap();
+        let out = provider_countersign(&mk(msg_type::RECEIPT, issued[0].1.clone()), &inputs_n(9), &kb(), &mut ReceiptStore::new());
+        assert_eq!(out[0].0, msg_type::ERROR);
+    }
+
+    #[test]
+    fn tampered_core_byte_fails_verify() {
+        // §11(b): flip a byte of the signed core → signature no longer verifies.
+        let mut r = receipt_n(&ka(), &kb(), true, 9);
+        r.core_bytes[10] ^= 0xff;
+        assert!(r.verify().is_err());
+    }
+
+    #[test]
+    fn single_signed_receipt_never_reaches_projection() {
+        // §11(a): a unilateral (requester-only) receipt verifies structurally but
+        // the dual gate keeps it out of a projection.
+        let v = receipt_n(&ka(), &kb(), false, 9).verify().unwrap();
+        assert!(!v.dual);
+        let mut proj = TrustProjection::new(ProjParams::default());
+        let applied = apply_verified_evidence(&[v], &kb().agent_id(), &mut proj, TS, 1.0);
+        assert_eq!(applied, 0);
+        assert!(proj.score(&kb().agent_id(), CAP).is_none());
+    }
+
+    #[test]
+    fn dual_receipt_about_other_provider_not_applied() {
+        // A dual receipt where B is the REQUESTER (provider is C) must not be
+        // filed under B when C is the queried subject — and vice versa.
+        let v = receipt_n(&kb(), &kc(), true, 9).verify().unwrap(); // provider = C
+        let mut proj = TrustProjection::new(ProjParams::default());
+        // Querying about B: this receipt names C as provider → not applied.
+        assert_eq!(apply_verified_evidence(&[v], &kb().agent_id(), &mut proj, TS, 1.0), 0);
+        assert!(proj.score(&kb().agent_id(), CAP).is_none());
+    }
+
+    #[test]
+    fn evidence_filters_and_batch_split() {
+        let mut store = ReceiptStore::new();
+        for n in 0..9u8 {
+            store.ingest(receipt_n(&ka(), &kb(), true, n)).unwrap(); // 9 distinct, B as provider
+        }
+        store.ingest(receipt_n(&ka(), &kc(), true, 200)).unwrap(); // one about C
+        // Role filter 1 (as-provider) for B → 9 match, batch caps at 8 + more.
+        let q = Value::Map(vec![
+            (Value::Uint(1), Value::Bytes(kb().agent_id().as_bytes().to_vec())),
+            (Value::Uint(5), Value::Uint(1)),
+        ]);
+        let out = serve_evidence(&mk(msg_type::EVIDENCE_QUERY, q), &store);
+        assert_eq!(out[0].0, msg_type::EVIDENCE_SET);
+        let set = &out[0].1;
+        assert_eq!(set.map_get(1).unwrap().as_array().unwrap().len(), 8);
+        assert!(matches!(set.map_get(2), Some(Value::Bool(true)))); // more
+    }
+
+    /// FR-4: full three-agent flow. A↔B echo, receipt lifecycle, then C queries
+    /// B for evidence over a live session, verifies, applies → score(B) Some.
+    #[test]
+    fn three_agent_end_to_end() {
+        use map_core::hello::Hello;
+        use map_session::{CountingMsgIds, FixedClock, InMemoryDuplex, Session, SessionConfig};
+
+        fn hello() -> Hello {
+            Hello { versions: vec![map_core::PROTOCOL_VERSION_1_0], suites: vec![1], extensions: vec![], max_message_size: 262_144, max_tasks: None, zones: vec![] }
+        }
+
+        // 1. Echo task A↔B (runtimes), capture A's inputs + B's observation.
+        let mut r = req(b"work for a receipt");
+        let mut p = ProviderTask::new(EchoExecutor);
+        let first = r.start_offer(TS);
+        shuttle(&mut r, &mut p, first, TS, false);
+        let (inputs, root) = r.verified().expect("verified");
+        let observation = p.observation().expect("observation").clone();
+
+        // 2. Receipt lifecycle by direct calls; B ends holding the dual receipt.
+        let (mut a_store, mut b_store) = (ReceiptStore::new(), ReceiptStore::new());
+        let issued = requester_issue(inputs, *root, &ka(), &kb().agent_id(), TaskOutcome::Verified, Some(90), &mut a_store).unwrap();
+        let ack = provider_countersign(&mk(msg_type::RECEIPT, issued[0].1.clone()), &observation, &kb(), &mut b_store);
+        assert_eq!(ack[0].0, msg_type::RECEIPT_ACK);
+        requester_on_ack(&mk(msg_type::RECEIPT_ACK, ack[0].1.clone()), &mut a_store).unwrap();
+
+        // 3. Agent C sessions to B and pulls evidence; B serves from b_store.
+        let c_id = kc().agent_id();
+        let b_id = kb().agent_id();
+        let (tc, tb) = InMemoryDuplex::pair(&c_id, &b_id);
+        let applied = std::thread::scope(|s| {
+            let c_for_b = c_id.clone();
+            let hb = s.spawn(move || {
+                let cfg = SessionConfig { keypair: kb(), expected_peer: c_for_b, hello: hello() };
+                let mut sess = Session::respond(cfg, tb, FixedClock { ms: TS }, CountingMsgIds::new()).unwrap();
+                let inc = sess.recv().unwrap();
+                for (mt, c) in serve_evidence(&inc, &b_store) {
+                    sess.send(mt, c).unwrap();
+                }
+            });
+            let cfg = SessionConfig { keypair: kc(), expected_peer: b_id.clone(), hello: hello() };
+            let mut sess = Session::initiate(cfg, tc, FixedClock { ms: TS }, CountingMsgIds::new()).unwrap();
+            let verified = query_evidence(&mut sess, &b_id, Some(CAP), Some(1)).unwrap();
+            hb.join().unwrap();
+            let mut proj = TrustProjection::new(ProjParams::default());
+            let applied = apply_verified_evidence(&verified, &b_id, &mut proj, TS + 86_400_000, 1.0);
+            (applied, proj.score(&b_id, CAP).is_some())
+        });
+        assert_eq!(applied.0, 1, "C applied the dual receipt about B");
+        assert!(applied.1, "score(B, cap) is Some after applying evidence");
+    }
+}

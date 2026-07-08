@@ -281,6 +281,7 @@ dependencies = [
  "map-identity",
  "map-session",
  "map-tasks",
+ "map-trust",
 ]
 
 [[package]]
