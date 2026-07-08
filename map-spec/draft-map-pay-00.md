@@ -194,6 +194,23 @@ format. Reversibility is a *method property* the payee prices in (an ACH
 "settled" can still reverse; a preimage cannot) — MAP surfaces it, never
 hides it.
 
+Method definition — `pay:credit-ledger` (added 2026-07-06 from TASK-009). A
+named ledger operator (a mesh-configured AgentID, trusted BY DESIGN for this
+method — the payee prices that trust in). Params (MethodOffer.2): none required
+for the MVP. Proof payload (PayProof.3): CBOR `[entry-bytes, sig]` where
+
+```
+entry-bytes = enc(["MAPLedgerEntry", invoice-id, payer-AgentID,
+                   payee-AgentID, [Asset, Amount], ts])
+sig         = Ed25519 by the operator over entry-bytes
+```
+
+Verification (payee): `verify_strict` `sig` against the operator AgentID, then
+the entry's invoice-id / payer / payee / [Asset, Amount] MUST equal the invoice
+being settled. Finality: instant and irreversible within the ledger (no
+chargeback path); balances move exactly once per invoice-id (operator dedups).
+Refund reference: a fresh entry in the reverse direction (out of MVP scope).
+
 ### 5.2 Escrow and prepay
 
 Escrow is a method capability, not a MAP mechanism: methods that support

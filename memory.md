@@ -123,6 +123,14 @@ it found real bugs):
   codec models inline (key 1) only → TV-007 is Rust-consume-only, a
   frozen-vector parity hole for TASK-015. Handoff protocol: wire-affecting
   items go to ERRATA, not unilateral normative edits.
+- pay §5.1 (2026-07-06, from TASK-009): `pay:credit-ledger` method defined
+  (operator-signed entry format `enc(["MAPLedgerEntry",…])`, proof payload
+  `[entry-bytes, sig]`, verify_strict verification, instant/irreversible
+  finality). ERRATA gained three TASK-009 items: content-vs-envelope digest
+  binding (§3.1 wants envelope bytes; session doesn't expose them → content-
+  bind, price-switch defense intact); no distinct 6xxx codes for cap-exceeded/
+  digest-mismatch/binding-mismatch/bad-proof (interim 6002); PayInvoice.4 usage
+  watermark shape unspecified (omitted, postpaid flat).
 - trust §3 (2026-07-06, from TASK-008): countersignature tolerance assigned
   (usage ±5% of the OBSERVED value min ±1, timestamps ±2 s; band anchored to
   the trusted side — farming defense) + the task-terminal→outcome mapping
@@ -156,9 +164,9 @@ with the installed GNU toolchain: `cargo +stable-x86_64-pc-windows-gnu build`.
 | crates/map-discovery | written + unit tests | CapURI validation, cap_matches (prefix-segment), multihash_sha256, shard (digest byte), capability keys, minimal Descriptor (fields 1–6 + 12), DescriptorCache (seq-LWW) |
 | crates/map-tasks | written + unit tests; +msg codecs (TASK-007) | TaskId, ChunkKind, TranscriptBuilder (patched Merkle), FlowAccount (dual-unit credits), requester state machine (ReqState/step). `msg` module (TASK-007): pure to_value/from_value for Offer/Quote/Assign/Accept/Reject/ChunkMsg/Complete/Cancel/FlowCredit + TaskConstraints/InputSpec/FlowInit/Usage. Complete key 3 = multihash(root); pay refs modeled `Option<Value>`, omitted (ERRATA); InputSpec inline-only |
 | crates/map-trust | written + unit tests; +lifecycle (TASK-008) | ReceiptCore/Receipt (TV-002), role signing, idempotent ReceiptStore, TrustProjection (Beta, rebuild==incremental). TASK-008: `Receipt::to_value/from_value` (message content; encode/decode_bytes frozen-wire untouched) + `lifecycle::within_tolerance` (usage ±5% of OBSERVED value, ts ±2 s — anchored to the trusted side, farming defense) |
-| crates/map-pay | written + unit tests | Amount (tag-4 decimal, Display), Asset validation, InvoiceId/QuoteId, SettlementLedger (settle-once idempotency) |
+| crates/map-pay | written + unit tests; +codec/ledger (TASK-009) | Amount (tag-4), Asset, InvoiceId/QuoteId, SettlementLedger. TASK-009: `codec` (PayQuote incl. ?9 task-binding, PayAgree, Pay{Quote,Agree}Ref, PayRef, PayInvoice/Proof/Receipt, MethodOffer, AssetAmount, `pay_ref_digest`) + `credit_ledger` (LedgerOperator: signed entry `enc(["MAPLedgerEntry",…])`, idempotent `pay`, `verify_entry` verify_strict). deps += identity/sha2 |
 | crates/map-session | done (TASK-005; HelloAck refactor TASK-006) + 21 tests | in-memory session layer: HELLO/HELLO_ACK handshake, TH/CB, core §12 state machine, in-session send/recv with seq+replay+size enforcement, PING/PONG/CLOSE. `Transport`/`Clock`/`MsgIdSource` traits + `InMemoryDuplex` (mpsc). Uses `map_core::HelloAck` (private codec deleted, TASK-006). Deps: identity/core only. Handshake=empty aad, in-session=CB. Real libp2p exporter still future |
-| crates/map-taskrun | done (TASK-007/008) + 29 tests | pump-driven runtimes: `ProviderTask` (Executor/EchoExecutor; credit-gated CHUNK stream, Starved-not-overrun, transcript, COMPLETE, exposes `observation()`) + `RequesterTask` (ReqState FSM, OFFER/direct-ASSIGN, QUOTE eval, regrant, TTFT×1.1 CANCEL, root verify). TASK-008 receipts.rs (`requester_issue`/`provider_countersign`/`requester_on_ack`, `make_receipt_core`, tolerance+I1 countersign) + evidence.rs (`serve_evidence`/`query_evidence`/`apply_verified_evidence` — dual-signed AND provider==subject gate). Deps: identity/core/session/tasks/trust (no pay/mesh) |
+| crates/map-taskrun | done (TASK-007/008/009) + 40 tests | pump-driven runtimes: task (Provider/RequesterTask), receipts.rs + evidence.rs (TASK-008: dual+provider==subject gate), payments.rs (TASK-009: `ProviderPayment`/`RequesterPayment` — PAY_QUOTE(task-bound)→AGREE→INVOICE→pay via LedgerOperator→PROOF→verify+settle_once→RECEIPT; cap/digest/binding/forged-proof defenses; retries move money once). Deps: identity/core/session/tasks/trust/pay (no mesh) |
 | crates/map-mesh | done (TASK-006) + 12 tests | discovery flows over sessions: `publish_descriptor`/`ingest_descriptor_envelope` (self-signed, ttl, seq-LWW), `MeshIndex` (in-process DHT stand-in; order-independent ingest ⇒ `rebuild==incremental`), CAP_QUERY/CAP_RESPONSE + STATUS over a live session (`serve_one`/`query_caps`/`query_status`). Index is untrusted transport — client verifies every envelope. Deps: identity/core/session/discovery (no tasks/trust/pay) |
 | crates/map-cli | done (TASK-001) + 6 unit tests | `keygen` (seed/pubkey/AgentID hex+multibase/did:key; random or `--seed`), `projection-rebuild-demo` (synth dual-signed receipts → incremental vs `rebuild`, ops §8); hand-rolled argv, deps: identity/tasks/trust/sha2/hex/getrandom |
 | adapters/ollama-provider | done (TASK-002) + 4 unit tests | `InferenceBackend` trait + deterministic `MockBackend`, `result_to_chunks`/`run_task` glue (kind-0 text + kind-3 usage CBOR, seq 0/1). No HTTP — real localhost:11434 backend still future |
@@ -306,7 +314,11 @@ treat as the frozen interop contract.
    + `map-trust::lifecycle`. The trust loop is closed: work → dual-signed
    evidence → local score. Two enforcement gates proven (single-signed and
    wrong-provider receipts never reach a projection).
-5. **Payments last**: `pay:credit-ledger` as the first settlement method.
+5. **Payments last**: ~~`pay:credit-ledger` as the first settlement method.~~
+   DONE (TASK-009): postpaid flat happy path (PAY_QUOTE→AGREE→INVOICE→PROOF→
+   RECEIPT) + `LedgerOperator` in `map-pay`, flows in `map-taskrun::payments`,
+   11 tests (incl. §11 security: forged entry, proof replay, digest switch,
+   cap exceeded, task-binding). Metered terms-3 / escrow / disputes future.
 6. Then: DelegationCert implementation + envelope chain verification;
    Ollama adapter for real; extension code points (BID/KVX/GIT) via the
    registry process; formal models (Tamarin/ProVerif) of HELLO +

@@ -15,6 +15,7 @@
 //! via a dependency on pay/mesh.
 
 pub mod evidence;
+pub mod payments;
 pub mod provider;
 pub mod receipts;
 pub mod requester;
@@ -27,6 +28,7 @@ use map_tasks::msg::Usage;
 use map_tasks::TaskId;
 
 pub use evidence::{apply_verified_evidence, query_evidence, serve_evidence, EvidenceError};
+pub use payments::{ProviderPayment, ProviderPayState, RequesterPayment, RequesterPayState};
 pub use provider::{EchoExecutor, Executor, ProviderState, ProviderTask};
 pub use receipts::{
     make_receipt_core, provider_countersign, requester_issue, requester_on_ack, ReceiptError,

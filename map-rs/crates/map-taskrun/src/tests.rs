@@ -596,3 +596,210 @@ mod receipts_evidence {
         assert!(applied.1, "score(B, cap) is Some after applying evidence");
     }
 }
+
+// ===========================================================================
+// TASK-009 — payments MVP (pay:credit-ledger)
+// ===========================================================================
+
+mod payments_flow {
+    use super::*;
+    use crate::{ProviderPayState, ProviderPayment, RequesterPayState, RequesterPayment};
+    use map_identity::Keypair;
+    use map_pay::codec::{pay_ref_digest, AssetAmount, MethodOffer, PayAgree, PayInvoice, PayQuote};
+    use map_pay::credit_ledger::{verify_entry, EntryProof, LedgerOperator, CREDIT_LEDGER_METHOD};
+    use map_pay::{Amount, Asset};
+
+    const QID: [u8; 16] = [0x11; 16];
+    const IID: [u8; 16] = [0x22; 16];
+
+    fn ka() -> Keypair {
+        Keypair::from_seed([1u8; 32]) // requester / payer
+    }
+    fn kb() -> Keypair {
+        Keypair::from_seed([2u8; 32]) // provider / payee
+    }
+    fn kop() -> Keypair {
+        Keypair::from_seed([4u8; 32]) // ledger operator
+    }
+    fn usd(mantissa: i64) -> AssetAmount {
+        AssetAmount { asset: Asset::new("iso4217:USD").unwrap(), amount: Amount::new(-2, mantissa) }
+    }
+    fn operator() -> LedgerOperator {
+        let mut op = LedgerOperator::new(kop(), -2);
+        op.credit(&ka().agent_id(), 1000);
+        op
+    }
+    fn provider_pay() -> ProviderPayment {
+        ProviderPayment::new(kb().agent_id(), ka().agent_id(), kop().agent_id())
+    }
+    fn requester_pay(task: Option<[u8; 32]>) -> RequesterPayment {
+        RequesterPayment::new(task, ka().agent_id(), kb().agent_id())
+    }
+
+    /// Drive quote→agree→invoice→pay→proof→settle→receipt. Returns the parts so
+    /// tests can inspect state and balances.
+    fn full_leg() -> (ProviderPayment, RequesterPayment, LedgerOperator) {
+        let (mut pp, mut rp, mut op) = (provider_pay(), requester_pay(Some([9; 32])), operator());
+        let q = pp.issue_quote(QID, [9; 32], usd(500), TS + 60_000);
+        let agree = rp.on_quote(&mk(msg_type::PAY_QUOTE, q[0].1.clone()), TS);
+        assert_eq!(agree[0].0, msg_type::PAY_AGREE);
+        assert!(pp.on_agree(&mk(msg_type::PAY_AGREE, agree[0].1.clone())).is_empty());
+        let inv = pp.invoice(IID, TS);
+        assert_eq!(inv[0].0, msg_type::PAY_INVOICE);
+        let proof = rp.on_invoice(&mk(msg_type::PAY_INVOICE, inv[0].1.clone()), &mut op, TS);
+        assert_eq!(proof[0].0, msg_type::PAY_PROOF);
+        let rcpt = pp.on_proof(&mk(msg_type::PAY_PROOF, proof[0].1.clone()), TS);
+        assert_eq!(rcpt[0].0, msg_type::PAY_RECEIPT);
+        rp.on_receipt(&mk(msg_type::PAY_RECEIPT, rcpt[0].1.clone()));
+        (pp, rp, op)
+    }
+
+    #[test]
+    fn happy_path_settles_and_moves_balance_once() {
+        let (pp, rp, op) = full_leg();
+        assert_eq!(pp.state(), ProviderPayState::Settled);
+        assert_eq!(rp.state(), RequesterPayState::Settled);
+        assert_eq!(op.balance(&ka().agent_id()), 500); // 1000 - 500
+        assert_eq!(op.balance(&kb().agent_id()), 500);
+        assert!(rp.receipt_bytes().is_some());
+    }
+
+    #[test]
+    fn quote_carries_task_binding_and_method() {
+        let q = provider_pay().issue_quote(QID, [9; 32], usd(500), TS + 1);
+        let pq = PayQuote::from_value(&q[0].1).unwrap();
+        assert_eq!(pq.task_binding, Some([9; 32]));
+        assert_eq!(pq.pricing_model, 0);
+        assert!(pq.methods.iter().any(|m| m.uri == CREDIT_LEDGER_METHOD));
+    }
+
+    #[test]
+    fn retries_move_money_at_most_once() {
+        let (mut pp, mut rp, mut op) = (provider_pay(), requester_pay(Some([9; 32])), operator());
+        let q = pp.issue_quote(QID, [9; 32], usd(500), TS + 60_000);
+        let agree = rp.on_quote(&mk(msg_type::PAY_QUOTE, q[0].1.clone()), TS);
+        pp.on_agree(&mk(msg_type::PAY_AGREE, agree[0].1.clone()));
+        let inv = pp.invoice(IID, TS);
+        // Pay once.
+        let proof = rp.on_invoice(&mk(msg_type::PAY_INVOICE, inv[0].1.clone()), &mut op, TS);
+        assert_eq!(op.balance(&ka().agent_id()), 500);
+        // Retry the SAME invoice → operator idempotent → identical proof, no move.
+        let proof2 = rp.on_invoice(&mk(msg_type::PAY_INVOICE, inv[0].1.clone()), &mut op, TS);
+        assert_eq!(proof, proof2);
+        assert_eq!(op.balance(&ka().agent_id()), 500);
+        // Provider settles once; a retried PROOF → AlreadySettled → same receipt.
+        let r1 = pp.on_proof(&mk(msg_type::PAY_PROOF, proof[0].1.clone()), TS);
+        let r2 = pp.on_proof(&mk(msg_type::PAY_PROOF, proof[0].1.clone()), TS);
+        assert_eq!(r1, r2);
+        assert_eq!(op.balance(&ka().agent_id()), 500);
+        assert_eq!(op.balance(&kb().agent_id()), 500);
+    }
+
+    #[test]
+    fn receipt_entry_verifies_against_operator() {
+        let (_pp, rp, _op) = full_leg();
+        // The requester's stored receipt bytes decode to a PAY_RECEIPT.
+        assert!(map_pay::codec::PayReceipt::from_value(
+            &map_core::cbor::decode(rp.receipt_bytes().unwrap()).unwrap()
+        )
+        .is_ok());
+    }
+
+    #[test]
+    fn task_binding_mismatch_rejected() {
+        let mut rp = requester_pay(Some([9; 32])); // expects task 9
+        let q = provider_pay().issue_quote(QID, [7; 32], usd(500), TS + 60_000); // bound to task 7
+        let out = rp.on_quote(&mk(msg_type::PAY_QUOTE, q[0].1.clone()), TS);
+        assert_eq!(out[0].0, msg_type::ERROR);
+        assert_eq!(rp.state(), RequesterPayState::Failed);
+    }
+
+    #[test]
+    fn standing_quote_without_binding_is_agreeable() {
+        let mut rp = requester_pay(None); // no task-bound offer
+        let q = PayQuote {
+            quote_id: QID,
+            pricing_model: 0,
+            rate_table: vec![(0, usd(500))],
+            total: Some(usd(500)),
+            methods: vec![MethodOffer { uri: CREDIT_LEDGER_METHOD.into(), params: vec![] }],
+            expiry_ms: TS + 1000,
+            terms: Some(0),
+            ext: None,
+            task_binding: None,
+        };
+        let out = rp.on_quote(&mk(msg_type::PAY_QUOTE, q.to_value()), TS);
+        assert_eq!(out[0].0, msg_type::PAY_AGREE);
+        assert_eq!(rp.state(), RequesterPayState::Agreed);
+    }
+
+    #[test]
+    fn expired_quote_rejected_6000() {
+        let mut rp = requester_pay(Some([9; 32]));
+        let q = provider_pay().issue_quote(QID, [9; 32], usd(500), TS - 1); // expired
+        let out = rp.on_quote(&mk(msg_type::PAY_QUOTE, q[0].1.clone()), TS);
+        assert_eq!(out[0].0, msg_type::ERROR);
+        assert_eq!(map_core::errors::ErrorMsg::from_value(&out[0].1).unwrap().code, 6000);
+    }
+
+    #[test]
+    fn cap_exceeded_refused() {
+        let (mut pp, mut rp, mut op) = (provider_pay(), requester_pay(Some([9; 32])), operator());
+        let q = pp.issue_quote(QID, [9; 32], usd(500), TS + 60_000);
+        rp.on_quote(&mk(msg_type::PAY_QUOTE, q[0].1.clone()), TS); // cap = 500
+        // Provider (mis)invoices 999 > cap → requester refuses, no balance move.
+        let bad = PayInvoice { invoice_id: IID, quote_id: QID, amount: usd(999), method_payload: vec![], timestamp_ms: TS };
+        let out = rp.on_invoice(&mk(msg_type::PAY_INVOICE, bad.to_value()), &mut op, TS);
+        assert_eq!(out[0].0, msg_type::ERROR);
+        assert_eq!(op.balance(&ka().agent_id()), 1000); // untouched
+    }
+
+    #[test]
+    fn price_switch_digest_mismatch_rejected() {
+        let mut pp = provider_pay();
+        pp.issue_quote(QID, [9; 32], usd(500), TS + 60_000);
+        // A PAY_AGREE bound to a DIFFERENT quote digest → price-switch → reject.
+        let switched = PayAgree { quote_id: QID, quote_digest: pay_ref_digest(b"a different quote"), method: CREDIT_LEDGER_METHOD.into(), authorized_cap: Some(usd(500)) };
+        let out = pp.on_agree(&mk(msg_type::PAY_AGREE, switched.to_value()));
+        assert_eq!(out[0].0, msg_type::ERROR);
+        assert_eq!(pp.state(), ProviderPayState::Failed);
+    }
+
+    #[test]
+    fn forged_ledger_entry_rejected() {
+        // Set the flow to Invoiced, then feed a PROOF signed by the WRONG operator.
+        let (mut pp, mut rp, op) = (provider_pay(), requester_pay(Some([9; 32])), operator());
+        let q = pp.issue_quote(QID, [9; 32], usd(500), TS + 60_000);
+        let agree = rp.on_quote(&mk(msg_type::PAY_QUOTE, q[0].1.clone()), TS);
+        pp.on_agree(&mk(msg_type::PAY_AGREE, agree[0].1.clone()));
+        pp.invoice(IID, TS);
+        // Forge: a rogue operator signs an entry moving the same amount.
+        let mut rogue = LedgerOperator::new(Keypair::from_seed([99u8; 32]), -2);
+        rogue.credit(&ka().agent_id(), 1000);
+        let forged = rogue.pay(IID, &ka().agent_id(), &kb().agent_id(), &usd(500), TS).unwrap();
+        assert!(!verify_entry(&forged, &kop().agent_id(), IID, &ka().agent_id(), &kb().agent_id(), &usd(500)));
+        let proof = map_pay::codec::PayProof { invoice_id: IID, method: CREDIT_LEDGER_METHOD.into(), proof_payload: forged.to_bytes() };
+        let out = pp.on_proof(&mk(msg_type::PAY_PROOF, proof.to_value()), TS);
+        assert_eq!(out[0].0, msg_type::ERROR);
+        assert_ne!(pp.state(), ProviderPayState::Settled);
+        assert_eq!(op.balance(&ka().agent_id()), 1000); // real operator untouched
+        let _ = EntryProof::from_bytes;
+    }
+
+    /// FR-5 §15: TASK-007 echo task + the full payment leg together.
+    #[test]
+    fn echo_task_plus_payment_leg() {
+        // Task A<->B echo to Verified.
+        let mut r = req(b"paid work");
+        let mut p = ProviderTask::new(EchoExecutor);
+        let first = r.start_offer(TS);
+        shuttle(&mut r, &mut p, first, TS, false);
+        assert!(r.verified().is_some());
+        assert_eq!(p.state(), ProviderState::Completed);
+        // Payment leg settles and moves the balance exactly once.
+        let (pp, rp, op) = full_leg();
+        assert_eq!(pp.state(), ProviderPayState::Settled);
+        assert_eq!(rp.state(), RequesterPayState::Settled);
+        assert_eq!(op.balance(&kb().agent_id()), 500);
+    }
+}

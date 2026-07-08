@@ -6,4 +6,6 @@ license.workspace = true
 description = "MAP pay bounded context: decimal Amount (tag 4), Asset, invoice idempotency (draft-map-pay-00)"
 
 [dependencies]
+map-identity = { path = "../map-identity" }
 map-core = { path = "../map-core" }
+sha2.workspace = true

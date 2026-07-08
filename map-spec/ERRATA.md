@@ -50,3 +50,32 @@ content — simpler for the requester (no reassembly) and there is no frozen
 vector for the ACK. Draft-vs-task-doc divergence on a wire-message shape.
 Proposal: update the §2 diagram to `RECEIPT_ACK {full dual Receipt}`; no code
 change. (Recorded rather than silently absorbed, per the Quote.2 precedent.)
+
+PENDING-ARCHITECT: 2026-07-06 TASK-009 — pay §3.1 requires payment-reference
+digests over "the received ENVELOPE bytes (I1 — never over a re-serialization)",
+but the pump/session architecture surfaces parsed message CONTENT to the
+runtimes: neither `Session::send` (returns `Result<()>`) nor `recv` (returns
+`Incoming` = parsed content) exposes the sealed/received envelope frame. TASK-009
+therefore computes `pay_ref_digest` over the canonical re-encoding of the
+referenced message content (deterministic → both peers agree; a switched quote
+→ different content → different digest, so the price-switch defense holds).
+This is a re-serialization, contrary to §3.1's parenthetical. Proposal: either
+(a) accept content-binding for payment refs (amend §3.1), or (b) thread the
+sealed-on-send / raw-on-recv envelope bytes through map-session so refs can bind
+the exact envelope. Not resolved unilaterally (wire-adjacent, I1-adjacent).
+
+PENDING-ARCHITECT: 2026-07-06 TASK-009 — the pay 6xxx range (core §9: 6000
+quote-expired, 6001 payment-required, 6002 settlement-failed, 6003 dispute,
+6004 method-unsupported) has no distinct codes for the several TASK-009 pay
+rejections: cap-exceeded (FR-6), quote-digest mismatch / price-switch (§7),
+task-binding mismatch (FR-2), and forged/mismatched ledger proof. All four use
+6002 (SETTLEMENT_FAILED) in the interim (`PAY_REJECT` in map-taskrun/payments.rs);
+6000 is used for expired quotes and 6004 for an unoffered method. Proposal:
+register distinct codes (candidates: 6005 authorized-cap-exceeded, 6006
+agreement-digest-mismatch, 6007 task-binding-mismatch, 6008 invalid-payment-
+proof) and update `PAY_REJECT`. No new code points assigned here (assign-only-
+where-a-package-declares-FINAL).
+
+Also noted (report, not blocking): pay §4 `PayInvoice` key 4 (usage watermark)
+is `{ usage watermark }` with no concrete field shape; TASK-009 (postpaid flat)
+omits it. A metered-terms (terms 3) package must define its CDDL.

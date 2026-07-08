@@ -262,6 +262,8 @@ name = "map-pay"
 version = "0.1.0"
 dependencies = [
  "map-core",
+ "map-identity",
+ "sha2",
 ]
 
 [[package]]
@@ -279,6 +281,7 @@ version = "0.1.0"
 dependencies = [
  "map-core",
  "map-identity",
+ "map-pay",
  "map-session",
  "map-tasks",
  "map-trust",

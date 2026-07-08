@@ -10,11 +10,18 @@ use map_core::cbor::{CborError, Value};
 use std::collections::HashSet;
 use std::fmt;
 
+pub mod codec;
+pub mod credit_ledger;
+
 #[derive(Debug, PartialEq)]
 pub enum PayError {
     Cbor(CborError),
     BadAmount,
     BadAsset(String),
+    /// A pay message content map was missing a required field.
+    MissingField(u64),
+    /// A pay message content field had the wrong type/shape.
+    BadField(u64),
 }
 
 impl fmt::Display for PayError {
@@ -23,6 +30,8 @@ impl fmt::Display for PayError {
             PayError::Cbor(e) => write!(f, "cbor: {e}"),
             PayError::BadAmount => write!(f, "invalid amount encoding"),
             PayError::BadAsset(s) => write!(f, "invalid asset identifier: {s}"),
+            PayError::MissingField(k) => write!(f, "pay message missing field {k}"),
+            PayError::BadField(k) => write!(f, "pay message field {k} invalid"),
         }
     }
 }
