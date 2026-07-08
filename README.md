@@ -29,10 +29,54 @@ language: BCP 14 (RFC 2119 / RFC 8174), unweakened.
 The Rust reference implementation lives in `map-rs/` (Cargo workspace,
 impl #1 for the two-implementation rule). Implementation-specification
 packages for downstream coding agents live in `tasks/` (see
-`tasks/README.md`). `memory.md` is the cross-session project handoff
-file. Historical input designs are under `input-designs/`.
+`tasks/README.md`); spec questions deferred to a future architect pass are
+queued in `map-spec/ERRATA.md`. `memory.md` is the cross-session project
+handoff file. Historical input designs are under `input-designs/`.
 
 Read 0 → 1 → 3 for orientation; implement in the order 2, 3, 4, 5, then 6/7.
+
+## Reference implementation (`map-rs/`)
+
+A Cargo workspace (Rust 2021) that builds and tests green with zero
+warnings. The protocol runs **end-to-end in-process today**: HELLO
+handshake + channel binding → descriptor publish/fetch and capability
+query → an echo task (offer/quote/assign → credit-metered CHUNK stream →
+COMPLETE with a Merkle transcript root) → dual-signed ExecutionReceipt and
+pull-based evidence → a local trust score → a settled `pay:credit-ledger`
+payment. Roadmap steps 1–5 (ops §8) are complete; libp2p transport,
+delegation chains, a second (Go) implementation, formal analysis, and the
+federation gateway are the remaining packages.
+
+| Crate | Role |
+|-------|------|
+| `map-identity` | AgentID, Ed25519 keypairs, strict verify |
+| `map-core` | deterministic CBOR, COSE_Sign1 envelope, HELLO negotiation, replay cache, errors |
+| `map-discovery` | descriptors, capability keys, digest-byte sharding, seq-LWW cache |
+| `map-tasks` | TaskID, Merkle transcript, flow credit, requester FSM, task message codecs |
+| `map-trust` | ExecutionReceipts, append-only store, rebuildable Beta projection, countersign tolerance |
+| `map-pay` | decimal amounts/assets, settlement ledger, payment codecs, `pay:credit-ledger` operator |
+| `map-session` | session layer over a pluggable transport (in-memory duplex), state machine, seq/replay/size enforcement |
+| `map-mesh` | descriptor publish/ingest, in-process DHT stand-in, CAP/STATUS flows over sessions |
+| `map-taskrun` | pump-driven provider/requester runtimes: task execution, receipt lifecycle, evidence, payment flow |
+| `map-cli` | `keygen`, projection-rebuild demo |
+| `map-conformance` | byte-exact TV-001…010 + a MUST-reject negative catalog |
+| `adapters/ollama-provider`, `adapters/gateway` | inference-backend seam; federation provenance helpers |
+
+Build and test:
+
+```
+cd map-rs
+cargo build --workspace      # zero warnings
+cargo test  --workspace      # unit + integration + conformance
+cargo run -p map-cli -- keygen
+```
+
+Invariants enforced in code: signatures verify over received bytes (never
+a re-serialization); no single-signed or unverified receipt can reach a
+trust projection; derived state (trust scores, the mesh index) is
+rebuildable from its evidence; payments move money at most once per
+invoice. The conformance crate reproduces the published test vectors
+byte-for-byte.
 
 ## Conformance classes
 
