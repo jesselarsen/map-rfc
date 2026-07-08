@@ -24,6 +24,8 @@ pub enum EnvelopeError {
     MissingHeader(&'static str),
     MissingBodyField(u64),
     BadBodyField(u64),
+    /// Delegation-chain validation failed (see [`crate::delegation::DelegError`]).
+    Delegation(crate::delegation::DelegError),
 }
 
 impl fmt::Display for EnvelopeError {
@@ -37,6 +39,7 @@ impl fmt::Display for EnvelopeError {
             EnvelopeError::MissingHeader(h) => write!(f, "missing protected header {h}"),
             EnvelopeError::MissingBodyField(k) => write!(f, "missing body field {k}"),
             EnvelopeError::BadBodyField(k) => write!(f, "invalid body field {k}"),
+            EnvelopeError::Delegation(e) => write!(f, "delegation: {e}"),
         }
     }
 }
@@ -211,6 +214,40 @@ pub fn seal(kp: &Keypair, body: &Body, external_aad: &[u8]) -> Result<Vec<u8>, E
     Ok(encode(&env)?)
 }
 
+/// Like [`seal`], but attaches a delegation chain in ProtHdr key 33 (ordered
+/// leaf..root, identity §6). `kp` is the LEAF key (the actual signer); the
+/// chain's leaf subject MUST be `kp.agent_id()` for a peer to accept it via
+/// [`open_delegated`]. The chain bstrs sit inside the signed `protected`
+/// header, so they are covered by the signature.
+pub fn seal_delegated(
+    kp: &Keypair,
+    body: &Body,
+    external_aad: &[u8],
+    chain: &[Vec<u8>],
+) -> Result<Vec<u8>, EnvelopeError> {
+    let kid = kp.agent_id();
+    let protected = encode(&Value::Map(vec![
+        (Value::Uint(1), Value::int(ALG_EDDSA)),
+        (Value::Uint(4), Value::Bytes(kid.as_bytes().to_vec())),
+        (
+            Value::Uint(33),
+            Value::Array(chain.iter().map(|c| Value::Bytes(c.clone())).collect()),
+        ),
+    ]))?;
+    let payload = encode(&body.to_value())?;
+    let sig = kp.sign(&sig_structure(&protected, external_aad, &payload)?);
+    let env = Value::Tag(
+        COSE_SIGN1_TAG,
+        Box::new(Value::Array(vec![
+            Value::Bytes(protected),
+            Value::Map(vec![]),
+            Value::Bytes(payload),
+            Value::Bytes(sig.to_vec()),
+        ])),
+    );
+    Ok(encode(&env)?)
+}
+
 /// Decode, profile-check, and verify an envelope (core §4.3 steps 1–7 minus
 /// the stateful checks, which live in [`crate::replay`] and session logic).
 pub fn open(env_bytes: &[u8], external_aad: &[u8]) -> Result<Opened, EnvelopeError> {
@@ -263,6 +300,59 @@ pub fn open(env_bytes: &[u8], external_aad: &[u8]) -> Result<Opened, EnvelopeErr
     })
 }
 
+/// A verified envelope that carried a delegation chain (ProtHdr key 33), plus
+/// the [`EffectiveScope`](crate::delegation::EffectiveScope) that chain confers.
+pub struct OpenedDelegated {
+    pub opened: Opened,
+    pub scope: crate::delegation::EffectiveScope,
+}
+
+/// Open a data envelope that carries a delegation chain in ProtHdr key 33
+/// (core §6 / identity §4). The envelope signature is verified against the
+/// LEAF key (the kid MUST be the chain leaf's subject); the chain is then
+/// validated leaf..root and its [`EffectiveScope`](crate::delegation::EffectiveScope)
+/// returned along with the accountable root identity.
+///
+/// `audience` is the validating party's own AgentID (for an audience caveat);
+/// pass `None` if not applicable. This does NOT alter [`open`], whose
+/// byte-frozen behavior the conformance suite guards; a plain envelope with no
+/// key 33 yields `MissingHeader("delegation chain")`.
+///
+/// NOTE (identity §4 vs TASK-010 FR-3, PENDING-ARCHITECT in ERRATA): identity
+/// §4 says "the chain root MUST equal the envelope kid"; that is
+/// cryptographically impossible for a data envelope signed by the leaf, so this
+/// implements FR-3's kid==leaf-subject model (the actual signer).
+pub fn open_delegated(
+    env_bytes: &[u8],
+    external_aad: &[u8],
+    audience: Option<&AgentId>,
+    now_ms: u64,
+) -> Result<OpenedDelegated, EnvelopeError> {
+    // Verify the leaf signature and get the fully-parsed envelope first (this
+    // is exactly `open`, so the frozen byte behavior is shared, not forked).
+    let opened = open(env_bytes, external_aad)?;
+
+    // Extract the chain from the (already signature-covered) protected header.
+    let ph = decode(&opened.protected)?;
+    let chain_val = ph
+        .map_get(33)
+        .ok_or(EnvelopeError::MissingHeader("delegation chain"))?;
+    let items = chain_val.as_array().ok_or(EnvelopeError::BadBodyField(33))?;
+    if items.is_empty() {
+        // Empty key-33 array is a wire-format problem (MALFORMED), not authz.
+        return Err(EnvelopeError::Delegation(crate::delegation::DelegError::Empty));
+    }
+    let mut chain: Vec<Vec<u8>> = Vec::with_capacity(items.len());
+    for it in items {
+        chain.push(it.as_bytes().ok_or(EnvelopeError::BadBodyField(33))?.to_vec());
+    }
+
+    // The kid (opened.sender) MUST be the chain leaf's subject.
+    let scope = crate::delegation::validate_chain(&chain, &opened.sender, audience, now_ms)
+        .map_err(EnvelopeError::Delegation)?;
+    Ok(OpenedDelegated { opened, scope })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -301,5 +391,59 @@ mod tests {
         let n = env.len();
         env[n - 70] ^= 1; // flip a payload byte
         assert!(open(&env, b"").is_err());
+    }
+
+    #[test]
+    fn open_delegated_happy_and_kid_mismatch() {
+        use crate::delegation::{issue, DelegateBody, DelegError};
+        let (rik, dk, sk) = (
+            Keypair::from_seed([1u8; 32]),
+            Keypair::from_seed([2u8; 32]),
+            Keypair::from_seed([3u8; 32]),
+        );
+        let now = 1_780_000_100_000;
+        let mk = |iss: &Keypair, sub: &Keypair, caps: Option<Vec<&str>>| {
+            issue(
+                iss,
+                &DelegateBody {
+                    issuer: iss.agent_id(),
+                    subject: sub.agent_id(),
+                    not_before_ms: 1_780_000_000_000,
+                    not_after_ms: 1_780_000_600_000,
+                    caps: caps.map(|v| v.into_iter().map(String::from).collect()),
+                    zones: None,
+                    max_depth: None,
+                    caveats: vec![],
+                },
+            )
+            .unwrap()
+        };
+        let c_a = mk(&rik, &dk, Some(vec!["map:cap:inference"]));
+        let c_b = mk(&dk, &sk, Some(vec!["map:cap:inference/text"]));
+        let chain = vec![c_b, c_a]; // leaf..root
+
+        // SK signs the data envelope carrying the chain: root resolves to RIK.
+        let env = seal_delegated(&sk, &body(), b"", &chain).unwrap();
+        let od = open_delegated(&env, b"", None, now).unwrap();
+        assert_eq!(od.opened.sender, sk.agent_id());
+        assert_eq!(od.scope.root, rik.agent_id());
+        assert_eq!(od.scope.caps.as_deref(), Some(&["map:cap:inference/text".to_string()][..]));
+
+        // Plain open() still works and ignores key 33 (byte-frozen behavior).
+        assert_eq!(open(&env, b"").unwrap().sender, sk.agent_id());
+
+        // A DIFFERENT key signs but presents SK's chain -> leaf mismatch.
+        let env_bad = seal_delegated(&dk, &body(), b"", &chain).unwrap();
+        assert!(matches!(
+            open_delegated(&env_bad, b"", None, now),
+            Err(EnvelopeError::Delegation(DelegError::BrokenLink { index: 0 }))
+        ));
+
+        // No key 33 -> MissingHeader (use open() for plain envelopes).
+        let plain = seal(&sk, &body(), b"").unwrap();
+        assert!(matches!(
+            open_delegated(&plain, b"", None, now),
+            Err(EnvelopeError::MissingHeader(_))
+        ));
     }
 }

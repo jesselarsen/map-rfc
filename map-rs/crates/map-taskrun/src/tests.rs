@@ -345,7 +345,7 @@ fn echo_over_two_live_sessions() {
     let verified = std::thread::scope(|s| {
         let a_for_b = a_id.clone();
         let hprov = s.spawn(move || {
-            let cfg = SessionConfig { keypair: Keypair::from_seed([2u8; 32]), expected_peer: a_for_b, hello: hello() };
+            let cfg = SessionConfig::new(Keypair::from_seed([2u8; 32]), a_for_b, hello());
             let mut sess = Session::respond(cfg, tb, FixedClock { ms: TS }, CountingMsgIds::new()).unwrap();
             let mut p = ProviderTask::new(EchoExecutor);
             loop {
@@ -362,7 +362,7 @@ fn echo_over_two_live_sessions() {
             }
         });
 
-        let cfg = SessionConfig { keypair: Keypair::from_seed([1u8; 32]), expected_peer: b_id.clone(), hello: hello() };
+        let cfg = SessionConfig::new(Keypair::from_seed([1u8; 32]), b_id.clone(), hello());
         let mut sess = Session::initiate(cfg, ta, FixedClock { ms: TS }, CountingMsgIds::new()).unwrap();
         let mut r = req(b"hello over the wire");
         for (mt, c) in r.start_offer(TS) {
@@ -577,14 +577,14 @@ mod receipts_evidence {
         let applied = std::thread::scope(|s| {
             let c_for_b = c_id.clone();
             let hb = s.spawn(move || {
-                let cfg = SessionConfig { keypair: kb(), expected_peer: c_for_b, hello: hello() };
+                let cfg = SessionConfig::new(kb(), c_for_b, hello());
                 let mut sess = Session::respond(cfg, tb, FixedClock { ms: TS }, CountingMsgIds::new()).unwrap();
                 let inc = sess.recv().unwrap();
                 for (mt, c) in serve_evidence(&inc, &b_store) {
                     sess.send(mt, c).unwrap();
                 }
             });
-            let cfg = SessionConfig { keypair: kc(), expected_peer: b_id.clone(), hello: hello() };
+            let cfg = SessionConfig::new(kc(), b_id.clone(), hello());
             let mut sess = Session::initiate(cfg, tc, FixedClock { ms: TS }, CountingMsgIds::new()).unwrap();
             let verified = query_evidence(&mut sess, &b_id, Some(CAP), Some(1)).unwrap();
             hb.join().unwrap();

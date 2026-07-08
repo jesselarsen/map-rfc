@@ -10,10 +10,12 @@
 //! real `PayQuote` codec); NV-006 carries a mismatching binding and MUST be
 //! rejected by the §3.1 rule — the executable coverage of that normative MUST.
 
-use crate::positive::{key_a, key_b};
+use crate::positive::{key_a, key_b, sha256};
 use crate::vectors::{TV001_HEX, TV002_TASK_ID_HEX};
 use crate::vectors2::*;
 use crate::from_hex;
+use map_core::delegation::DelegError;
+use map_core::{open_delegated, validate_cert};
 use map_pay::codec::PayQuote;
 use map_core::cbor::{encode, CborError};
 use map_core::envelope::{open, EnvelopeError, Opened};
@@ -94,6 +96,73 @@ pub fn case_tv009_complete() -> Result<(), String> {
 }
 pub fn case_tv010_pay_quote() -> Result<(), String> {
     expect_open(TV010_ENV_HEX, &key_b(), msg_type::PAY_QUOTE).map(|_| ())
+}
+
+/// Delegation validity time inside every TV-011/012/NV-007 cert window.
+const DELEG_NOW_MS: u64 = 1_780_000_100_000;
+
+fn key_a_dk() -> Keypair {
+    Keypair::from_seed(sha256(b"MAP-TEST-VECTOR-KEY-A-DK"))
+}
+
+/// TV-011 — a DelegationCert: RIK (Key A) delegates to DK. Validate it and
+/// confirm issuer/subject; content round-trips through the codec (produce-guard).
+pub fn case_tv011_cert() -> Result<(), String> {
+    let body = validate_cert(&from_hex(TV011_ENV_HEX)?, DELEG_NOW_MS)
+        .map_err(|e| format!("TV-011 validate_cert: {e}"))?;
+    if body.issuer != key_a().agent_id() {
+        return Err("TV-011 issuer != RIK (Key A)".into());
+    }
+    if body.subject != key_a_dk().agent_id() {
+        return Err("TV-011 subject != DK".into());
+    }
+    // Produce-guard: re-encode the parsed body and compare to the wire content.
+    let content = &open(&from_hex(TV011_ENV_HEX)?, b"")
+        .map_err(|e| format!("TV-011 open: {e}"))?
+        .body
+        .content;
+    let re = encode(&body.to_value()).map_err(|e| format!("encode: {e}"))?;
+    let orig = encode(content).map_err(|e| format!("encode content: {e}"))?;
+    if re != orig {
+        return Err("TV-011 DelegateBody did not round-trip byte-for-byte".into());
+    }
+    Ok(())
+}
+
+/// TV-012 — a delegated OFFER signed by DK carrying [TV-011]. `open_delegated`
+/// resolves the accountable root to RIK and attenuates scope to CAP.
+pub fn case_tv012_delegated_offer() -> Result<(), String> {
+    let od = open_delegated(&from_hex(TV012_ENV_HEX)?, b"", None, DELEG_NOW_MS)
+        .map_err(|e| format!("TV-012 open_delegated: {e}"))?;
+    if od.opened.sender != key_a_dk().agent_id() {
+        return Err("TV-012 leaf signer != DK".into());
+    }
+    if od.scope.root != key_a().agent_id() {
+        return Err("TV-012 accountable root != RIK (Key A)".into());
+    }
+    if od.scope.caps.as_deref() != Some(&["map:cap:inference/text-generation".to_string()][..]) {
+        return Err(format!("TV-012 scope caps unexpected: {:?}", od.scope.caps));
+    }
+    if od.scope.depth_left != 1 {
+        return Err(format!("TV-012 depth_left {} != 1", od.scope.depth_left));
+    }
+    // Plain open() still accepts it and ignores key 33 (byte-frozen behavior).
+    if open(&from_hex(TV012_ENV_HEX)?, b"").map_err(|e| format!("open: {e}"))?.sender
+        != key_a_dk().agent_id()
+    {
+        return Err("TV-012 plain open sender != DK".into());
+    }
+    Ok(())
+}
+
+/// NV-007 — a chain whose child widens cap scope. Opens as an envelope, but the
+/// chain MUST be rejected (identity §4 tighten-only → WidenedScope, wire 2003).
+pub fn case_nv007_widened_scope() -> Result<(), String> {
+    match open_delegated(&from_hex(NV007_HEX)?, b"", None, DELEG_NOW_MS) {
+        Ok(_) => Err("NV-007 chain accepted (must not)".into()),
+        Err(EnvelopeError::Delegation(DelegError::WidenedScope { .. })) => Ok(()),
+        Err(e) => Err(format!("NV-007 expected WidenedScope, got {e:?}")),
+    }
 }
 
 /// The OFFER's TaskID (= TV-002 core[1]); the bound quote MUST carry it in key 9.

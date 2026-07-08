@@ -7,11 +7,18 @@
 //! verify over received bytes (invariant I1).
 
 pub mod cbor;
+pub mod delegation;
 pub mod envelope;
 pub mod errors;
 pub mod hello;
 pub mod msg_type;
 pub mod replay;
 
-pub use envelope::{open, seal, Body, EnvelopeError, MsgId, Opened, PROTOCOL_VERSION_1_0};
+pub use delegation::{
+    issue, validate_cert, validate_chain, Caveat, DelegError, DelegateBody, EffectiveScope,
+};
+pub use envelope::{
+    open, open_delegated, seal, seal_delegated, Body, EnvelopeError, MsgId, Opened,
+    OpenedDelegated, PROTOCOL_VERSION_1_0,
+};
 pub use hello::{channel_binding, negotiate, transcript_hash, Hello, HelloAck, Negotiated};

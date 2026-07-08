@@ -76,6 +76,27 @@ agreement-digest-mismatch, 6007 task-binding-mismatch, 6008 invalid-payment-
 proof) and update `PAY_REJECT`. No new code points assigned here (assign-only-
 where-a-package-declares-FINAL).
 
+PENDING-ARCHITECT: 2026-07-08 TASK-010 — identity §4 chain validation states
+"the chain root MUST equal the envelope `kid`", but TASK-010 FR-3 requires the
+data envelope be signed by the delegated LEAF key ("verify the envelope
+signature against the LEAF key; the kid MUST be the leaf subject"). These
+contradict: the `kid` (COSE key id) names the key that produced the envelope
+signature, and the actual signer of a delegated data envelope is the leaf (SK),
+not the root (RIK) — so `kid` == root is cryptographically impossible unless the
+root signs every message (defeating the purpose of delegation). The reference
+implementation follows FR-3 (kid == chain leaf subject; the root is returned as
+the accountable identity), and TV-012 freezes this at the byte level. An
+editorial note was added to identity §4 pointing here; the normative sentence
+was left unchanged pending an architect ruling. Proposal: replace "the chain
+root MUST equal the envelope `kid`" with "the envelope `kid` MUST equal the
+chain LEAF's subject; the chain root is the accountable identity." (Wire-frozen
+already, so this is a wording fix, but security-relevant — hence queued.)
+
 Also noted (report, not blocking): pay §4 `PayInvoice` key 4 (usage watermark)
 is `{ usage watermark }` with no concrete field shape; TASK-009 (postpaid flat)
 omits it. A metered-terms (terms 3) package must define its CDDL.
+
+Also noted (TASK-010, not blocking): the negative vector for widened delegation
+scope is **NV-007**, not the "NV-006" named in TASK-010 FR-6 — NV-006 was already
+taken by the 2026-07-08 bound-PAY_QUOTE pass. The NV counter now stands at 007;
+TASK-011's planned NV-007/008 should continue from NV-008.

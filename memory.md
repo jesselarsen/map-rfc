@@ -141,7 +141,9 @@ it found real bugs):
 
 Honest rev-00 gaps (spec side): extensions TBD-BID / TBD-KVX / TBD-GIT
 have no code points and only sketch definitions; delegation `crit`/`ext`
-processing thinly exampled; reservations (tasks §6) are a sketch; formal
+processing thinly exampled (delegation CERTS + chain verify now implemented,
+TASK-010 — two caveats task-pin/audience, deeper caveats e.g. budget still
+future; revocation distribution still absent); reservations (tasks §6) are a sketch; formal
 analysis (ops §6.3) is a plan, not a result; two-independent-
 implementations rule (ops §6.1) unmet — the Rust scaffold is impl #1.
 
@@ -160,18 +162,18 @@ with the installed GNU toolchain: `cargo +stable-x86_64-pc-windows-gnu build`.
 | Crate | Status | Contents |
 |---|---|---|
 | crates/map-identity | written + unit tests | AgentId (validated ctor, multibase, did:key), Keypair, verify (verify_strict) |
-| crates/map-core | written + unit tests | cbor.rs (canonical encoder + strict profile decoder), envelope.rs (seal/open, I1, channel-binding via external_aad), hello.rs (negotiate, TH, CB), replay.rs (ReplayCache ±120 s / 10 min, SeqTracker), msg_type.rs, errors.rs (codes 1000–6004 + ErrorMsg) |
+| crates/map-core | written + unit tests; +delegation (TASK-010) | cbor.rs (canonical encoder + strict profile decoder), envelope.rs (seal/open, I1, channel-binding via external_aad; TASK-010: `seal_delegated`/`open_delegated` key 33 — `open()` byte-frozen), hello.rs (negotiate, TH, CB), replay.rs (ReplayCache ±120 s / 10 min, SeqTracker), msg_type.rs, errors.rs (codes 1000–6004 + ErrorMsg). `delegation.rs` (TASK-010): DelegateBody codec, issue/validate_cert/validate_chain→EffectiveScope, Caveat task-pin/audience, tighten-only + fail-closed, chain cap 8 |
 | crates/map-discovery | written + unit tests | CapURI validation, cap_matches (prefix-segment), multihash_sha256, shard (digest byte), capability keys, minimal Descriptor (fields 1–6 + 12), DescriptorCache (seq-LWW) |
 | crates/map-tasks | written + unit tests; +msg codecs (TASK-007) | TaskId, ChunkKind, TranscriptBuilder (patched Merkle), FlowAccount (dual-unit credits), requester state machine (ReqState/step). `msg` module (TASK-007): pure to_value/from_value for Offer/Quote/Assign/Accept/Reject/ChunkMsg/Complete/Cancel/FlowCredit + TaskConstraints/InputSpec/FlowInit/Usage. Complete key 3 = multihash(root); pay refs modeled `Option<Value>`, omitted (ERRATA); InputSpec inline-only |
 | crates/map-trust | written + unit tests; +lifecycle (TASK-008) | ReceiptCore/Receipt (TV-002), role signing, idempotent ReceiptStore, TrustProjection (Beta, rebuild==incremental). TASK-008: `Receipt::to_value/from_value` (message content; encode/decode_bytes frozen-wire untouched) + `lifecycle::within_tolerance` (usage ±5% of OBSERVED value, ts ±2 s — anchored to the trusted side, farming defense) |
 | crates/map-pay | written + unit tests; +codec/ledger (TASK-009) | Amount (tag-4), Asset, InvoiceId/QuoteId, SettlementLedger. TASK-009: `codec` (PayQuote incl. ?9 task-binding, PayAgree, Pay{Quote,Agree}Ref, PayRef, PayInvoice/Proof/Receipt, MethodOffer, AssetAmount, `pay_ref_digest`) + `credit_ledger` (LedgerOperator: signed entry `enc(["MAPLedgerEntry",…])`, idempotent `pay`, `verify_entry` verify_strict). deps += identity/sha2 |
-| crates/map-session | done (TASK-005; HelloAck refactor TASK-006) + 21 tests | in-memory session layer: HELLO/HELLO_ACK handshake, TH/CB, core §12 state machine, in-session send/recv with seq+replay+size enforcement, PING/PONG/CLOSE. `Transport`/`Clock`/`MsgIdSource` traits + `InMemoryDuplex` (mpsc). Uses `map_core::HelloAck` (private codec deleted, TASK-006). Deps: identity/core only. Handshake=empty aad, in-session=CB. Real libp2p exporter still future |
+| crates/map-session | done (TASK-005; HelloAck refactor TASK-006; delegation FR-5 TASK-010) + 21 tests | in-memory session layer: HELLO/HELLO_ACK handshake, TH/CB, core §12 state machine, in-session send/recv with seq+replay+size enforcement, PING/PONG/CLOSE. `Transport`/`Clock`/`MsgIdSource` traits + `InMemoryDuplex` (mpsc). Uses `map_core::HelloAck`. TASK-010: `SessionConfig::new()` + optional `delegation_chain` (handshake carries key 33 via seal_delegated), `accountable_peer()` records the chain ROOT (leaf still = transport-auth peer); bad chain → 2003. Deps: identity/core only. Handshake=empty aad, in-session=CB. Real libp2p exporter still future |
 | crates/map-taskrun | done (TASK-007/008/009) + 40 tests | pump-driven runtimes: task (Provider/RequesterTask), receipts.rs + evidence.rs (TASK-008: dual+provider==subject gate), payments.rs (TASK-009: `ProviderPayment`/`RequesterPayment` — PAY_QUOTE(task-bound)→AGREE→INVOICE→pay via LedgerOperator→PROOF→verify+settle_once→RECEIPT; cap/digest/binding/forged-proof defenses; retries move money once). Deps: identity/core/session/tasks/trust/pay (no mesh) |
 | crates/map-mesh | done (TASK-006) + 12 tests | discovery flows over sessions: `publish_descriptor`/`ingest_descriptor_envelope` (self-signed, ttl, seq-LWW), `MeshIndex` (in-process DHT stand-in; order-independent ingest ⇒ `rebuild==incremental`), CAP_QUERY/CAP_RESPONSE + STATUS over a live session (`serve_one`/`query_caps`/`query_status`). Index is untrusted transport — client verifies every envelope. Deps: identity/core/session/discovery (no tasks/trust/pay) |
 | crates/map-cli | done (TASK-001) + 6 unit tests | `keygen` (seed/pubkey/AgentID hex+multibase/did:key; random or `--seed`), `projection-rebuild-demo` (synth dual-signed receipts → incremental vs `rebuild`, ops §8); hand-rolled argv, deps: identity/tasks/trust/sha2/hex/getrandom |
 | adapters/ollama-provider | done (TASK-002) + 4 unit tests | `InferenceBackend` trait + deterministic `MockBackend`, `result_to_chunks`/`run_task` glue (kind-0 text + kind-3 usage CBOR, seq 0/1). No HTTP — real localhost:11434 backend still future |
 | adapters/gateway | done (TASK-002) + 4 unit tests | provenance per ops §5: `GatewayAdvert` wrapper + `label_descriptor`/`is_gateway_advert` (G-1), `effective_zone` tighten-only (G-3), `valid_namespace` DNS/mesh (G-4). Descriptor wire format untouched |
-| conformance/map-conformance | done (TASK-003/004) + 30 cases | reproduces TV-001..010 + NV-001..005 **byte-for-byte**; ops §6.2 negatives; `run_all() -> Report`. TV-003 upgraded (TASK-006) to a HelloAck PRODUCE-guard (from_value→to_value must reproduce the vector bytes — the tripwire for any HELLO_ACK codec regression), same discipline as the DESCRIPTOR round-trip. Encoder needed NO fix |
+| conformance/map-conformance | done (TASK-003/004; +bound-quote & delegation 2026-07-08) + 34 cases (+run_all) | reproduces TV-001..012 + NV-001..007 **byte-for-byte** (adds TV-010b bound quote, TV-011 cert, TV-012 delegated OFFER; NV-006 task-binding, NV-007 widened scope); gained a map-pay dep (real PayQuote) + uses map_core delegation; ops §6.2 negatives; `run_all() -> Report`. TV-003 upgraded (TASK-006) to a HelloAck PRODUCE-guard (from_value→to_value must reproduce the vector bytes — the tripwire for any HELLO_ACK codec regression), same discipline as the DESCRIPTOR round-trip. Encoder needed NO fix |
 
 **Build-breaking fact (RESOLVED by TASK-001):** the workspace `Cargo.toml`
 lists eleven members (map-session added by TASK-005); all exist and build.
@@ -193,8 +195,9 @@ Workspace deps pinned: ed25519-dalek 2, sha2 0.10, hkdf 0.12, bs58 0.5,
 getrandom 0.2, hex 0.4. Edition 2021. No async/network deps yet by design.
 
 Known code caveats:
-- `envelope::open()` verifies only direct kid signatures; ProtHdr key 33
-  delegation chains (identity §4) are unimplemented.
+- `envelope::open()` verifies only direct kid signatures (byte-frozen); ProtHdr
+  key 33 delegation chains are handled by `open_delegated` (TASK-010), which
+  layers chain validation on top of `open()`.
 - Body keys 8/9 (crit/ext) are not modeled; byte-exact preservation for
   store-and-forward (invariant I3) is achieved by keeping `Opened.payload`
   bytes, not by re-encoding — preserve that pattern.
@@ -285,6 +288,28 @@ treat as the frozen interop contract.
 > (origin/HEAD → origin/main; remote `master` deleted). Any `master` references
 > elsewhere in this file are historical.
 
+7. ~~**TASK-010 — delegation certificates + envelope chain verification.**~~ DONE
+   (2026-07-08). `map-core::delegation` (NEW module — hosted in map-core, NOT
+   map-identity as TASK-010 §4 suggested, because a cert IS an envelope and
+   map-identity has no CBOR/envelope dep; hosting it there would invert the dep
+   graph, NFR §3. Wire format is spec-exact; only the host crate differs):
+   `DelegateBody` codec, `issue`/`validate_cert`, `validate_chain` →
+   `EffectiveScope{root,caps,zones,depth_left,task_pin}`, `Caveat`
+   (task-pin=1/audience=2), tighten-only attenuation, fail-closed unknown
+   caveats, chain cap 8. `envelope::open_delegated` (key 33; verifies LEAF sig,
+   returns scope+root; `open()` untouched/byte-frozen) + `seal_delegated`.
+   map-session FR-5: `SessionConfig::new()` + `delegation_chain` field +
+   `Session.accountable_peer()` (records the root when the peer delegates; leaf
+   still satisfies transport-auth). Vectors TV-011 (cert)/TV-012 (delegated
+   OFFER, chain in key 33)/**NV-007** (widened scope → 2003); conformance 31→34
+   cases; gen_vectors idempotent, TV-001..010b frozen (57 additive md lines).
+   Spec patches: identity §4 (caveat registry, fail-closed, cap 8 + editorial
+   note) and §11 (caveat table). **ERRATA:** identity-§4 "chain root MUST equal
+   kid" clause contradicts the crypto (leaf signs) — logged PENDING-ARCHITECT;
+   impl follows kid==leaf-subject, root returned as accountable. NV numbering:
+   TASK-010's planned "NV-006" became **NV-007** (NV-006 taken by the bound-quote
+   pass); TASK-011 should continue from NV-008. Whole workspace green, zero warns.
+
 ## 8. Roadmap after the scaffold is green (ops §8 MVP ordering)
 
 1. **Session layer**: ~~HELLO/HELLO_ACK over an in-memory duplex first~~ DONE
@@ -330,7 +355,8 @@ treat as the frozen interop contract.
    RECEIPT) + `LedgerOperator` in `map-pay`, flows in `map-taskrun::payments`,
    11 tests (incl. §11 security: forged entry, proof replay, digest switch,
    cap exceeded, task-binding). Metered terms-3 / escrow / disputes future.
-6. Then: DelegationCert implementation + envelope chain verification;
+6. Then: ~~DelegationCert implementation + envelope chain verification~~ DONE
+   (TASK-010, 2026-07-08 — see §7 step 7);
    Ollama adapter for real; extension code points (BID/KVX/GIT) via the
    registry process; formal models (Tamarin/ProVerif) of HELLO +
    channel binding + delegation attenuation; Go implementation (impl #2

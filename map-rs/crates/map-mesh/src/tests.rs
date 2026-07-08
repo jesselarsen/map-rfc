@@ -45,7 +45,7 @@ fn hello() -> Hello {
 }
 
 fn cfg(seed: u8, peer: AgentId) -> SessionConfig {
-    SessionConfig { keypair: kp(seed), expected_peer: peer, hello: hello() }
+    SessionConfig::new(kp(seed), peer, hello())
 }
 
 // ---- unit -----------------------------------------------------------------

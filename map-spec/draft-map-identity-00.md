@@ -106,6 +106,26 @@ reference) so existing tooling and audit intuition transfer. Tool-grant
 tokens in tasks §7 are DelegationCerts with task-pinning caveats — one
 mechanism, two uses.
 
+Chains are carried in ProtHdr key 33, ordered leaf..root (core §6). A chain
+MUST NOT exceed **8** certificates (a denial-of-service bound: chain
+validation is one signature verification per link). An **unknown caveat key
+MUST invalidate the entire chain** (fail-closed: a caveat is a restriction,
+so silently ignoring one would widen scope). Registered caveat keys (§11):
+`1` = **task-pinning** (value: a 32-byte TaskID, tasks §1 — the chain is
+valid only for envelopes whose Body references that task; the referencing
+check is performed by the consumer); `2` = **audience** (value: a 34-byte
+AgentID — the chain is valid only when the validating party's own AgentID
+equals it).
+
+[EDITORIAL NOTE — PENDING-ARCHITECT (see `map-spec/ERRATA.md`, 2026-07-08):
+the clause "the chain root MUST equal the envelope `kid`" above cannot hold
+for a data envelope signed by the *delegated leaf* key (the leaf, not the
+root, produces the signature the `kid` names). The reference implementation
+verifies the envelope signature against the **leaf** (`kid` == chain leaf
+subject) and returns the **root** as the accountable identity. A future
+architect resolves the normative wording; the byte-level behavior is frozen
+by TV-012.]
+
 ## 5. Descriptor binding and proof of possession
 
 An agent proves control of its AgentID implicitly: every envelope is
@@ -184,6 +204,16 @@ minimal chains (leaf + one parent).
 
 Registries established: MAP Key Types (multicodec bindings); MAP Delegation
 Caveats; MAP Revocation Reasons.
+
+MAP Delegation Caveats (DelegateBody key 8; §4). Assigned code points
+(immutable once merged, ops §3.3):
+
+| Key | Name | Value | Meaning |
+|-----|------|-------|---------|
+| 1 | task-pinning | 32-byte TaskID | Chain valid only for envelopes referencing that task. |
+| 2 | audience | 34-byte AgentID | Chain valid only when validated by that party. |
+
+An unknown caveat key MUST invalidate the chain (§4, fail-closed).
 
 ## References (selected)
 

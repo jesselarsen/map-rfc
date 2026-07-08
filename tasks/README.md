@@ -82,8 +82,8 @@ input. When something nonetheless needs a ruling:
 | 007 | [TASK-007](TASK-007-echo-task-end-to-end.md) — task codecs + map-taskrun (echo task E2E, TTFT cancel, credits, transcript) | 005, 006 | blocked by 006 |
 | 008 | [TASK-008](TASK-008-receipts-and-evidence.md) — receipt lifecycle + evidence exchange | 007 | blocked by 007 |
 | 009 | [TASK-009](TASK-009-payments-credit-ledger.md) — pay codecs + credit-ledger method + payment flow | 007 | blocked by 007 (parallel with 008) |
-| 010 | [TASK-010](TASK-010-delegation-chains.md) — DelegationCert, chain verify (key 33), caveats, TV-011/012 + NV-006 | 005 | READY (parallel with 006) |
-| 011 | [TASK-011](TASK-011-spec-extensions-and-vectors.md) — SPEC: ext code points (bid/kvx/git), reservations CDDL/FSM, vectors TV-013..016 + NV-007/008 | 004 | READY (parallel) |
+| 010 | [TASK-010](TASK-010-delegation-chains.md) — DelegationCert, chain verify (key 33), caveats, TV-011/012 + NV-007 | 005 | DONE 2026-07-08 (delegation in map-core not map-identity — dep graph; negative is NV-007 not NV-006; kid==leaf per ERRATA) |
+| 011 | [TASK-011](TASK-011-spec-extensions-and-vectors.md) — SPEC: ext code points (bid/kvx/git), reservations CDDL/FSM, vectors TV-013..016 + NV-008/009 | 004 | READY (parallel) — NV counter now at 007; use NV-008+ |
 | 012 | [TASK-012](TASK-012-libp2p-transport.md) — map-net: libp2p `/map/1.0.0`, kad-backed index, loopback interop | 006 | blocked by 006 |
 | 013 | [TASK-013](TASK-013-ollama-provider-real.md) — real Ollama backend (feature-gated ureq) + demo | 007 | blocked by 007 |
 | 014 | [TASK-014](TASK-014-formal-analysis.md) — ProVerif models P1–P3 + negative controls | 010 | blocked by 010 |

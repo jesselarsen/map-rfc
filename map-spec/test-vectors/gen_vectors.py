@@ -45,6 +45,15 @@ aid_a, aid_b = agent_id(pub_a), agent_id(pub_b)
 
 TS = 1780000000000          # fixed timestamp (ms)
 CAP = "map:cap:inference/text-generation"
+DELEG_EXPIRY = 1780000600000  # delegation not-after (shared with TV-010 expiry)
+
+# Delegation key tiers derived from labelled seeds (RIK = Key A; DK/SK below),
+# for TV-011/012 + NV-007 (TASK-010). Same derivation the Rust conformance uses.
+seed_a_dk = hashlib.sha256(b"MAP-TEST-VECTOR-KEY-A-DK").digest()
+seed_a_sk = hashlib.sha256(b"MAP-TEST-VECTOR-KEY-A-SK").digest()
+ka_dk, ka_sk = SigningKey(seed_a_dk), SigningKey(seed_a_sk)
+aid_a_dk = agent_id(ka_dk.verify_key.encode())
+aid_a_sk = agent_id(ka_sk.verify_key.encode())
 
 def sealed(signer, msg_type: int, msg_id: bytes, content, ts: int = TS, aad: bytes = b""):
     """Build+sign a COSE_Sign1 envelope exactly as TV-001 does (core §4).
@@ -59,6 +68,22 @@ def sealed(signer, msg_type: int, msg_id: bytes, content, ts: int = TS, aad: byt
     sig_struct = enc(["Signature1", protected, aad, payload])
     sig = signer.sign(sig_struct).signature
     signer.verify_key.verify(sig_struct, sig)              # in-script verify
+    envelope = enc(cbor2.CBORTag(18, [protected, {}, payload, sig]))
+    return {"aid": aid, "protected": protected, "payload": payload,
+            "sig_struct": sig_struct, "sig": sig, "envelope": envelope}
+
+def sealed_delegated(signer, msg_type: int, msg_id: bytes, content, chain, ts: int = TS, aad: bytes = b""):
+    """Like `sealed`, but the protected header carries a delegation chain in
+    key 33 (identity §6; order leaf..root). `chain` is a list of cert-envelope
+    byte strings. The chain sits inside the signed `protected`, so the leaf
+    signature covers it."""
+    aid = agent_id(signer.verify_key.encode())
+    protected = enc({1: -8, 4: aid, 33: chain})
+    body = {0: 0x0100, 1: msg_type, 2: msg_id, 3: ts, 10: content}
+    payload = enc(body)
+    sig_struct = enc(["Signature1", protected, aad, payload])
+    sig = signer.sign(sig_struct).signature
+    signer.verify_key.verify(sig_struct, sig)
     envelope = enc(cbor2.CBORTag(18, [protected, {}, payload, sig]))
     return {"aid": aid, "protected": protected, "payload": payload,
             "sig_struct": sig_struct, "sig": sig, "envelope": envelope}
@@ -193,6 +218,17 @@ pay_quote_bound = dict(pay_quote); pay_quote_bound[9] = task_id
 tv010b = sealed(kb, 0x0400, msgid(11), pay_quote_bound)
 assert len(task_id) == 32
 
+# TV-011 DelegationCert (0x0502), signed by RIK = Key A. identity §4 DelegateBody:
+#   1 issuer 2 subject 3 not-before 4 not-after ?5 [CapURI] ?6 [ZoneLabel]
+#   ?7 max-depth ?8 caveats. RIK-A delegates to DK-A, scope = CAP, depth 1.
+delegate_body = {1: aid_a, 2: aid_a_dk, 3: TS, 4: DELEG_EXPIRY, 5: [CAP], 7: 1}
+tv011 = sealed(ka, 0x0502, msgid(13), delegate_body)
+
+# TV-012 OFFER (0x0200) signed by DK-A, carrying the 1-link chain [TV-011] in
+# ProtHdr key 33. Leaf = DK-A; the chain root is RIK-A (the accountable id).
+deleg_offer = {1: task_id, 2: CAP, 3: {}}
+tv012 = sealed_delegated(ka_dk, 0x0200, msgid(14), deleg_offer, [tv011["envelope"]])
+
 # =====================================================================
 # Derived constants (core §6.2 / §7.3, discovery §6, tasks §8.1)
 # =====================================================================
@@ -251,6 +287,18 @@ bad_task = bytes([task_id[0] ^ 0xFF]) + task_id[1:]
 assert bad_task != task_id and len(bad_task) == 32
 pay_quote_badbind = dict(pay_quote); pay_quote_badbind[9] = bad_task
 nv006 = sealed(kb, 0x0400, msgid(12), pay_quote_badbind)["envelope"]
+
+# NV-007 delegation chain that WIDENS cap scope -> MUST reject (identity §4
+#   attenuation; wire 2003). Parent RIK-A->DK scopes to ".../text"; child
+#   DK->SK broadens to the parent "inference" prefix. Envelope signed by SK
+#   carries [child, parent] (leaf..root). (Renumbered from TASK-010's planned
+#   NV-006, already taken by the bound-quote pass.)
+nv7_parent_body = {1: aid_a, 2: aid_a_dk, 3: TS, 4: DELEG_EXPIRY, 5: ["map:cap:inference/text"]}
+nv7_parent = sealed(ka, 0x0502, msgid(15), nv7_parent_body)
+nv7_child_body = {1: aid_a_dk, 2: aid_a_sk, 3: TS, 4: DELEG_EXPIRY, 5: ["map:cap:inference"]}
+nv7_child = sealed(ka_dk, 0x0502, msgid(16), nv7_child_body)
+nv007 = sealed_delegated(ka_sk, 0x0200, msgid(17), deleg_offer,
+                         [nv7_child["envelope"], nv7_parent["envelope"]])["envelope"]
 
 # =====================================================================
 # Emit markdown. Existing sections (through Verification procedure) are kept
@@ -397,6 +445,54 @@ signature (Ed25519 by Key B, hex):
 Complete envelope 18([protected, {{}}, payload, signature]) (hex, {len(tv010b['envelope'])} bytes):
   {tv010b['envelope'].hex()}
 """
+new += f"""
+## TV-011 — DelegationCert (0x0502), signed by Key A (RIK)
+
+Field numbers per identity §4. msg-id = h'{msgid(13).hex()}', timestamp {TS}.
+RIK (Key A) delegates to DK (seed SHA-256("MAP-TEST-VECTOR-KEY-A-DK")); cap
+scope = one CapURI, max further-delegation depth = 1. A cert IS an envelope
+whose kid is the ISSUER (RIK).
+
+DK AgentID  = h'{aid_a_dk.hex()}'
+DelegateBody (diagnostic):
+  {{1: h'{aid_a.hex()}', 2: h'{aid_a_dk.hex()}', 3: {TS}, 4: {DELEG_EXPIRY}, 5: ["{CAP}"], 7: 1}}
+
+payload (bstr contents, hex):
+  {tv011['payload'].hex()}
+
+Sig_structure = ["Signature1", protected, h'', payload], encoded (hex):
+  {tv011['sig_struct'].hex()}
+
+signature (Ed25519 by Key A, hex):
+  {tv011['sig'].hex()}
+
+Complete envelope 18([protected, {{}}, payload, signature]) (hex, {len(tv011['envelope'])} bytes):
+  {tv011['envelope'].hex()}
+
+## TV-012 — delegated OFFER (0x0200), signed by DK, chain in ProtHdr key 33
+
+Field numbers per tasks §2. msg-id = h'{msgid(14).hex()}', timestamp {TS}.
+An OFFER signed by DK (the leaf), carrying the 1-link chain [TV-011] in the
+protected header (identity §6; order leaf..root). A verifier resolves the
+accountable root to RIK (Key A). The protected header is
+`{{1: -8, 4: DK-AgentID, 33: [TV-011-envelope]}}`.
+
+SK AgentID (used by NV-007) = h'{aid_a_sk.hex()}'
+OFFER content (diagnostic):
+  {{1: h'{task_id.hex()}', 2: "{CAP}", 3: {{}}}}
+
+payload (bstr contents, hex):
+  {tv012['payload'].hex()}
+
+Sig_structure = ["Signature1", protected, h'', payload], encoded (hex):
+  {tv012['sig_struct'].hex()}
+
+signature (Ed25519 by DK, hex):
+  {tv012['sig'].hex()}
+
+Complete envelope 18([protected, {{}}, payload, signature]) (hex, {len(tv012['envelope'])} bytes):
+  {tv012['envelope'].hex()}
+"""
 
 negatives = f"""
 ## Negative vectors (MUST reject)
@@ -443,6 +539,16 @@ bound quote). Key 9 = h'{bad_task.hex()}' (the TaskID h'{task_id.hex()}' with it
 first byte flipped). Like NV-004, this is a policy rejection, not a wire error.
 envelope (hex, {len(nv006)} bytes):
   {nv006.hex()}
+
+### NV-007 — delegation chain that widens cap scope → BAD_DELEGATION (2003)
+A 2-link chain RIK→DK→SK where the child (DK→SK) broadens the cap scope beyond
+its parent (identity §4 attenuation is tighten-only). The envelope is signed by
+SK (the leaf) and opens; `open_delegated` MUST reject the chain with a widened-
+scope error. Parent scope = "map:cap:inference/text"; child scope =
+"map:cap:inference" (wider). (Renumbered from TASK-010's planned NV-006, which
+the bound-PAY_QUOTE pass already consumed.)
+envelope (hex, {len(nv007)} bytes):
+  {nv007.hex()}
 """
 
 derived = f"""
@@ -474,3 +580,5 @@ print("OK - vectors written and all signatures verified.")
 print("TV-001", len(envelope), "| TV-002", len(receipt),
       "| new TVs 3..10 + 10b (bound quote) +", "6 negatives + derived constants")
 print("TV-010b", len(tv010b["envelope"]), "| NV-006", len(nv006))
+print("TV-011", len(tv011["envelope"]), "| TV-012", len(tv012["envelope"]),
+      "| NV-007", len(nv007), "(delegation)")
