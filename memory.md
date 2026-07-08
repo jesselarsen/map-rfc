@@ -275,14 +275,15 @@ treat as the frozen interop contract.
    `map_pay::codec::PayQuote` (new dep on map-pay) — `case_tv010b_pay_quote_bound`
    asserts `task_binding == Some(offer_task_id)`, `case_nv006_task_binding_mismatch`
    asserts the §3.1 reject, exactly as `map-taskrun::payments` does. run_all now
-   31 cases (was 29); workspace green, zero warnings. NOT yet committed/pushed.
-   Files: `map-spec/test-vectors/gen_vectors.py` + regenerated `map-test-vectors.md`;
+   31 cases (was 29); workspace green, zero warnings. COMMITTED + PUSHED to `main`
+   as f99f83c (2026-07-08; the commit also folded in the README license-line edit
+   MIT OR Apache-2.0 → Apache-2.0). Files:
+   `map-spec/test-vectors/gen_vectors.py` + regenerated `map-test-vectors.md`;
    `map-rs/conformance/map-conformance/{Cargo.toml,src/vectors2.rs,src/extended.rs,src/lib.rs}`.
 
-7. **Uncommitted, unrelated to the above:** working-tree `README.md` edit
-   changes the license line from "MIT OR Apache-2.0 (proposed)" to "Apache-2.0"
-   (inherited from before this session — decide whether to include or drop it
-   when committing).
+> NOTE (2026-07-08): the repo default branch was renamed `master` → `main`
+> (origin/HEAD → origin/main; remote `master` deleted). Any `master` references
+> elsewhere in this file are historical.
 
 ## 8. Roadmap after the scaffold is green (ops §8 MVP ordering)
 
