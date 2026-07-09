@@ -8,3 +8,13 @@ description = "MAP local-inference provider adapter: InferenceBackend seam + tra
 [dependencies]
 map-core = { path = "../../crates/map-core" }
 map-tasks = { path = "../../crates/map-tasks" }
+map-taskrun = { path = "../../crates/map-taskrun" }
+
+# Real HTTP backend deps (FR-1) — behind `real-backend`, default OFF so the
+# workspace default tree stays network-dep-free. `ureq` with default-features
+# off drops TLS/gzip (R2): loopback Ollama is plain HTTP.
+ureq = { version = "2", default-features = false, optional = true }
+serde_json = { version = "1", optional = true }
+
+[features]
+real-backend = ["dep:ureq", "dep:serde_json"]

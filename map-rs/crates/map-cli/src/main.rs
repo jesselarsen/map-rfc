@@ -51,6 +51,8 @@ fn main() {
     let result = match args.get(1).map(String::as_str) {
         Some("keygen") => cmd_keygen(&args),
         Some("projection-rebuild-demo") => cmd_projection_demo(&args),
+        #[cfg(feature = "real-backend")]
+        Some("serve-ollama") => cmd_serve_ollama(&args),
         _ => {
             eprint!("{}", usage());
             exit(2);
@@ -291,6 +293,92 @@ fn cmd_projection_demo(args: &[String]) -> Result<(), CliError> {
             "rebuild != incremental: incremental={si:?} rebuilt={sr:?}"
         ))),
     }
+}
+
+// ---------------------------------------------------------------------------
+// serve-ollama demo (TASK-013 FR-5, feature `real-backend`)
+// ---------------------------------------------------------------------------
+
+/// `serve-ollama --model <m> --prompt <text> [--url <u>] [--max-tokens <n>]`:
+/// run one real inference through a local Ollama server and print the output,
+/// the transcript root over the produced chunks, and a dual-signed receipt.
+///
+/// This is the single-process demo variant: even though TASK-012 (map-net) is
+/// merged, a self-contained requester+provider in one command is the only way
+/// to print the full text→root→receipt loop end-to-end (a networked `serve`
+/// needs a separate client). A MapNode-based `serve` is a documented follow-up.
+#[cfg(feature = "real-backend")]
+fn cmd_serve_ollama(args: &[String]) -> Result<(), CliError> {
+    use map_tasks::TranscriptBuilder;
+    use ollama_provider::{result_to_chunks, InferenceBackend, InferenceRequest, OllamaBackend};
+
+    let model = parse_flag(args, "--model")
+        .ok_or_else(|| CliError::Usage("serve-ollama needs --model <name>".into()))?
+        .to_string();
+    let prompt = parse_flag(args, "--prompt")
+        .ok_or_else(|| CliError::Usage("serve-ollama needs --prompt <text>".into()))?
+        .to_string();
+    let url = parse_flag(args, "--url").unwrap_or("http://127.0.0.1:11434").to_string();
+    let max_tokens: u32 = parse_flag(args, "--max-tokens").and_then(|s| s.parse().ok()).unwrap_or(128);
+
+    // Real inference. Errors never carry prompt content (adapter §11).
+    let backend = OllamaBackend::new(url, std::time::Duration::from_secs(120));
+    let req = InferenceRequest { model: model.clone(), prompt, max_tokens };
+    let result = backend
+        .infer(&req)
+        .map_err(|e| CliError::Failure(format!("inference failed: {e:?}")))?;
+
+    println!(
+        "--- output ({} prompt / {} completion tokens, {} ms) ---",
+        result.prompt_tokens, result.completion_tokens, result.millis
+    );
+    println!("{}", result.text);
+
+    // Transcript root over the produced chunks (kind-0 output is transcript-bearing).
+    let chunks = result_to_chunks(&result);
+    let mut tb = TranscriptBuilder::new();
+    for c in &chunks {
+        tb.push(c);
+    }
+    let root = tb.root();
+    println!("transcript-root: {}", hex::encode(root));
+
+    // Dual-signed ExecutionReceipt over the work (requester A, provider B — demo keys).
+    let a = Keypair::from_seed([1u8; 32]);
+    let b = Keypair::from_seed([2u8; 32]);
+    let core = ReceiptCore {
+        task: TaskId(sha256(model.as_bytes())),
+        requester: a.agent_id(),
+        provider: b.agent_id(),
+        capability: CAP.to_string(),
+        started_ms: BASE_STARTED_MS,
+        ended_ms: BASE_STARTED_MS + result.millis,
+        outcome: Outcome::Ok,
+        metrics: Metrics {
+            tokens_in: result.prompt_tokens,
+            tokens_out: result.completion_tokens,
+            ttft_ms: 0,
+            wall_ms: result.millis,
+        },
+        rating: None,
+        payment_ref: None,
+        transcript_root: Some(root),
+    };
+    let core_bytes = core.encode().map_err(|e| CliError::Failure(format!("receipt encode: {e:?}")))?;
+    let receipt = Receipt {
+        sig_requester: Some(sign_receipt(&a, ROLE_REQUESTER, &core_bytes)),
+        sig_provider: Some(sign_receipt(&b, ROLE_PROVIDER, &core_bytes)),
+        core_bytes,
+    };
+    receipt
+        .verify()
+        .map_err(|e| CliError::Failure(format!("receipt verify: {e:?}")))?;
+    println!(
+        "receipt: dual-signed OK  requester={}  provider={}",
+        a.agent_id(),
+        b.agent_id()
+    );
+    Ok(())
 }
 
 #[cfg(test)]

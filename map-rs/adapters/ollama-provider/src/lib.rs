@@ -4,13 +4,24 @@
 //! itself: it defines the [`InferenceBackend`] trait, a deterministic
 //! [`MockBackend`] for tests, and the glue that turns a backend response into
 //! transcript-eligible [`Chunk`]s the tasks-crate `TranscriptBuilder` can
-//! commit. There is deliberately **no HTTP client, no async, no clock** — the
-//! real localhost:11434 backend is future work (see TASK handoff notes), and
-//! `InferenceResult::millis` is a *duration*, never a wall-clock read, so all
-//! outputs here are reproducible.
+//! commit. `InferenceResult::millis` is a *duration*, never a wall-clock read,
+//! so the mock/glue outputs are reproducible.
+//!
+//! A real localhost:11434 backend ([`ollama::OllamaBackend`]) lives behind the
+//! `real-backend` feature (default OFF) so the default workspace tree stays
+//! network-dependency-free. [`OllamaExecutor`] adapts any [`InferenceBackend`]
+//! to the `map-taskrun` `Executor` trait (TASK-013).
 
 use map_core::cbor::{encode, Value};
 use map_tasks::{Chunk, ChunkKind};
+
+pub mod executor;
+pub use executor::OllamaExecutor;
+
+#[cfg(feature = "real-backend")]
+pub mod ollama;
+#[cfg(feature = "real-backend")]
+pub use ollama::OllamaBackend;
 
 /// A request handed to a local model server.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -31,10 +42,13 @@ pub struct InferenceResult {
 }
 
 /// Why an inference could not be produced (§10). `ModelNotFound` carries the
-/// requested model name.
+/// requested model name. Error strings MUST NOT contain prompt content
+/// (Zone hygiene, §11) — only transport/model diagnostics.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum BackendError {
-    Unavailable,
+    /// The server could not be reached (connection refused, DNS, timeout). The
+    /// string is a transport diagnostic (e.g. an elapsed-time note), never a prompt.
+    Unavailable(String),
     ModelNotFound(String),
     Failed(String),
 }

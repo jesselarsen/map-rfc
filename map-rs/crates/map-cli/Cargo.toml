@@ -16,3 +16,10 @@ map-trust = { path = "../map-trust" }
 sha2.workspace = true
 hex.workspace = true
 getrandom.workspace = true
+
+# The `serve-ollama` demo (TASK-013 FR-5) pulls the real Ollama backend only
+# under this feature, so the default `map-cli` build stays network-dep-free.
+ollama-provider = { path = "../../adapters/ollama-provider", optional = true }
+
+[features]
+real-backend = ["dep:ollama-provider", "ollama-provider/real-backend"]

@@ -184,9 +184,9 @@ map-net) still build without mingw.
 | crates/map-session | done (TASK-005; HelloAck refactor TASK-006; delegation FR-5 TASK-010) + 21 tests | in-memory session layer: HELLO/HELLO_ACK handshake, TH/CB, core §12 state machine, in-session send/recv with seq+replay+size enforcement, PING/PONG/CLOSE. `Transport`/`Clock`/`MsgIdSource` traits + `InMemoryDuplex` (mpsc). Uses `map_core::HelloAck`. TASK-010: `SessionConfig::new()` + optional `delegation_chain` (handshake carries key 33 via seal_delegated), `accountable_peer()` records the chain ROOT (leaf still = transport-auth peer); bad chain → 2003. Deps: identity/core only. Handshake=empty aad, in-session=CB. Real libp2p exporter still future |
 | crates/map-taskrun | done (TASK-007/008/009) + 40 tests | pump-driven runtimes: task (Provider/RequesterTask), receipts.rs + evidence.rs (TASK-008: dual+provider==subject gate), payments.rs (TASK-009: `ProviderPayment`/`RequesterPayment` — PAY_QUOTE(task-bound)→AGREE→INVOICE→pay via LedgerOperator→PROOF→verify+settle_once→RECEIPT; cap/digest/binding/forged-proof defenses; retries move money once). Deps: identity/core/session/tasks/trust/pay (no mesh) |
 | crates/map-mesh | done (TASK-006) + 12 tests | discovery flows over sessions: `publish_descriptor`/`ingest_descriptor_envelope` (self-signed, ttl, seq-LWW), `MeshIndex` (in-process DHT stand-in; order-independent ingest ⇒ `rebuild==incremental`), CAP_QUERY/CAP_RESPONSE + STATUS over a live session (`serve_one`/`query_caps`/`query_status`). Index is untrusted transport — client verifies every envelope. Deps: identity/core/session/discovery (no tasks/trust/pay) |
-| crates/map-cli | done (TASK-001) + 6 unit tests | `keygen` (seed/pubkey/AgentID hex+multibase/did:key; random or `--seed`), `projection-rebuild-demo` (synth dual-signed receipts → incremental vs `rebuild`, ops §8); hand-rolled argv, deps: identity/tasks/trust/sha2/hex/getrandom |
+| crates/map-cli | done (TASK-001; +serve-ollama TASK-013) + 6 unit tests | `keygen`, `projection-rebuild-demo`; hand-rolled argv. TASK-013: `serve-ollama --model --prompt [--url --max-tokens]` (feature `real-backend`) — single-process demo: real Ollama call → prints output + transcript root + dual-signed receipt (needs live server). deps: identity/tasks/trust/sha2/hex/getrandom + optional ollama-provider |
 | crates/map-net | done (TASK-012, 2026-07-08) + 4 unit tests + 2 gated net tests | **First real network transport.** `framing` (u32-BE length prefix, size-first), `Libp2pTransport` (blocking `map_session::Transport` bridged over tokio mpsc), `MapNode` (blocking API over a background tokio swarm: listen/dial/accept/publish_descriptor/find_providers/fetch_descriptor). Behaviour = libp2p-stream + kad(MemoryStore) + identify. PeerID≡AgentID asserted (FR-3); dial uses DialOpts(peer-id) so libp2p enforces the expected peer. Exporter = init-AID‖resp-AID (FR-4, core §10). Deps: libp2p 0.54.1 (tcp+quic+noise+yamux+kad+identify+dns+ed25519), **libp2p-stream 0.2.0-alpha** (raw substreams; umbrella has no `stream` feature — separate alpha crate), futures 0.3, tokio 1. Net tests behind `net-tests` feature + `#[ignore]` (2-node loopback handshake/echo/kad + dial-wrong-peer, both PASS). NOT-done (deferred, noted in report): map-cli `node` subcommands; anti-relay-across-two-connections + poisoned-kad-record network tests; NAT/relay/eclipse (all future) |
-| adapters/ollama-provider | done (TASK-002) + 4 unit tests | `InferenceBackend` trait + deterministic `MockBackend`, `result_to_chunks`/`run_task` glue (kind-0 text + kind-3 usage CBOR, seq 0/1). No HTTP — real localhost:11434 backend still future |
+| adapters/ollama-provider | done (TASK-002; real backend TASK-013 2026-07-08) + 13 tests (feature) | `InferenceBackend` trait + deterministic `MockBackend`, `result_to_chunks`/`run_task` glue. TASK-013: `OllamaExecutor<B>` (adapts any backend to `map_taskrun::Executor`; input=prompt UTF-8, errors/invalid→empty output never panic) always-on; **`OllamaBackend`** (real HTTP `/api/generate` stream:false, FR-2 field map, FR-3 errors, no prompt in error strings) behind feature **`real-backend`** (default OFF; deps `ureq` default-features-off + `serde_json`, NOT in default tree). `BackendError::Unavailable` now carries a msg (FR-10). Canned-JSON unit tests; live test `#[ignore]`. `Unavailable`→`Unavailable(String)` |
 | adapters/gateway | done (TASK-002) + 4 unit tests | provenance per ops §5: `GatewayAdvert` wrapper + `label_descriptor`/`is_gateway_advert` (G-1), `effective_zone` tighten-only (G-3), `valid_namespace` DNS/mesh (G-4). Descriptor wire format untouched |
 | conformance/map-conformance | done (TASK-003/004; +bound-quote, delegation, spec-round-3 2026-07-08) + 38 cases (+run_all) | reproduces TV-001..015 + NV-001..008 **byte-for-byte** (adds TV-010b bound quote, TV-011 cert, TV-012 delegated OFFER, TV-013 PAY_AGREE, TV-014 RESERVE, TV-015 LEASE; NV-006 task-binding, NV-007 widened scope, NV-008 out-of-window lease); gained a map-pay dep (real PayQuote/PayAgree) + uses map_core delegation + map_tasks Reserve/Lease; ops §6.2 negatives; `run_all() -> Report`. TV-003 upgraded (TASK-006) to a HelloAck PRODUCE-guard (from_value→to_value must reproduce the vector bytes — the tripwire for any HELLO_ACK codec regression), same discipline as the DESCRIPTOR round-trip. Encoder needed NO fix |
 
@@ -361,6 +361,21 @@ treat as the frozen interop contract.
    subcommands; anti-relay-across-two-connections + poisoned-kad-record net tests;
    NAT/relay/DCUtR + anti-eclipse (explicitly out of scope, future package).
 
+10. ~~**TASK-013 — real Ollama provider adapter.**~~ DONE (2026-07-08).
+    `ollama-provider` gained `OllamaExecutor<B>` (any backend → `map_taskrun::Executor`)
+    always-on, and `OllamaBackend` (HTTP `/api/generate` stream:false) behind feature
+    `real-backend` (default OFF — `ureq` default-features-off + `serde_json` stay out
+    of the default tree, verified `cargo tree`=0). FR-2 field map + FR-3 error classes
+    + no-prompt-in-errors (enforced by a test). `map-cli serve-ollama` demo (same
+    feature) prints output+root+dual-signed receipt. **Decisions:** enum
+    `Unavailable`→`Unavailable(String)` (only def referenced it) to carry FR-10 elapsed;
+    used `send_string`+manual serde_json rather than ureq's `json` feature (keeps tree
+    minimal, no TLS); Executor is infallible so backend errors/invalid-UTF8 degrade to
+    empty output (a fallible Executor to surface COMPLETE outcome=1 is a noted follow-up);
+    chose the single-process InMemoryDuplex-free demo (TASK-012 merged, but a networked
+    `serve` needs a separate client to show the full loop). Live test `#[ignore]`.
+    Default + feature builds both zero-warning; full workspace green.
+
 ## 8. Roadmap after the scaffold is green (ops §8 MVP ordering)
 
 1. **Session layer**: ~~HELLO/HELLO_ACK over an in-memory duplex first~~ DONE
@@ -409,11 +424,11 @@ treat as the frozen interop contract.
    11 tests (incl. §11 security: forged entry, proof replay, digest switch,
    cap exceeded, task-binding). Metered terms-3 / escrow / disputes future.
 6. Then: ~~DelegationCert implementation + envelope chain verification~~ DONE
-   (TASK-010, 2026-07-08 — see §7 step 7);
-   Ollama adapter for real; extension code points (BID/KVX/GIT) via the
-   registry process; formal models (Tamarin/ProVerif) of HELLO +
-   channel binding + delegation attenuation; Go implementation (impl #2
-   for the two-impl rule); federation gateway.
+   (TASK-010); ~~Ollama adapter for real~~ DONE (TASK-013); ~~extension code
+   points (BID/KVX/GIT)~~ DONE (TASK-011); formal models (Tamarin/ProVerif) of
+   HELLO + channel binding + delegation attenuation (TASK-014, pending); Go
+   implementation (impl #2 for the two-impl rule, TASK-015); federation gateway
+   (TASK-016). All 2026-07-08.
 
 ## 9. Working conventions
 
