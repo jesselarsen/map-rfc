@@ -9,6 +9,11 @@
 //! PAY_QUOTE whose key 9 equals the OFFER's TaskID (consumed + verified via the
 //! real `PayQuote` codec); NV-006 carries a mismatching binding and MUST be
 //! rejected by the §3.1 rule — the executable coverage of that normative MUST.
+//!
+//! Delegation pass (TASK-010): TV-011 cert + TV-012 delegated OFFER consume,
+//! NV-007 widened-scope reject. Spec-round-3 (TASK-011): TV-013 PAY_AGREE
+//! (digest binds TV-010b's envelope), TV-014 RESERVE + TV-015 LEASE consume,
+//! NV-008 out-of-window lease reject (pay §3.1 / tasks §6).
 
 use crate::positive::{key_a, key_b, sha256};
 use crate::vectors::{TV001_HEX, TV002_TASK_ID_HEX};
@@ -16,7 +21,9 @@ use crate::vectors2::*;
 use crate::from_hex;
 use map_core::delegation::DelegError;
 use map_core::{open_delegated, validate_cert};
-use map_pay::codec::PayQuote;
+use map_pay::codec::{PayAgree, PayQuote};
+use map_tasks::msg::{Lease, Reserve};
+use sha2::{Digest, Sha256};
 use map_core::cbor::{encode, CborError};
 use map_core::envelope::{open, EnvelopeError, Opened};
 use map_core::errors::ErrorMsg;
@@ -163,6 +170,69 @@ pub fn case_nv007_widened_scope() -> Result<(), String> {
         Err(EnvelopeError::Delegation(DelegError::WidenedScope { .. })) => Ok(()),
         Err(e) => Err(format!("NV-007 expected WidenedScope, got {e:?}")),
     }
+}
+
+/// TV-013 — PAY_AGREE binding the bound quote TV-010b. Key 2 MUST be the
+/// multihash of TV-010b's received envelope bytes (pay §3.1, invariant I1).
+pub fn case_tv013_pay_agree() -> Result<(), String> {
+    let opened = expect_open(TV013_ENV_HEX, &key_a(), msg_type::PAY_AGREE)?;
+    let a = PayAgree::from_value(&opened.body.content).map_err(|e| format!("PayAgree: {e:?}"))?;
+    if a.quote_id != [0x10u8; 16] {
+        return Err("TV-013 quote-id != TV-010b quote-id".into());
+    }
+    let mut mh = vec![0x12u8, 0x20];
+    mh.extend_from_slice(&Sha256::digest(from_hex(TV010B_ENV_HEX)?));
+    if a.quote_digest != mh {
+        return Err("TV-013 key 2 != multihash(TV-010b envelope)".into());
+    }
+    Ok(())
+}
+
+/// The RESERVE window that TV-015 / NV-008 leases are checked against.
+fn reserve_window() -> Result<(u64, u64), String> {
+    let r = Reserve::from_value(&expect_open(TV014_ENV_HEX, &key_a(), msg_type::RESERVE)?.body.content)
+        .map_err(|e| format!("Reserve: {e:?}"))?;
+    Ok((r.from_ms, r.until_ms))
+}
+
+/// TV-014 — RESERVE round-trips and reserves CAP in a forward window.
+pub fn case_tv014_reserve() -> Result<(), String> {
+    let opened = expect_open(TV014_ENV_HEX, &key_a(), msg_type::RESERVE)?;
+    let r = Reserve::from_value(&opened.body.content).map_err(|e| format!("Reserve: {e:?}"))?;
+    if r.capability != "map:cap:inference/text-generation" {
+        return Err(format!("TV-014 capability unexpected: {}", r.capability));
+    }
+    if r.until_ms <= r.from_ms {
+        return Err("TV-014 window is not forward".into());
+    }
+    Ok(())
+}
+
+/// TV-015 — a granted LEASE whose window falls within TV-014's requested one.
+pub fn case_tv015_lease_granted() -> Result<(), String> {
+    let (from, until) = reserve_window()?;
+    let opened = expect_open(TV015_ENV_HEX, &key_b(), msg_type::LEASE)?;
+    let l = Lease::from_value(&opened.body.content).map_err(|e| format!("Lease: {e:?}"))?;
+    if l.status != Lease::GRANTED {
+        return Err(format!("TV-015 status {} != granted", l.status));
+    }
+    if !l.granted_window_within(from, until) {
+        return Err("TV-015 granted window not within the request".into());
+    }
+    Ok(())
+}
+
+/// NV-008 — a granted LEASE outside the requested window. It opens (valid,
+/// signed) but tasks §6 requires the requester to reject the out-of-window grant.
+pub fn case_nv008_lease_out_of_window() -> Result<(), String> {
+    let (from, until) = reserve_window()?;
+    let opened = expect_open(NV008_HEX, &key_b(), msg_type::LEASE)
+        .map_err(|e| format!("NV-008 must open (valid envelope): {e}"))?;
+    let l = Lease::from_value(&opened.body.content).map_err(|e| format!("Lease: {e:?}"))?;
+    if l.granted_window_within(from, until) {
+        return Err("NV-008 window unexpectedly within the request".into());
+    }
+    Ok(())
 }
 
 /// The OFFER's TaskID (= TV-002 core[1]); the bound quote MUST carry it in key 9.

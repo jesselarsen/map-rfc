@@ -413,6 +413,127 @@ impl FlowCredit {
     }
 }
 
+// --- reservations (tasks §6, TASK-011) -------------------------------------
+
+fn id16(v: &Value, k: u64) -> Result<[u8; 16], MsgError> {
+    <[u8; 16]>::try_from(bytes(v, k)?).map_err(|_| MsgError::BadField(k))
+}
+
+/// RESERVE (0x020F) — tasks §6. A lease request for a scarce capability during
+/// a time window. `pay_ref` (key 6) is a PayRef modeled opaquely (pay §3.1
+/// owns it); `constraints` reuses the task-negotiation shape.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Reserve {
+    pub rsv_id: [u8; 16],                     // 1
+    pub capability: String,                   // 2
+    pub from_ms: u64,                         // 3
+    pub until_ms: u64,                        // 4
+    pub constraints: Option<TaskConstraints>, // 5
+    pub pay_ref: Option<Value>,               // 6 (PayRef, opaque)
+    pub ext: Option<Value>,                   // 7
+}
+impl Reserve {
+    pub fn to_value(&self) -> Value {
+        let mut m = vec![
+            (Value::Uint(1), Value::Bytes(self.rsv_id.to_vec())),
+            (Value::Uint(2), Value::Text(self.capability.clone())),
+            (Value::Uint(3), Value::Uint(self.from_ms)),
+            (Value::Uint(4), Value::Uint(self.until_ms)),
+        ];
+        if let Some(c) = &self.constraints { m.push((Value::Uint(5), c.to_value())); }
+        if let Some(p) = &self.pay_ref { m.push((Value::Uint(6), p.clone())); }
+        if let Some(e) = &self.ext { m.push((Value::Uint(7), e.clone())); }
+        Value::Map(m)
+    }
+    pub fn from_value(v: &Value) -> Result<Reserve, MsgError> {
+        Ok(Reserve {
+            rsv_id: id16(v, 1)?,
+            capability: text(v, 2)?,
+            from_ms: uint(v, 3)?,
+            until_ms: uint(v, 4)?,
+            constraints: v.map_get(5).map(TaskConstraints::from_value).transpose()?,
+            pay_ref: v.map_get(6).cloned(),
+            ext: v.map_get(7).cloned(),
+        })
+    }
+}
+
+/// LEASE (0x0210) — tasks §6. `status`: 0 granted / 1 rejected / 2 revoked.
+/// `window` (key 3) is the actually-granted `[from, until]`.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Lease {
+    pub rsv_id: [u8; 16],             // 1
+    pub status: u8,                   // 2
+    pub window: Option<(u64, u64)>,   // 3 [from, until]
+    pub pay_quote_ref: Option<Value>, // 4 (PayQuoteRef, opaque)
+    pub ext: Option<Value>,           // 5
+}
+impl Lease {
+    pub const GRANTED: u8 = 0;
+    pub const REJECTED: u8 = 1;
+    pub const REVOKED: u8 = 2;
+
+    pub fn to_value(&self) -> Value {
+        let mut m = vec![
+            (Value::Uint(1), Value::Bytes(self.rsv_id.to_vec())),
+            (Value::Uint(2), Value::Uint(self.status as u64)),
+        ];
+        if let Some((a, b)) = self.window {
+            m.push((Value::Uint(3), Value::Array(vec![Value::Uint(a), Value::Uint(b)])));
+        }
+        if let Some(p) = &self.pay_quote_ref { m.push((Value::Uint(4), p.clone())); }
+        if let Some(e) = &self.ext { m.push((Value::Uint(5), e.clone())); }
+        Value::Map(m)
+    }
+    pub fn from_value(v: &Value) -> Result<Lease, MsgError> {
+        let window = match v.map_get(3) {
+            None => None,
+            Some(x) => {
+                let a = x.as_array().ok_or(MsgError::BadField(3))?;
+                if a.len() != 2 {
+                    return Err(MsgError::BadField(3));
+                }
+                Some((
+                    a[0].as_uint().ok_or(MsgError::BadField(3))?,
+                    a[1].as_uint().ok_or(MsgError::BadField(3))?,
+                ))
+            }
+        };
+        Ok(Lease {
+            rsv_id: id16(v, 1)?,
+            status: u8::try_from(uint(v, 2)?).map_err(|_| MsgError::BadField(2))?,
+            window,
+            pay_quote_ref: v.map_get(4).cloned(),
+            ext: v.map_get(5).cloned(),
+        })
+    }
+    /// tasks §6: a GRANTED lease's window MUST fall within the reservation's
+    /// requested `[req_from, req_until]`; a grant outside it is invalid.
+    pub fn granted_window_within(&self, req_from: u64, req_until: u64) -> bool {
+        match self.window {
+            None => true,
+            Some((a, b)) => a <= b && a >= req_from && b <= req_until,
+        }
+    }
+}
+
+/// LEASE_RELEASE (0x0211) — tasks §6. Voluntary early release of a lease.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct LeaseRelease {
+    pub rsv_id: [u8; 16],    // 1
+    pub reason: Option<u64>, // 2
+}
+impl LeaseRelease {
+    pub fn to_value(&self) -> Value {
+        let mut m = vec![(Value::Uint(1), Value::Bytes(self.rsv_id.to_vec()))];
+        if let Some(r) = self.reason { m.push((Value::Uint(2), Value::Uint(r))); }
+        Value::Map(m)
+    }
+    pub fn from_value(v: &Value) -> Result<LeaseRelease, MsgError> {
+        Ok(LeaseRelease { rsv_id: id16(v, 1)?, reason: opt_uint(v, 2)? })
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -452,6 +573,36 @@ mod tests {
         assert_eq!(Cancel::from_value(&Cancel { task: task(), code: 5001 }.to_value()).unwrap(), Cancel { task: task(), code: 5001 });
         let fc = FlowCredit { scope: [7u8; 32], msg_credits: 64, byte_credits: 1024 };
         assert_eq!(FlowCredit::from_value(&fc.to_value()).unwrap(), fc);
+    }
+
+    #[test]
+    fn reservation_codecs_roundtrip_and_window_check() {
+        let reserve = Reserve {
+            rsv_id: [0x20; 16],
+            capability: "map:cap:schedule/reservation".into(),
+            from_ms: 1_780_000_000_000,
+            until_ms: 1_780_000_600_000,
+            constraints: Some(TaskConstraints { zone: Some(1), ..Default::default() }),
+            pay_ref: None,
+            ext: None,
+        };
+        assert_eq!(Reserve::from_value(&reserve.to_value()).unwrap(), reserve);
+
+        let lease = Lease {
+            rsv_id: [0x20; 16],
+            status: Lease::GRANTED,
+            window: Some((1_780_000_100_000, 1_780_000_500_000)),
+            pay_quote_ref: None,
+            ext: None,
+        };
+        assert_eq!(Lease::from_value(&lease.to_value()).unwrap(), lease);
+        // Granted window inside the requested [from, until] is valid; outside is not.
+        assert!(lease.granted_window_within(reserve.from_ms, reserve.until_ms));
+        let bad = Lease { window: Some((reserve.until_ms + 1, reserve.until_ms + 10)), ..lease.clone() };
+        assert!(!bad.granted_window_within(reserve.from_ms, reserve.until_ms));
+
+        let rel = LeaseRelease { rsv_id: [0x20; 16], reason: Some(2) };
+        assert_eq!(LeaseRelease::from_value(&rel.to_value()).unwrap(), rel);
     }
 
     #[test]

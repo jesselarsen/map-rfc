@@ -162,14 +162,29 @@ respond with ERROR (in-session) and MUST rate-limit error responses.
 |---|---|---|
 | 0x0001–0x00FF | Core: HELLO 0x0001, HELLO_ACK 0x0002, PING 0x0003, PONG 0x0004, CLOSE 0x0005, ERROR 0x0006, FLOW_CREDIT 0x0007 | this doc |
 | 0x0100–0x01FF | Discovery: DESCRIPTOR 0x0100, STATUS_QUERY 0x0101, STATUS_REPORT 0x0102, CAP_QUERY 0x0103, CAP_RESPONSE 0x0104 | discovery |
-| 0x0200–0x02FF | Tasks: OFFER 0x0200, QUOTE 0x0201, ASSIGN 0x0202, ACCEPT 0x0203, REJECT 0x0204, CHUNK 0x0205, TOOL_CALL 0x0207, TOOL_GRANT 0x0208, TOOL_RESULT 0x0209, CHECKPOINT 0x020A, CHECKPOINT_ACK 0x020B, CANCEL 0x020C, COMPLETE 0x020D, RESUME 0x020E | tasks |
+| 0x0200–0x02FF | Tasks: OFFER 0x0200, QUOTE 0x0201, ASSIGN 0x0202, ACCEPT 0x0203, REJECT 0x0204, CHUNK 0x0205, TOOL_CALL 0x0207, TOOL_GRANT 0x0208, TOOL_RESULT 0x0209, CHECKPOINT 0x020A, CHECKPOINT_ACK 0x020B, CANCEL 0x020C, COMPLETE 0x020D, RESUME 0x020E, RESERVE 0x020F, LEASE 0x0210, LEASE_RELEASE 0x0211 | tasks |
 | 0x0300–0x03FF | Trust: RECEIPT 0x0300, RECEIPT_ACK 0x0301, EVIDENCE_QUERY 0x0302, EVIDENCE_SET 0x0303, CHALLENGE 0x0304, CHALLENGE_RESPONSE 0x0305 | trust |
 | 0x0400–0x04FF | Pay: PAY_QUOTE 0x0400, PAY_AGREE 0x0401, PAY_INVOICE 0x0402, PAY_PROOF 0x0403, PAY_RECEIPT 0x0404, PAY_DISPUTE 0x0405, PAY_DISPUTE_EVIDENCE 0x0406 | pay |
 | 0x0500–0x05FF | Identity: ROTATE 0x0500, REVOKE 0x0501, DELEGATE 0x0502 | identity |
 | 0xF000–0xFFFF | Private use | — |
 
+`0x0206` is deliberately unassigned (a hole between CHUNK 0x0205 and
+TOOL_CALL 0x0207; never to be reused — ops §3.3).
+
 Registration policy for new code points: Specification Required
 (draft-map-ops-00 §3).
+
+### 5.1 Extension Keys (initial registry)
+
+Extensions are negotiated in HELLO (§6.1 key 3) before use and keyed by
+these code points; each is fully specified in its owning document. Points
+are immutable once assigned (ops §3.3); ≥ 0xF000 is private-use.
+
+| Key | Name | Defined in | Status |
+|---|---|---|---|
+| 1 | ext-bid | tasks §2.2 | complete |
+| 2 | ext-kvx | tasks §8.4 | reserved (stub) |
+| 3 | ext-git | tasks §9 | reserved (stub) |
 
 ## 6. Session Establishment and Negotiation
 

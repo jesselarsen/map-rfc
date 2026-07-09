@@ -139,11 +139,13 @@ it found real bugs):
   propose a dedicated code); (d) trust §2 diagram shows `RECEIPT_ACK {sig_prov}`
   but the impl returns the full dual receipt (propose diagram fix).
 
-Honest rev-00 gaps (spec side): extensions TBD-BID / TBD-KVX / TBD-GIT
-have no code points and only sketch definitions; delegation `crit`/`ext`
+Honest rev-00 gaps (spec side): extensions bid/kvx/git now have code points
+(ext keys 1/2/3, TASK-011 — bid is full, kvx/git are reserved stubs w/ container
++ zone rule, full semantics deferred); delegation `crit`/`ext`
 processing thinly exampled (delegation CERTS + chain verify now implemented,
 TASK-010 — two caveats task-pin/audience, deeper caveats e.g. budget still
-future; revocation distribution still absent); reservations (tasks §6) are a sketch; formal
+future; revocation distribution still absent); reservations (tasks §6) now
+normative (CDDL+FSM+MUSTs, codecs only — no runtime yet, TASK-011); formal
 analysis (ops §6.3) is a plan, not a result; two-independent-
 implementations rule (ops §6.1) unmet — the Rust scaffold is impl #1.
 
@@ -164,7 +166,7 @@ with the installed GNU toolchain: `cargo +stable-x86_64-pc-windows-gnu build`.
 | crates/map-identity | written + unit tests | AgentId (validated ctor, multibase, did:key), Keypair, verify (verify_strict) |
 | crates/map-core | written + unit tests; +delegation (TASK-010) | cbor.rs (canonical encoder + strict profile decoder), envelope.rs (seal/open, I1, channel-binding via external_aad; TASK-010: `seal_delegated`/`open_delegated` key 33 — `open()` byte-frozen), hello.rs (negotiate, TH, CB), replay.rs (ReplayCache ±120 s / 10 min, SeqTracker), msg_type.rs, errors.rs (codes 1000–6004 + ErrorMsg). `delegation.rs` (TASK-010): DelegateBody codec, issue/validate_cert/validate_chain→EffectiveScope, Caveat task-pin/audience, tighten-only + fail-closed, chain cap 8 |
 | crates/map-discovery | written + unit tests | CapURI validation, cap_matches (prefix-segment), multihash_sha256, shard (digest byte), capability keys, minimal Descriptor (fields 1–6 + 12), DescriptorCache (seq-LWW) |
-| crates/map-tasks | written + unit tests; +msg codecs (TASK-007) | TaskId, ChunkKind, TranscriptBuilder (patched Merkle), FlowAccount (dual-unit credits), requester state machine (ReqState/step). `msg` module (TASK-007): pure to_value/from_value for Offer/Quote/Assign/Accept/Reject/ChunkMsg/Complete/Cancel/FlowCredit + TaskConstraints/InputSpec/FlowInit/Usage. Complete key 3 = multihash(root); pay refs modeled `Option<Value>`, omitted (ERRATA); InputSpec inline-only |
+| crates/map-tasks | written + unit tests; +msg codecs (TASK-007); +reservations (TASK-011) | TaskId, ChunkKind, TranscriptBuilder (patched Merkle), FlowAccount (dual-unit credits), requester state machine (ReqState/step). `msg` module: pure to_value/from_value for Offer/Quote/Assign/Accept/Reject/ChunkMsg/Complete/Cancel/FlowCredit + TaskConstraints/InputSpec/FlowInit/Usage. TASK-011: `Reserve`/`Lease`/`LeaseRelease` codecs (tasks §6) + `Lease::granted_window_within`. Complete key 3 = multihash(root); pay refs modeled `Option<Value>`, omitted (ERRATA); InputSpec inline-only |
 | crates/map-trust | written + unit tests; +lifecycle (TASK-008) | ReceiptCore/Receipt (TV-002), role signing, idempotent ReceiptStore, TrustProjection (Beta, rebuild==incremental). TASK-008: `Receipt::to_value/from_value` (message content; encode/decode_bytes frozen-wire untouched) + `lifecycle::within_tolerance` (usage ±5% of OBSERVED value, ts ±2 s — anchored to the trusted side, farming defense) |
 | crates/map-pay | written + unit tests; +codec/ledger (TASK-009) | Amount (tag-4), Asset, InvoiceId/QuoteId, SettlementLedger. TASK-009: `codec` (PayQuote incl. ?9 task-binding, PayAgree, Pay{Quote,Agree}Ref, PayRef, PayInvoice/Proof/Receipt, MethodOffer, AssetAmount, `pay_ref_digest`) + `credit_ledger` (LedgerOperator: signed entry `enc(["MAPLedgerEntry",…])`, idempotent `pay`, `verify_entry` verify_strict). deps += identity/sha2 |
 | crates/map-session | done (TASK-005; HelloAck refactor TASK-006; delegation FR-5 TASK-010) + 21 tests | in-memory session layer: HELLO/HELLO_ACK handshake, TH/CB, core §12 state machine, in-session send/recv with seq+replay+size enforcement, PING/PONG/CLOSE. `Transport`/`Clock`/`MsgIdSource` traits + `InMemoryDuplex` (mpsc). Uses `map_core::HelloAck`. TASK-010: `SessionConfig::new()` + optional `delegation_chain` (handshake carries key 33 via seal_delegated), `accountable_peer()` records the chain ROOT (leaf still = transport-auth peer); bad chain → 2003. Deps: identity/core only. Handshake=empty aad, in-session=CB. Real libp2p exporter still future |
@@ -173,7 +175,7 @@ with the installed GNU toolchain: `cargo +stable-x86_64-pc-windows-gnu build`.
 | crates/map-cli | done (TASK-001) + 6 unit tests | `keygen` (seed/pubkey/AgentID hex+multibase/did:key; random or `--seed`), `projection-rebuild-demo` (synth dual-signed receipts → incremental vs `rebuild`, ops §8); hand-rolled argv, deps: identity/tasks/trust/sha2/hex/getrandom |
 | adapters/ollama-provider | done (TASK-002) + 4 unit tests | `InferenceBackend` trait + deterministic `MockBackend`, `result_to_chunks`/`run_task` glue (kind-0 text + kind-3 usage CBOR, seq 0/1). No HTTP — real localhost:11434 backend still future |
 | adapters/gateway | done (TASK-002) + 4 unit tests | provenance per ops §5: `GatewayAdvert` wrapper + `label_descriptor`/`is_gateway_advert` (G-1), `effective_zone` tighten-only (G-3), `valid_namespace` DNS/mesh (G-4). Descriptor wire format untouched |
-| conformance/map-conformance | done (TASK-003/004; +bound-quote & delegation 2026-07-08) + 34 cases (+run_all) | reproduces TV-001..012 + NV-001..007 **byte-for-byte** (adds TV-010b bound quote, TV-011 cert, TV-012 delegated OFFER; NV-006 task-binding, NV-007 widened scope); gained a map-pay dep (real PayQuote) + uses map_core delegation; ops §6.2 negatives; `run_all() -> Report`. TV-003 upgraded (TASK-006) to a HelloAck PRODUCE-guard (from_value→to_value must reproduce the vector bytes — the tripwire for any HELLO_ACK codec regression), same discipline as the DESCRIPTOR round-trip. Encoder needed NO fix |
+| conformance/map-conformance | done (TASK-003/004; +bound-quote, delegation, spec-round-3 2026-07-08) + 38 cases (+run_all) | reproduces TV-001..015 + NV-001..008 **byte-for-byte** (adds TV-010b bound quote, TV-011 cert, TV-012 delegated OFFER, TV-013 PAY_AGREE, TV-014 RESERVE, TV-015 LEASE; NV-006 task-binding, NV-007 widened scope, NV-008 out-of-window lease); gained a map-pay dep (real PayQuote/PayAgree) + uses map_core delegation + map_tasks Reserve/Lease; ops §6.2 negatives; `run_all() -> Report`. TV-003 upgraded (TASK-006) to a HelloAck PRODUCE-guard (from_value→to_value must reproduce the vector bytes — the tripwire for any HELLO_ACK codec regression), same discipline as the DESCRIPTOR round-trip. Encoder needed NO fix |
 
 **Build-breaking fact (RESOLVED by TASK-001):** the workspace `Cargo.toml`
 lists eleven members (map-session added by TASK-005); all exist and build.
@@ -309,6 +311,26 @@ treat as the frozen interop contract.
    impl follows kid==leaf-subject, root returned as accountable. NV numbering:
    TASK-010's planned "NV-006" became **NV-007** (NV-006 taken by the bound-quote
    pass); TASK-011 should continue from NV-008. Whole workspace green, zero warns.
+
+8. ~~**TASK-011 — spec extensions + reservations + vector round 3.**~~ DONE
+   (2026-07-08). Registry (FINAL): msg-types RESERVE 0x020F / LEASE 0x0210 /
+   LEASE_RELEASE 0x0211 (core §5 + msg_type.rs); extension keys 1=ext-bid /
+   2=ext-kvx / 3=ext-git (new core §5.1 Extension Keys registry). Spec: tasks §2.2
+   ext-bid FULL (BidExt {1 bid-deadline, 2 queue-wait-ms}; needed a new
+   `Offer.?6 => ExtMap` — additive), §6 reservations normative (Reserve/Lease/
+   LeaseRelease CDDL + FSM Requested→Granted→Active→Released/Expired/Revoked +
+   MUSTs: rsv-id idempotency, granted-window⊆requested, missed-lease=outcome-1 +
+   squatting/PayRef Security), §8.4 ext-kvx & §9 ext-git STUBS (container
+   {1 version,2 bstr} + zone rule + "deferred"). Code: map-tasks `Reserve`/`Lease`/
+   `LeaseRelease` codecs (+`granted_window_within`); msg_type consts+name().
+   Vectors: TV-013 PAY_AGREE (binds TV-010b envelope digest), TV-014 RESERVE,
+   TV-015 LEASE, NV-008 out-of-window lease; conformance 34→38. **Renumbering
+   (per check-first rule):** the package's planned TV-013 bound-quote & NV-007
+   mismatch ALREADY existed as TV-010b/NV-006 (skipped); its TV-014/15/16→our
+   TV-013/14/15, its NV-008 stays NV-008. TV-001..012/NV-001..007 frozen (70
+   additive md lines, idempotent). Workspace green, zero warnings. Remaining
+   READY packages: TASK-012 (libp2p), TASK-013 (real Ollama); TASK-014/016 need
+   their deps; rev-01 doc cut now possible (ops §4, additive changelog).
 
 ## 8. Roadmap after the scaffold is green (ops §8 MVP ordering)
 

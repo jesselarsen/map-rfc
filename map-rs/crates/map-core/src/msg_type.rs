@@ -32,6 +32,9 @@ pub const CHECKPOINT_ACK: u16 = 0x020B;
 pub const CANCEL: u16 = 0x020C;
 pub const COMPLETE: u16 = 0x020D;
 pub const RESUME: u16 = 0x020E;
+pub const RESERVE: u16 = 0x020F;
+pub const LEASE: u16 = 0x0210;
+pub const LEASE_RELEASE: u16 = 0x0211;
 
 // 0x0300–0x03FF — Trust
 pub const RECEIPT: u16 = 0x0300;
@@ -87,6 +90,9 @@ pub fn name(t: u16) -> Option<&'static str> {
         CANCEL => "CANCEL",
         COMPLETE => "COMPLETE",
         RESUME => "RESUME",
+        RESERVE => "RESERVE",
+        LEASE => "LEASE",
+        LEASE_RELEASE => "LEASE_RELEASE",
         RECEIPT => "RECEIPT",
         RECEIPT_ACK => "RECEIPT_ACK",
         EVIDENCE_QUERY => "EVIDENCE_QUERY",

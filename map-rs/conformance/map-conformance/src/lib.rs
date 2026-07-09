@@ -55,6 +55,8 @@ pub fn cases() -> Vec<(&'static str, fn() -> Result<(), String>)> {
         // Bound-quote pass: TV-010b consume + NV-006 reject (pay §3.1 key 9).
         // Delegation pass: TV-011 cert + TV-012 delegated OFFER consume,
         // NV-007 widened-scope reject (identity §4, TASK-010).
+        // Spec-round-3 (TASK-011): TV-013 PAY_AGREE, TV-014 RESERVE, TV-015
+        // LEASE consume; NV-008 out-of-window lease reject (pay §3.1 / tasks §6).
         ("TV-003 HELLO_ACK", extended::case_tv003_hello_ack),
         ("TV-004 ERROR", extended::case_tv004_error),
         ("TV-005 DESCRIPTOR", extended::case_tv005_descriptor),
@@ -66,6 +68,9 @@ pub fn cases() -> Vec<(&'static str, fn() -> Result<(), String>)> {
         ("TV-010b PAY_QUOTE bound", extended::case_tv010b_pay_quote_bound),
         ("TV-011 DelegationCert", extended::case_tv011_cert),
         ("TV-012 delegated OFFER", extended::case_tv012_delegated_offer),
+        ("TV-013 PAY_AGREE", extended::case_tv013_pay_agree),
+        ("TV-014 RESERVE", extended::case_tv014_reserve),
+        ("TV-015 LEASE granted", extended::case_tv015_lease_granted),
         ("Derived constants", extended::case_derived_constants),
         ("NV-001 tampered", extended::case_nv001_tampered),
         ("NV-002 wrong tag", extended::case_nv002_wrong_tag),
@@ -74,6 +79,7 @@ pub fn cases() -> Vec<(&'static str, fn() -> Result<(), String>)> {
         ("NV-005 swapped sigs", extended::case_nv005_swapped_sigs),
         ("NV-006 task-binding mismatch", extended::case_nv006_task_binding_mismatch),
         ("NV-007 widened delegation scope", extended::case_nv007_widened_scope),
+        ("NV-008 lease out of window", extended::case_nv008_lease_out_of_window),
     ]
 }
 
@@ -159,6 +165,9 @@ mod tests {
     case_test!(tv010b_pay_quote_bound, extended::case_tv010b_pay_quote_bound);
     case_test!(tv011_cert, extended::case_tv011_cert);
     case_test!(tv012_delegated_offer, extended::case_tv012_delegated_offer);
+    case_test!(tv013_pay_agree, extended::case_tv013_pay_agree);
+    case_test!(tv014_reserve, extended::case_tv014_reserve);
+    case_test!(tv015_lease_granted, extended::case_tv015_lease_granted);
     case_test!(derived_constants, extended::case_derived_constants);
     case_test!(nv001_tampered, extended::case_nv001_tampered);
     case_test!(nv002_wrong_tag, extended::case_nv002_wrong_tag);
@@ -167,6 +176,7 @@ mod tests {
     case_test!(nv005_swapped_sigs, extended::case_nv005_swapped_sigs);
     case_test!(nv006_task_binding_mismatch, extended::case_nv006_task_binding_mismatch);
     case_test!(nv007_widened_scope, extended::case_nv007_widened_scope);
+    case_test!(nv008_lease_out_of_window, extended::case_nv008_lease_out_of_window);
 
     #[test]
     fn run_all_is_green_and_complete() {
@@ -176,7 +186,7 @@ mod tests {
             "conformance failures: {:?}",
             report.failed
         );
-        assert_eq!(report.passed.len(), 34);
-        assert_eq!(report.total(), 34);
+        assert_eq!(report.passed.len(), 38);
+        assert_eq!(report.total(), 38);
     }
 }

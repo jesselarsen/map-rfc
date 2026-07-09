@@ -229,6 +229,27 @@ tv011 = sealed(ka, 0x0502, msgid(13), delegate_body)
 deleg_offer = {1: task_id, 2: CAP, 3: {}}
 tv012 = sealed_delegated(ka_dk, 0x0200, msgid(14), deleg_offer, [tv011["envelope"]])
 
+# TV-013 PAY_AGREE (0x0401), signed by A. pay §3.1 PayAgree: 1 quote-id 2 Multihash
+#   (digest of the received PAY_QUOTE **envelope** bytes — here the bound TV-010b)
+#   3 method-URI ?4 [Asset, Amount] authorized cap. Binds the bound quote TV-010b.
+pay_agree = {1: bytes([0x10]) * 16,
+             2: multihash_sha256(tv010b["envelope"]),
+             3: "pay:credit-ledger",
+             4: usd_amount}
+tv013 = sealed(ka, 0x0401, msgid(18), pay_agree)
+
+# TV-014 RESERVE (0x020F), signed by A. tasks §6 Reserve: 1 rsv-id(16) 2 CapURI
+#   3 from 4 until ?5 TaskConstraints ?6 PayRef ?7 ext. Reserves CAP in a window.
+RSV_ID = bytes([0x20]) * 16
+RSV_FROM, RSV_UNTIL = TS, 1780000600000
+reserve = {1: RSV_ID, 2: CAP, 3: RSV_FROM, 4: RSV_UNTIL, 5: {5: 1}}   # constraints: zone 1
+tv014 = sealed(ka, 0x020F, msgid(19), reserve)
+
+# TV-015 LEASE (0x0210), signed by B. tasks §6 Lease: 1 rsv-id 2 status(0 granted)
+#   ?3 [from,until] granted window ?4 PayQuoteRef ?5 ext. Window within TV-014's.
+lease = {1: RSV_ID, 2: 0, 3: [1780000100000, 1780000500000]}
+tv015 = sealed(kb, 0x0210, msgid(20), lease)
+
 # =====================================================================
 # Derived constants (core §6.2 / §7.3, discovery §6, tasks §8.1)
 # =====================================================================
@@ -299,6 +320,12 @@ nv7_child_body = {1: aid_a_dk, 2: aid_a_sk, 3: TS, 4: DELEG_EXPIRY, 5: ["map:cap
 nv7_child = sealed(ka_dk, 0x0502, msgid(16), nv7_child_body)
 nv007 = sealed_delegated(ka_sk, 0x0200, msgid(17), deleg_offer,
                          [nv7_child["envelope"], nv7_parent["envelope"]])["envelope"]
+
+# NV-008 LEASE granted OUTSIDE the requested window -> MUST reject (tasks §6:
+#   a granted window must fall within the RESERVE's [from, until]). Same rsv-id
+#   as TV-014 but the granted window is entirely after RSV_UNTIL.
+lease_bad = {1: RSV_ID, 2: 0, 3: [RSV_UNTIL + 3600000, RSV_UNTIL + 7200000]}
+nv008 = sealed(kb, 0x0210, msgid(21), lease_bad)["envelope"]
 
 # =====================================================================
 # Emit markdown. Existing sections (through Verification procedure) are kept
@@ -493,6 +520,68 @@ signature (Ed25519 by DK, hex):
 Complete envelope 18([protected, {{}}, payload, signature]) (hex, {len(tv012['envelope'])} bytes):
   {tv012['envelope'].hex()}
 """
+new += f"""
+## TV-013 — PAY_AGREE (0x0401), signed by Key A
+
+Field numbers per pay §3.1. msg-id = h'{msgid(18).hex()}', timestamp {TS}.
+Agrees to the bound quote TV-010b: key 2 is the Multihash of TV-010b's received
+**envelope** bytes (pay §3.1, invariant I1); key 4 is the authorized cap.
+
+Content (diagnostic):
+  {{1: h'{(bytes([0x10]) * 16).hex()}', 2: h'{multihash_sha256(tv010b['envelope']).hex()}', 3: "pay:credit-ledger", 4: ["iso4217:USD", 4([-6, 4200000])]}}
+
+payload (bstr contents, hex):
+  {tv013['payload'].hex()}
+
+Sig_structure = ["Signature1", protected, h'', payload], encoded (hex):
+  {tv013['sig_struct'].hex()}
+
+signature (Ed25519 by Key A, hex):
+  {tv013['sig'].hex()}
+
+Complete envelope 18([protected, {{}}, payload, signature]) (hex, {len(tv013['envelope'])} bytes):
+  {tv013['envelope'].hex()}
+
+## TV-014 — RESERVE (0x020F), signed by Key A
+
+Field numbers per tasks §6. msg-id = h'{msgid(19).hex()}', timestamp {TS}.
+Reserves CAP in the window [{RSV_FROM}, {RSV_UNTIL}] with a zone-1 constraint.
+
+Content (diagnostic):
+  {{1: h'{RSV_ID.hex()}', 2: "{CAP}", 3: {RSV_FROM}, 4: {RSV_UNTIL}, 5: {{5: 1}}}}
+
+payload (bstr contents, hex):
+  {tv014['payload'].hex()}
+
+Sig_structure = ["Signature1", protected, h'', payload], encoded (hex):
+  {tv014['sig_struct'].hex()}
+
+signature (Ed25519 by Key A, hex):
+  {tv014['sig'].hex()}
+
+Complete envelope 18([protected, {{}}, payload, signature]) (hex, {len(tv014['envelope'])} bytes):
+  {tv014['envelope'].hex()}
+
+## TV-015 — LEASE granted (0x0210), signed by Key B
+
+Field numbers per tasks §6. msg-id = h'{msgid(20).hex()}', timestamp {TS}.
+Grants TV-014's reservation (status 0) with a window inside the requested one.
+
+Content (diagnostic):
+  {{1: h'{RSV_ID.hex()}', 2: 0, 3: [1780000100000, 1780000500000]}}
+
+payload (bstr contents, hex):
+  {tv015['payload'].hex()}
+
+Sig_structure = ["Signature1", protected, h'', payload], encoded (hex):
+  {tv015['sig_struct'].hex()}
+
+signature (Ed25519 by Key B, hex):
+  {tv015['sig'].hex()}
+
+Complete envelope 18([protected, {{}}, payload, signature]) (hex, {len(tv015['envelope'])} bytes):
+  {tv015['envelope'].hex()}
+"""
 
 negatives = f"""
 ## Negative vectors (MUST reject)
@@ -549,6 +638,15 @@ scope error. Parent scope = "map:cap:inference/text"; child scope =
 the bound-PAY_QUOTE pass already consumed.)
 envelope (hex, {len(nv007)} bytes):
   {nv007.hex()}
+
+### NV-008 — LEASE granted outside the requested window → reject (tasks §6)
+A LEASE (status 0 = granted) for TV-014's rsv-id whose granted window falls
+entirely after the reservation's `until` ({RSV_UNTIL}). tasks §6 requires a
+granted window to fall within the requested `[from, until]`; the requester MUST
+treat this as a rejection. The envelope is well-formed and signed by Key B — it
+opens — but the lease is semantically invalid (cf. NV-004/NV-006, policy rejects).
+envelope (hex, {len(nv008)} bytes):
+  {nv008.hex()}
 """
 
 derived = f"""
@@ -582,3 +680,5 @@ print("TV-001", len(envelope), "| TV-002", len(receipt),
 print("TV-010b", len(tv010b["envelope"]), "| NV-006", len(nv006))
 print("TV-011", len(tv011["envelope"]), "| TV-012", len(tv012["envelope"]),
       "| NV-007", len(nv007), "(delegation)")
+print("TV-013", len(tv013["envelope"]), "| TV-014", len(tv014["envelope"]),
+      "| TV-015", len(tv015["envelope"]), "| NV-008", len(nv008), "(pay-agree + reservations)")

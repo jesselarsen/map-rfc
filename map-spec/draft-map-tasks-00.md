@@ -68,7 +68,8 @@ Offer = {
   2 => CapURI,
   3 => TaskConstraints,
   ? 4 => PayRef,            ; pricing expectation (pay §3.1)
-  ? 5 => Timestamp          ; offer expiry
+  ? 5 => Timestamp,         ; offer expiry
+  ? 6 => ExtMap             ; negotiated extensions (e.g. ext-bid, §2.2)
 }
 TaskConstraints = {
   ? 1 => uint,              ; max-context-tokens (hard)
@@ -109,13 +110,39 @@ InputSpec = {
 FlowInit = { 1 => uint /*msg credits*/, 2 => uint /*byte credits*/ }
 ```
 
-### 2.2 Bidding extension (OPTIONAL, ext key TBD-BID)
+### 2.2 Bidding extension (OPTIONAL, extension key 1 = `ext-bid`)
 
 Where markets are wanted, OFFER MAY be broadcast to k candidates; QUOTEs
-compete; the requester's selection function is local policy. The extension
-adds only `bid-deadline` and `queue-wait-ms` fields; no auction clearing
-rules are standardized (they are policy and were dimensionally incoherent
-in the source designs — critique C5).
+compete; the requester's selection function is local policy. `ext-bid`
+(extension key 1, core §5.1) is negotiated in HELLO (core §6.1 key 3)
+before use; peers that did not negotiate it MUST ignore its ExtMap entry.
+
+The extension adds a single ExtMap entry (Offer key 6 / Quote key 5) keyed
+by the extension code point:
+
+```cddl
+BidExt = {                            ; ExtMap value under ext key 1
+  1 => Timestamp,                     ; bid-deadline (QUOTEs after are late)
+  ? 2 => uint                         ; queue-wait-ms (advertised backlog)
+}
+```
+
+`bid-deadline` (in an OFFER) bounds how long the requester collects QUOTEs;
+a provider's QUOTE received after it MAY be dropped. `queue-wait-ms` (in a
+QUOTE) is the provider's advertised current backlog, an input to the
+requester's local selection function only.
+
+No auction clearing rules are standardized: selection stays local policy
+(they were dimensionally incoherent in the source designs — critique C5),
+so this extension defines fields, never a mechanism.
+
+Security Considerations. `queue-wait-ms` is self-reported and therefore
+untrusted (critique C1): a provider can under-report backlog to win bids
+("bid-sniping"). The requester's only defense is the trust projection —
+persistent under-delivery against advertised wait surfaces as poorer
+outcomes in dual-signed ExecutionReceipts (trust §8), so the lie is
+checkable ex post and repricing is local policy. `bid-deadline` is not a
+commitment device; it does not bind the provider.
 
 ## 3. Streaming: CHUNK
 
@@ -161,12 +188,80 @@ are protocol; utility is not.
 
 ## 6. Reservations (capability `map:cap:schedule/reservation`)
 
-Optional lease primitive for scarce resources: RESERVE {capability,
-window, resource class} → LEASE {lease-id, expiry, price} referenced in
-ASSIGN. Providers MAY require reservations when `accepting = 2` in STATUS.
-Leases are soft state with expiry; no distributed scheduler is defined
-(Kubernetes-style global scheduling is a non-goal; the mesh converges via
-prices and queues).
+Optional lease primitive for scarce resources: a requester sends RESERVE
+for a capability during a time window; the provider answers with a LEASE
+(granted / rejected / revoked). A granted lease is referenced by an
+ASSIGN's PayAgreeRef-adjacent flow (the lease id) and obliges the provider
+as below. Providers MAY require reservations by advertising `accepting = 2`
+in STATUS. Leases are soft state with expiry; no distributed scheduler is
+defined (Kubernetes-style global scheduling is a non-goal — the mesh
+converges via prices and queues).
+
+Message types: RESERVE `0x020F`, LEASE `0x0210`, LEASE_RELEASE `0x0211`
+(core §5).
+
+```cddl
+Reserve = {                           ; msg-type 0x020F
+  1 => bstr .size 16,                 ; rsv-id (requester-chosen, unique)
+  2 => CapURI,                        ; reserved capability
+  3 => Timestamp,                     ; window start (from)
+  4 => Timestamp,                     ; window end (until)
+  ? 5 => TaskConstraints,             ; the work the lease will admit
+  ? 6 => PayRef,                      ; holding-cost expectation (pay §3.1)
+  ? 7 => ExtMap
+}
+Lease = {                             ; msg-type 0x0210
+  1 => bstr .size 16,                 ; rsv-id (echoes the Reserve)
+  2 => uint,                          ; status: 0 granted, 1 rejected, 2 revoked
+  ? 3 => [Timestamp, Timestamp],      ; granted window [from, until]
+  ? 4 => PayQuoteRef,                 ; price of the hold (pay §3.1)
+  ? 5 => ExtMap
+}
+LeaseRelease = {                      ; msg-type 0x0211
+  1 => bstr .size 16,                 ; rsv-id
+  ? 2 => uint                         ; reason code (informational)
+}
+```
+
+State machine (per rsv-id): **Requested** (RESERVE sent) → **Granted**
+(LEASE status 0) → **Active** (during `[from, until]`) →
+**Released** (LEASE_RELEASE) / **Expired** (past `until`) /
+**Revoked** (LEASE status 2). A RESERVE MAY instead be answered with LEASE
+status 1 (**Rejected**), a terminal state.
+
+Normative rules:
+
+- The rsv-id is the idempotency key: a repeated RESERVE with the same
+  rsv-id and an identical window MUST be treated as a retransmission (the
+  same LEASE re-sent), and a RESERVE reusing an rsv-id with a *different*
+  window MUST be rejected (LEASE status 1) — silently re-scoping a live
+  lease is forbidden.
+- A granted LEASE's window (key 3, when present) MUST fall within the
+  RESERVE's requested `[from, until]`; a grant outside it is invalid and
+  the requester MUST treat it as a rejection.
+- While a lease is Active, the provider MUST ACCEPT a conforming ASSIGN
+  that references it (a task within the reserved capability and window and
+  the RESERVE's constraints). A provider that fails to admit conforming
+  work inside the window has missed the lease; the miss is
+  receipt-recordable as a Failed outcome (outcome 1, trust §3) so the
+  broken commitment is scored.
+- A LEASE for an rsv-id whose requested window already lies entirely in
+  the past MUST be status 1 (rejected).
+- LEASE_RELEASE is idempotent by rsv-id and voluntary; a released or
+  expired lease confers no obligation.
+
+Overlapping reservations for the same resource are provider policy, not
+protocol — a provider MAY reject (status 1) or admit them at its own risk.
+
+Security Considerations. The abuse is **reservation squatting**: cheaply
+holding scarce capacity to deny it to others. The mitigation is economic,
+not protocol-structural — RESERVE carries a `PayRef` (key 6) so the
+provider MAY price the hold (a non-refundable or escrowed holding cost via
+the pay layer, pay §3), making squatting cost money. A provider under
+sustained lease-DoS SHOULD fall back to shorter windows and higher holding
+costs; both are local policy. Because a missed lease is receipt-recordable,
+a provider that grants leases it cannot honor accrues negative trust
+(trust §8), which bounds over-committing.
 
 ## 7. Tool invocation
 
@@ -239,13 +334,29 @@ context — and continues from chunk-seq+1. Determinism across heterogeneous
 engines is not assumed; the seam at the resumption point is permitted and
 visible in the transcript (marked by a kind-2 log chunk).
 
-### 8.4 Opaque state / KV-cache (extension TBD-KVX)
+### 8.4 Opaque state / KV-cache (extension key 2 = `ext-kvx`)
 
 Engine-state blobs (Checkpoint.4) MAY shortcut re-warm **only** between
 peers running the identical engine+model+quantization, and only within
 Zone ≤1 or with TEE attestation — normative resumption remains replay
-(critique C10). The extension defines engine-fingerprint matching; it is
-never required for conformance.
+(critique C10). `ext-kvx` (extension key 2, core §5.1) is HELLO-negotiated
+(core §6.1 key 3) and never required for conformance.
+
+Payload container (the only structure this revision fixes):
+
+```cddl
+KvxExt = {                            ; ExtMap value under ext key 2
+  1 => uint,                          ; container version
+  2 => bstr                           ; opaque engine-state blob
+}
+```
+
+A receiver MUST reject a `KvxExt` outside Zone ≤1 unless the sender is
+TEE-attested (zone enforcement, §9). Engine-fingerprint matching (which
+engine+model+quantization tuples are interchangeable) and the blob's
+internal format are **deferred**: this section reserves the code point and
+the container; full semantics are future work. An implementation that does
+not understand a received `KvxExt` MUST fall back to replay resumption.
 
 ## 9. Zone enforcement (normative)
 
@@ -254,9 +365,23 @@ task: ASSIGN MUST NOT go to a peer whose zone level exceeds the label
 (arch Z1); InputSpec content-addressed fetches of proprietary blocks are
 Zone ≤1; TOOL_GRANTs inherit the label; DELEGATE (§10) propagates it and
 MAY only tighten it (Z2). Violations: 2004, non-retryable, receiptable.
-The Git-workspace extension (TBD-GIT, from design3) — shallow, path-scoped,
-token-gated clone/push over a dedicated stream — is defined for Zone ≤1
-only and MUST be rejected in Zone ≥2.
+The Git-workspace extension (`ext-git`, extension key 3, core §5.1, from
+design3) — shallow, path-scoped, token-gated clone/push over a dedicated
+stream — is defined for Zone ≤1 only and MUST be rejected in Zone ≥2.
+`ext-git` is HELLO-negotiated (core §6.1 key 3). Payload container:
+
+```cddl
+GitExt = {                            ; ExtMap value under ext key 3
+  1 => uint,                          ; container version
+  2 => bstr                           ; opaque git-workspace parameters
+}
+```
+
+A receiver MUST reject a `GitExt` in Zone ≥2 (2004, non-retryable,
+receiptable). The clone/push protocol details (shallow depth, path scoping,
+token gating, stream framing) are **deferred**: this reserves the code
+point, the container, and the zone restriction; full semantics are future
+work. Peers that did not negotiate `ext-git` MUST ignore its ExtMap entry.
 
 ## 10. Delegation of tasks
 
