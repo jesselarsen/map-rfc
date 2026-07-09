@@ -161,6 +161,18 @@ with the installed GNU toolchain: `cargo +stable-x86_64-pc-windows-gnu build`.
 (Also, run cargo from PowerShell, not the Git-Bash shell — Bash's coreutils
 `link` shadows any MSVC linker.)
 
+**CRITICAL toolchain fact (TASK-012, 2026-07-08):** since `map-net` joined the
+workspace, building/testing the **whole workspace** requires the mingw-w64
+toolchain on PATH — `map-net` pulls libp2p → `windows-sys` (needs `dlltool.exe`
+to make Windows import libs on the -gnu target) and `ring` (needs `gcc` for
+quic). A complete MSYS2 mingw64 is already installed at **`C:\msys64\mingw64\bin`**
+(gcc 16.1, binutils 2.46) but is NOT on PATH by default. Every build/test
+command must prepend it, e.g. in PowerShell:
+`$env:PATH = "C:\msys64\mingw64\bin;$env:PATH"; cargo +stable-x86_64-pc-windows-gnu test --workspace`.
+Without it you get `error calling dlltool 'dlltool.exe': program not found` on
+`parking_lot_core`/`windows-sys`. The pure-Rust crates (everything except
+map-net) still build without mingw.
+
 | Crate | Status | Contents |
 |---|---|---|
 | crates/map-identity | written + unit tests | AgentId (validated ctor, multibase, did:key), Keypair, verify (verify_strict) |
@@ -173,12 +185,14 @@ with the installed GNU toolchain: `cargo +stable-x86_64-pc-windows-gnu build`.
 | crates/map-taskrun | done (TASK-007/008/009) + 40 tests | pump-driven runtimes: task (Provider/RequesterTask), receipts.rs + evidence.rs (TASK-008: dual+provider==subject gate), payments.rs (TASK-009: `ProviderPayment`/`RequesterPayment` — PAY_QUOTE(task-bound)→AGREE→INVOICE→pay via LedgerOperator→PROOF→verify+settle_once→RECEIPT; cap/digest/binding/forged-proof defenses; retries move money once). Deps: identity/core/session/tasks/trust/pay (no mesh) |
 | crates/map-mesh | done (TASK-006) + 12 tests | discovery flows over sessions: `publish_descriptor`/`ingest_descriptor_envelope` (self-signed, ttl, seq-LWW), `MeshIndex` (in-process DHT stand-in; order-independent ingest ⇒ `rebuild==incremental`), CAP_QUERY/CAP_RESPONSE + STATUS over a live session (`serve_one`/`query_caps`/`query_status`). Index is untrusted transport — client verifies every envelope. Deps: identity/core/session/discovery (no tasks/trust/pay) |
 | crates/map-cli | done (TASK-001) + 6 unit tests | `keygen` (seed/pubkey/AgentID hex+multibase/did:key; random or `--seed`), `projection-rebuild-demo` (synth dual-signed receipts → incremental vs `rebuild`, ops §8); hand-rolled argv, deps: identity/tasks/trust/sha2/hex/getrandom |
+| crates/map-net | done (TASK-012, 2026-07-08) + 4 unit tests + 2 gated net tests | **First real network transport.** `framing` (u32-BE length prefix, size-first), `Libp2pTransport` (blocking `map_session::Transport` bridged over tokio mpsc), `MapNode` (blocking API over a background tokio swarm: listen/dial/accept/publish_descriptor/find_providers/fetch_descriptor). Behaviour = libp2p-stream + kad(MemoryStore) + identify. PeerID≡AgentID asserted (FR-3); dial uses DialOpts(peer-id) so libp2p enforces the expected peer. Exporter = init-AID‖resp-AID (FR-4, core §10). Deps: libp2p 0.54.1 (tcp+quic+noise+yamux+kad+identify+dns+ed25519), **libp2p-stream 0.2.0-alpha** (raw substreams; umbrella has no `stream` feature — separate alpha crate), futures 0.3, tokio 1. Net tests behind `net-tests` feature + `#[ignore]` (2-node loopback handshake/echo/kad + dial-wrong-peer, both PASS). NOT-done (deferred, noted in report): map-cli `node` subcommands; anti-relay-across-two-connections + poisoned-kad-record network tests; NAT/relay/eclipse (all future) |
 | adapters/ollama-provider | done (TASK-002) + 4 unit tests | `InferenceBackend` trait + deterministic `MockBackend`, `result_to_chunks`/`run_task` glue (kind-0 text + kind-3 usage CBOR, seq 0/1). No HTTP — real localhost:11434 backend still future |
 | adapters/gateway | done (TASK-002) + 4 unit tests | provenance per ops §5: `GatewayAdvert` wrapper + `label_descriptor`/`is_gateway_advert` (G-1), `effective_zone` tighten-only (G-3), `valid_namespace` DNS/mesh (G-4). Descriptor wire format untouched |
 | conformance/map-conformance | done (TASK-003/004; +bound-quote, delegation, spec-round-3 2026-07-08) + 38 cases (+run_all) | reproduces TV-001..015 + NV-001..008 **byte-for-byte** (adds TV-010b bound quote, TV-011 cert, TV-012 delegated OFFER, TV-013 PAY_AGREE, TV-014 RESERVE, TV-015 LEASE; NV-006 task-binding, NV-007 widened scope, NV-008 out-of-window lease); gained a map-pay dep (real PayQuote/PayAgree) + uses map_core delegation + map_tasks Reserve/Lease; ops §6.2 negatives; `run_all() -> Report`. TV-003 upgraded (TASK-006) to a HelloAck PRODUCE-guard (from_value→to_value must reproduce the vector bytes — the tripwire for any HELLO_ACK codec regression), same discipline as the DESCRIPTOR round-trip. Encoder needed NO fix |
 
 **Build-breaking fact (RESOLVED by TASK-001):** the workspace `Cargo.toml`
-lists eleven members (map-session added by TASK-005); all exist and build.
+lists all members (map-session added by TASK-005, map-net by TASK-012); all
+exist and build (map-net only with mingw on PATH — see the CRITICAL note above).
 
 Spec-feedback from TASK-005: RESOLVED 2026-07-04. (a) HELLO_ACK — core
 §6.1 already had singleton HelloAck CDDL; the gap is code-side (map-core
@@ -332,14 +346,29 @@ treat as the frozen interop contract.
    READY packages: TASK-012 (libp2p), TASK-013 (real Ollama); TASK-014/016 need
    their deps; rev-01 doc cut now possible (ops §4, additive changelog).
 
+9. ~~**TASK-012 — libp2p transport `/map/1.0.0`.**~~ DONE (2026-07-08). New crate
+   `crates/map-net` (see §5 table). Real two-node loopback proven: TCP handshake +
+   in-session echo + Kademlia publish/find/fetch/re-verify, and FR-3 dial-wrong-
+   peer refusal — both gated net tests PASS. Core §10 gained the `/map/1.0.0`
+   channel-binding ruling (FR-4: exporter = init-AID‖resp-AID; residual noted).
+   **Deps decided (FR-1 allowed "latest 0.5x"):** libp2p **0.54.1** + libp2p-stream
+   **0.2.0-alpha** (raw substreams — the umbrella crate has NO `stream` feature at
+   any 0.5x; libp2p-stream ships only as alpha) + futures 0.3 + tokio 1.
+   **Signature deviation:** `MapNode::new(seed, hello)` takes a 32-byte seed, not a
+   `Keypair`, because map-identity deliberately doesn't export its secret; both the
+   MAP and libp2p keypairs derive from that seed (FR-3). **Build now needs mingw on
+   PATH** (see §5 CRITICAL note). NOT-done (deferred, in report): map-cli `node`
+   subcommands; anti-relay-across-two-connections + poisoned-kad-record net tests;
+   NAT/relay/DCUtR + anti-eclipse (explicitly out of scope, future package).
+
 ## 8. Roadmap after the scaffold is green (ops §8 MVP ordering)
 
 1. **Session layer**: ~~HELLO/HELLO_ACK over an in-memory duplex first~~ DONE
    (TASK-005): `crates/map-session` handshake + state machine + seq/replay/size
-   over `InMemoryDuplex`, 21 tests green. REMAINING: libp2p `/map/1.0.0`
-   binding (rust-libp2p; PeerID must equal the AgentID key — identity §3.2 B1);
-   wire real channel binding from the transport exporter/Noise hash (the
-   `Transport::exporter()` seam is ready for it).
+   over `InMemoryDuplex`, 21 tests green. ~~REMAINING: libp2p `/map/1.0.0`
+   binding.~~ DONE (TASK-012): `crates/map-net` — `Libp2pTransport` behind the
+   `Transport` seam, PeerID≡AgentID (FR-3), channel binding = init‖resp AgentIDs
+   (FR-4, core §10). Two-node loopback validated.
 > 2026-07-04: EVERY remaining roadmap item below now has an authored
 > implementation-spec package — TASK-006..TASK-016 in `tasks/` (see
 > tasks/README.md for the dependency graph and recommended order:
@@ -357,9 +386,11 @@ treat as the frozen interop contract.
    records under sharded capability keys, republish ≤6 h.~~ DONE (TASK-006):
    `crates/map-mesh` — publish/ingest, `MeshIndex` (DHT stand-in), CAP_QUERY +
    STATUS over sessions, 12 tests. `map_core::HelloAck` landed (map-session
-   refactored off its private codec). REMAINING: real Kademlia (provider
-   records, disjoint-path lookups, anti-eclipse) replaces `MeshIndex` behind
-   the same API in TASK-012.
+   refactored off its private codec). ~~REMAINING: real Kademlia replaces
+   `MeshIndex`.~~ DONE (TASK-012): `map-net::MapNode` provides kad-backed
+   `publish_descriptor`/`find_providers`/`fetch_descriptor` (libp2p-kad,
+   MemoryStore). Disjoint-path lookups + anti-eclipse still future (out of
+   TASK-012 scope).
 3. **Echo task end-to-end**: ~~ASSIGN → CHUNK stream under FlowAccount →
    COMPLETE with transcript root; TTFT ×1.1 cancel rule.~~ DONE (TASK-007):
    `map-tasks::msg` codecs + `crates/map-taskrun` (pump-driven provider/

@@ -1,0 +1,39 @@
+[package]
+name = "map-net"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "MAP libp2p transport binding (/map/1.0.0) — TASK-012"
+
+[dependencies]
+map-identity = { path = "../map-identity" }
+map-core = { path = "../map-core" }
+map-session = { path = "../map-session" }
+map-discovery = { path = "../map-discovery" }
+map-mesh = { path = "../map-mesh" }
+
+# TASK-012 FR-1 dependency grant (the ONLY new external deps). Build requires
+# the mingw-w64 toolchain on PATH (C:\msys64\mingw64\bin) for gcc (ring/quic)
+# and dlltool (windows-sys import libs) — see memory.md §5.
+# FR-1 permits "the latest 0.5x at implementation time"; pinned 0.54.
+# `ed25519` gates the keypair type used to bind PeerID == AgentID (FR-3).
+libp2p = { version = "0.54", features = [
+    "tokio", "tcp", "quic", "noise", "yamux", "kad", "identify", "dns", "macros", "ed25519",
+] }
+# FR-2 (one MAP session per raw `/map/1.0.0` substream, length-prefixed) needs
+# raw streams. The `libp2p` umbrella has no `stream` feature at any 0.5x; the
+# raw-substream behaviour is the sibling `libp2p-stream` crate, which is
+# published ONLY as alpha — 0.2.0-alpha is the release that pairs with libp2p
+# 0.54 (same libp2p-core/swarm 0.42/0.45). Pinned exactly. `futures` supplies
+# the AsyncRead/AsyncWrite ext traits its `Stream` type implements.
+libp2p-stream = "=0.2.0-alpha"
+futures = "0.3"
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync", "time"] }
+
+[dev-dependencies]
+map-tasks = { path = "../map-tasks" }
+map-trust = { path = "../map-trust" }
+
+[features]
+# Network integration tests are gated so CI without a network stays green.
+net-tests = []

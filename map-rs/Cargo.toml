@@ -10,6 +10,7 @@ members = [
     "crates/map-session",
     "crates/map-mesh",
     "crates/map-taskrun",
+    "crates/map-net",
     "crates/map-cli",
     "adapters/ollama-provider",
     "adapters/gateway",

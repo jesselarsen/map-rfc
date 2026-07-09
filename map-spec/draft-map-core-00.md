@@ -380,7 +380,22 @@ respect negotiated max-message-size.
   TLS; muxer yamux; transports QUIC-v1 preferred, TCP, WebSocket,
   WebTransport. PeerID MUST equal the AgentID key (identity §3.2). NAT
   traversal profile — AutoNAT v2, Circuit Relay v2, DCUtR hole punching —
-  is REQUIRED for public-mesh providers (discovery §10).
+  is REQUIRED for public-mesh providers (discovery §10). One MAP session
+  runs per `/map/1.0.0` substream, length-prefixed as above.
+
+  *Channel binding for `/map/1.0.0`* (§7.3 third clause — transports lacking
+  an exporter): rust-libp2p does not portably expose a Noise
+  handshake-hash / TLS-exporter equivalent on its stream API, so the
+  exporter for this binding is `initiator-AgentID || responder-AgentID`
+  (the two PeerIDs the connection authenticated, in stream-initiator-first
+  order). This binds the session to the authenticated identities of both
+  endpoints. Residual (acknowledged, weaker than a true exporter): it binds
+  the identity *pair*, not the specific connection instance, so it does not
+  by itself separate two concurrent connections between the same pair; the
+  per-message msg-id replay cache and the monotonic in-session sequence
+  numbers (§7.1) prevent cross-connection replay within the window
+  regardless. An implementation whose libp2p version exposes Noise
+  handshake-hash material SHOULD use it instead and record that choice.
 - **Raw QUIC**: ALPN `map/1`; TLS 1.3 with RawPublicKey or self-signed
   X.509 carrying the Ed25519 key; exporter per §7.3.
 - **TCP+TLS 1.3**: ALPN `map/1`; same certificate rules.
