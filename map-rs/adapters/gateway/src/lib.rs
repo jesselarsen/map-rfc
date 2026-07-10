@@ -18,10 +18,18 @@
 //! * **G-4** — [`valid_namespace`] admits only DNS-anchored or mesh-registered
 //!   namespaces.
 //!
-//! All functions are pure, total (no panics on any input), and O(len(input)).
+//! The provenance helpers here are pure, total (no panics on any input), and
+//! O(len(input)). The running gateway provider (TASK-016) lives in
+//! [`provider`]; descriptor construction in [`descriptor`].
 
 use map_discovery::Descriptor;
 use map_identity::AgentId;
+
+pub mod descriptor;
+pub mod provider;
+
+pub use descriptor::{build_gateway_descriptor, build_labeled_gateway_descriptor, gateway_capability};
+pub use provider::{GatewayError, GatewayProvider, GatewayReject};
 
 /// The provenance ext-field key a `GatewayAdvert` stands in for (G-1). When the
 /// descriptor wire format models optional keys 7–14 (future spec work), this

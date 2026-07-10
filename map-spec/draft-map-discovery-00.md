@@ -158,6 +158,22 @@ MAY carry informative free-text specialties in ExtMap for UI only.
 Ontology versioning: additions are backward compatible; renames occur only
 at protocol major versions with alias records.
 
+Gateway provenance (ops §5, rule G-1). A CapEntry MAY carry a params map
+(`CapEntry = {1 => CapURI, ?2 => { * uint => any }}`). For the `gateway/`
+branch the following params key is registered (FINAL, immutable — ops §3.3):
+
+| Key | Name | Value | Meaning |
+|-----|------|-------|---------|
+| 1 | gateway-of | tstr namespace | The fronted capability is re-advertised through this gateway namespace. |
+
+When a gateway advertises a *fronted* capability (e.g.
+`map:cap:inference/text-generation`) it SHOULD attach `{1: <namespace>}` to
+that CapEntry, so a consumer sees the capability is proxied. The gateway's
+descriptor subject remains the gateway's own AgentID — never the upstream
+(G-1). (Reference-implementation note: the scaffold `Descriptor` codec does
+not yet model CapEntry params, so the interim carrier is an out-of-band
+`GatewayAdvert` wrapper; the wire assignment above is authoritative.)
+
 ## 5. Stable-plane publication (DHT)
 
 Provider records map capability keys to descriptor pointers:

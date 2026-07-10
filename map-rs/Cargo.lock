@@ -730,8 +730,14 @@ dependencies = [
 name = "gateway"
 version = "0.1.0"
 dependencies = [
+ "map-core",
  "map-discovery",
  "map-identity",
+ "map-session",
+ "map-taskrun",
+ "map-tasks",
+ "map-trust",
+ "ollama-provider",
 ]
 
 [[package]]

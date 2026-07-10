@@ -8,3 +8,15 @@ description = "MAP federation gateway adapter: provenance labeling and zone tigh
 [dependencies]
 map-discovery = { path = "../../crates/map-discovery" }
 map-identity = { path = "../../crates/map-identity" }
+map-core = { path = "../../crates/map-core" }
+map-tasks = { path = "../../crates/map-tasks" }
+map-taskrun = { path = "../../crates/map-taskrun" }
+# For the InferenceBackend trait + OllamaExecutor/result_to_chunks (TASK-013).
+# The gateway fronts the same backend seam Ollama does; this dep is acyclic
+# (ollama-provider → map-taskrun, gateway → both). A future cleanup could move
+# InferenceBackend to a shared crate (TASK-016 §4) — reported, not done here.
+ollama-provider = { path = "../ollama-provider" }
+
+[dev-dependencies]
+map-session = { path = "../../crates/map-session" }
+map-trust = { path = "../../crates/map-trust" }

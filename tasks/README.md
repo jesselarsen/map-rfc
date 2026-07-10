@@ -88,7 +88,7 @@ input. When something nonetheless needs a ruling:
 | 013 | [TASK-013](TASK-013-ollama-provider-real.md) — real Ollama backend (feature-gated ureq) + demo | 007 | DONE 2026-07-08 (OllamaBackend+OllamaExecutor, feature `real-backend` off by default; canned-JSON tests; map-cli serve-ollama demo. Deviations: Unavailable(String), send_string not ureq-json, infallible Executor→empty on error) |
 | 014 | [TASK-014](TASK-014-formal-analysis.md) — ProVerif models P1–P3 + negative controls | 010 | blocked by 010 |
 | 015 | [TASK-015](TASK-015-go-implementation.md) — map-go impl #2 at frozen-vector parity (independence rule) | 011 | blocked by 011 |
-| 016 | [TASK-016](TASK-016-federation-gateway.md) — running gateway: G-rules enforced, zone/scope gating, E2E demo | 008, 010, 013 | blocked |
+| 016 | [TASK-016](TASK-016-federation-gateway.md) — running gateway: G-rules enforced, zone/scope gating, E2E demo | 008, 010, 013 | DONE 2026-07-08 (GatewayProvider Executor+admit gate, 15 tests incl. FR-6 E2E; discovery §4 gateway-of key. Reject codes 2004/2005/2003 not FR-2's 3xxx; gateway deps ollama-provider for the backend trait). **Completes the roadmap** — only 014 (formal) + 015 (Go) remain, both need external tooling |
 
 Recommended order: **006 → 007 → 008 & 009 (parallel) → 012 & 013
 (parallel)**, with **010 and 011 anytime after their deps** (they touch

@@ -187,7 +187,7 @@ map-net) still build without mingw.
 | crates/map-cli | done (TASK-001; +serve-ollama TASK-013) + 6 unit tests | `keygen`, `projection-rebuild-demo`; hand-rolled argv. TASK-013: `serve-ollama --model --prompt [--url --max-tokens]` (feature `real-backend`) — single-process demo: real Ollama call → prints output + transcript root + dual-signed receipt (needs live server). deps: identity/tasks/trust/sha2/hex/getrandom + optional ollama-provider |
 | crates/map-net | done (TASK-012, 2026-07-08) + 4 unit tests + 2 gated net tests | **First real network transport.** `framing` (u32-BE length prefix, size-first), `Libp2pTransport` (blocking `map_session::Transport` bridged over tokio mpsc), `MapNode` (blocking API over a background tokio swarm: listen/dial/accept/publish_descriptor/find_providers/fetch_descriptor). Behaviour = libp2p-stream + kad(MemoryStore) + identify. PeerID≡AgentID asserted (FR-3); dial uses DialOpts(peer-id) so libp2p enforces the expected peer. Exporter = init-AID‖resp-AID (FR-4, core §10). Deps: libp2p 0.54.1 (tcp+quic+noise+yamux+kad+identify+dns+ed25519), **libp2p-stream 0.2.0-alpha** (raw substreams; umbrella has no `stream` feature — separate alpha crate), futures 0.3, tokio 1. Net tests behind `net-tests` feature + `#[ignore]` (2-node loopback handshake/echo/kad + dial-wrong-peer, both PASS). NOT-done (deferred, noted in report): map-cli `node` subcommands; anti-relay-across-two-connections + poisoned-kad-record network tests; NAT/relay/eclipse (all future) |
 | adapters/ollama-provider | done (TASK-002; real backend TASK-013 2026-07-08) + 13 tests (feature) | `InferenceBackend` trait + deterministic `MockBackend`, `result_to_chunks`/`run_task` glue. TASK-013: `OllamaExecutor<B>` (adapts any backend to `map_taskrun::Executor`; input=prompt UTF-8, errors/invalid→empty output never panic) always-on; **`OllamaBackend`** (real HTTP `/api/generate` stream:false, FR-2 field map, FR-3 errors, no prompt in error strings) behind feature **`real-backend`** (default OFF; deps `ureq` default-features-off + `serde_json`, NOT in default tree). `BackendError::Unavailable` now carries a msg (FR-10). Canned-JSON unit tests; live test `#[ignore]`. `Unavailable`→`Unavailable(String)` |
-| adapters/gateway | done (TASK-002) + 4 unit tests | provenance per ops §5: `GatewayAdvert` wrapper + `label_descriptor`/`is_gateway_advert` (G-1), `effective_zone` tighten-only (G-3), `valid_namespace` DNS/mesh (G-4). Descriptor wire format untouched |
+| adapters/gateway | done (TASK-002; running gateway TASK-016 2026-07-08) + 15 tests | provenance primitives (TASK-002): `GatewayAdvert`/`label_descriptor` (G-1), `effective_zone` (G-3), `valid_namespace` (G-4). TASK-016: **`GatewayProvider<B>`** — a running gateway that IS a `map_taskrun::Executor` (composes `OllamaExecutor`, fronts any `InferenceBackend`) + `admit(cap,zone,now)` gate: FR-5 scope (its own `EffectiveScope::permits` from a delegation chain) → FR-2/G-3 zone (`effective_zone > task_zone` → reject); `GatewayReject{Zone→2004,Scope→2005,BadChain→2003}`. `build_gateway_descriptor` (subject=gateway, G-1/FR-4). FR-6 E2E (task→chunks→COMPLETE→dual-signed receipt naming the gateway) via shuttle. deps: +map-core/tasks/taskrun/ollama-provider (acyclic; InferenceBackend reuse). Discovery §4 patch: gateway/ params key 1=gateway-of (codec doesn't model params yet → GatewayAdvert interim) |
 | conformance/map-conformance | done (TASK-003/004; +bound-quote, delegation, spec-round-3 2026-07-08) + 38 cases (+run_all) | reproduces TV-001..015 + NV-001..008 **byte-for-byte** (adds TV-010b bound quote, TV-011 cert, TV-012 delegated OFFER, TV-013 PAY_AGREE, TV-014 RESERVE, TV-015 LEASE; NV-006 task-binding, NV-007 widened scope, NV-008 out-of-window lease); gained a map-pay dep (real PayQuote/PayAgree) + uses map_core delegation + map_tasks Reserve/Lease; ops §6.2 negatives; `run_all() -> Report`. TV-003 upgraded (TASK-006) to a HelloAck PRODUCE-guard (from_value→to_value must reproduce the vector bytes — the tripwire for any HELLO_ACK codec regression), same discipline as the DESCRIPTOR round-trip. Encoder needed NO fix |
 
 **Build-breaking fact (RESOLVED by TASK-001):** the workspace `Cargo.toml`
@@ -376,6 +376,20 @@ treat as the frozen interop contract.
     `serve` needs a separate client to show the full loop). Live test `#[ignore]`.
     Default + feature builds both zero-warning; full workspace green.
 
+11. ~~**TASK-016 — federation gateway (running).**~~ DONE (2026-07-08) — **the last
+    package; memory.md §8 roadmap is now COMPLETE.** `adapters/gateway` gained
+    `GatewayProvider<B>` (a `map_taskrun::Executor` that fronts any `InferenceBackend`,
+    composing `OllamaExecutor`) + `admit()` gate enforcing FR-5 scope (own EffectiveScope
+    from a delegation chain) then FR-2/G-3 zone (tighten-only). `build_gateway_descriptor`
+    keeps the subject = gateway (G-1/FR-4). 15 tests incl. FR-6 E2E (task→receipt naming
+    the gateway) + zone matrix + FR-5 scope reject/admit + bad-chain. Discovery §4 spec
+    patch: gateway/ params key 1 = gateway-of (FINAL). **Decisions:** gateway deps
+    ollama-provider for the `InferenceBackend` trait (acyclic; a shared `map-backend`
+    crate is the noted cleanup); reject codes use core §9's precise auth codes
+    (2004/2005/2003) not FR-2's imprecise "3xxx"; CapEntry params aren't in the codec so
+    provenance rides the GatewayAdvert wrapper (spec assigns the key for later). Whole
+    workspace green (30 suites), zero warnings.
+
 ## 8. Roadmap after the scaffold is green (ops §8 MVP ordering)
 
 1. **Session layer**: ~~HELLO/HELLO_ACK over an in-memory duplex first~~ DONE
@@ -427,8 +441,10 @@ treat as the frozen interop contract.
    (TASK-010); ~~Ollama adapter for real~~ DONE (TASK-013); ~~extension code
    points (BID/KVX/GIT)~~ DONE (TASK-011); formal models (Tamarin/ProVerif) of
    HELLO + channel binding + delegation attenuation (TASK-014, pending); Go
-   implementation (impl #2 for the two-impl rule, TASK-015); federation gateway
-   (TASK-016). All 2026-07-08.
+   implementation (impl #2 for the two-impl rule, TASK-015, pending);
+   ~~federation gateway~~ DONE (TASK-016). All 2026-07-08. **Only TASK-014
+   (formal) and TASK-015 (Go impl #2) remain unstarted — both need external
+   tooling (ProVerif / Go) that may be absent on this box.**
 
 ## 9. Working conventions
 
