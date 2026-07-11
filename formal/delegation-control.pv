@@ -1,0 +1,70 @@
+(* TASK-014 FR-4 negative control for Q4 (delegation attenuation).
+   IDENTICAL to delegation.pv EXCEPT: the verifier's tighten-only
+   intersection check is REMOVED -- it trusts cert2's claimed scope2
+   directly, without checking it is a subset of cert1's scope1. This is the
+   "forgot to enforce tighten-only" bug class TASK-010's
+   `widened_cap_scope_rejected` unit test guards against in the Rust
+   implementation; here it is checked exhaustively over the Dolev-Yao
+   attacker's strategies rather than by example.
+
+   Expected result: Q4 is FALSE, with a witnessing trace -- the dishonest
+   DK (its key is leaked) issues cert2 claiming scope2 = capA (wider than
+   the capAB it was actually granted in cert1), and the weakened verifier
+   accepts it, authorizing more than root ever granted. See
+   formal/README.md.
+*)
+
+type skey.
+type pkey.
+fun pk(skey): pkey.
+fun sign(bitstring, skey): bitstring.
+reduc forall m: bitstring, sk: skey; getmess(sign(m, sk)) = m.
+reduc forall m: bitstring, sk: skey; checksign(sign(m, sk), pk(sk)) = m.
+
+fun cat5(bitstring, pkey, pkey, bitstring, bitstring): bitstring [data].
+fun pk2bs(pkey): bitstring [data].
+
+free c: channel.
+free tagDeleg: bitstring.
+free skRoot: skey [private].
+
+free capA: bitstring.
+free capAB: bitstring.
+free capC: bitstring.
+
+free caveatKnown: bitstring.
+free noCaveat: bitstring.
+
+event VerifierAccepted(pkey, pkey, bitstring).
+
+(* Q4 -- expected FALSE (scope2 = capA, wider than the granted capAB, gets accepted). *)
+query leaf: pkey, scp: bitstring;
+  event(VerifierAccepted(pk(skRoot), leaf, scp)) ==> scp = capAB.
+
+process
+  out(c, pk(skRoot));
+  new skDK: skey; out(c, skDK); out(c, pk(skDK));
+  new skSK: skey; out(c, pk(skSK));
+
+  let cert1Body = cat5(tagDeleg, pk(skRoot), pk(skDK), capAB, caveatKnown) in
+  let cert1 = sign(cert1Body, skRoot) in
+  out(c, cert1);
+
+  ( !(
+      in(c, cert1In: bitstring);
+      in(c, cert2In: bitstring);
+      let b1 = getmess(cert1In) in
+      let cat5(=tagDeleg, issuer1, subject1, scope1, caveat1) = b1 in
+      let chk1 = checksign(cert1In, issuer1) in
+      if chk1 = b1 then
+      let b2 = getmess(cert2In) in
+      let cat5(=tagDeleg, issuer2, subject2, scope2, caveat2) = b2 in
+      let chk2 = checksign(cert2In, issuer2) in
+      if chk2 = b2 then
+      if issuer2 = subject1 then
+      if caveat1 = caveatKnown || caveat1 = noCaveat then
+      if caveat2 = caveatKnown || caveat2 = noCaveat then
+      (* WEAKENED: no tighten-only check -- scope2 is trusted as-is. *)
+      event VerifierAccepted(issuer1, subject2, scope2)
+    )
+  )

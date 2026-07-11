@@ -1,0 +1,135 @@
+(* TASK-014 FR-3 — delegation attenuation (P3), as specified in
+   identity §4 (DelegationCert, chain validation, tighten-only attenuation,
+   fail-closed unknown caveats) and TASK-010's `validate_chain`
+   (map-rs/crates/map-core/src/delegation.rs).
+
+   Scope (see formal/README.md "Abstraction gaps"): a depth-2 chain
+   (root -> DK -> SK, three parties, two links) rather than "up to depth
+   3" -- the per-link tighten-only check is structurally identical at every
+   link, so depth-2 is the minimum that exhibits a genuine attenuation
+   violation and is sufficient to validate the mechanism (TASK-014 §10
+   "scope is P1-P3 only" / avoid over-modeling). Capability scope is a
+   3-element lattice: capA ⊐ capAB (capAB is the prefix-child "cap:a/b" of
+   "cap:a", per discovery §4 prefix-segment matching); capC is unrelated to
+   both. Zone attenuation is structurally identical to capability
+   attenuation and is not separately modeled (an acknowledged gap). The
+   fail-closed-unknown-caveat rule is modeled in the HONEST verifier for
+   fidelity to identity §4, but does not have its own dedicated negative
+   control here (FR-4 asks for one control per property; the dedicated
+   delegation-control targets the headline "attenuation" property, i.e.
+   widening -- see delegation-control.pv and the README).
+
+   Threat model: the ISSUER of the second link (DK) is a fully compromised
+   / dishonest INSIDER -- its private key is leaked, so the Dolev-Yao
+   attacker can issue (sign) a cert2 with ANY scope it chooses, including a
+   deliberate attempt to WIDEN beyond what root actually granted DK. Q4
+   asks whether a correctly-implemented VERIFIER can ever be tricked into
+   accepting such a cert as authorizing more than the chain's intersection.
+*)
+
+type skey.
+type pkey.
+fun pk(skey): pkey.
+fun sign(bitstring, skey): bitstring.
+reduc forall m: bitstring, sk: skey; getmess(sign(m, sk)) = m.
+reduc forall m: bitstring, sk: skey; checksign(sign(m, sk), pk(sk)) = m.
+
+(* Tuples. cat5 = DelegateBody per identity §4 CDDL (issuer, subject, scope,
+   caveat) prefixed by a domain-separation tag. *)
+fun cat5(bitstring, pkey, pkey, bitstring, bitstring): bitstring [data].
+fun pk2bs(pkey): bitstring [data].
+
+free c: channel.
+free tagDeleg: bitstring.
+
+(* The honest root is a top-level (private) name, not `new`-bound inside the
+   process, so the queries below can pin it directly -- exactly the same
+   "scope to the honest principal" convention used in hello-cb.pv, and for
+   the same reason: an attacker trivially satisfies every verifier check
+   using ITS OWN self-consistent, entirely fabricated chain (its own key as
+   "root", its own key as "DK"), which is not a delegation-attenuation
+   violation at all (root never actually delegated anything to that
+   attacker-invented chain) -- Q4 is about what a chain rooted at the REAL
+   root can be tricked into authorizing. *)
+free skRoot: skey [private].
+
+(* ---------- Capability lattice (discovery §4 prefix-segment matching) --- *)
+free capA: bitstring.    (* "map:cap:a" *)
+free capAB: bitstring.   (* "map:cap:a/b" -- a strict prefix-child of capA *)
+free capC: bitstring.    (* unrelated branch *)
+
+(* ---------- Caveats (identity §4 key 8 registry; TASK-010) -------------- *)
+free caveatKnown: bitstring.   (* a registered caveat value *)
+free noCaveat: bitstring.      (* absence sentinel *)
+
+event VerifierAccepted(pkey, pkey, bitstring).  (* root, leaf, effective scope *)
+
+(* ==========================================================================
+   Queries
+   ========================================================================== *)
+
+(* Q4 (P3, identity §4 / TASK-010 validate_chain): no reachable state where
+   the verifier accepts (root authorizes leaf for capability c) with c
+   OUTSIDE what root actually granted (capAB) -- root only ever grants
+   capAB in this scenario, so ANY accepted scope must equal capAB,
+   regardless of what the dishonest DK attempts to claim for cert2
+   (including capA, a genuine widening attempt). *)
+query leaf: pkey, scp: bitstring;
+  event(VerifierAccepted(pk(skRoot), leaf, scp)) ==> scp = capAB.
+
+(* Q5: reachability sanity (non-vacuity guard), same interpretation as
+   hello-cb.pv's Q3 -- expected "cannot be proved" WITH a trace. *)
+query leaf: pkey, scp: bitstring;
+  event(VerifierAccepted(pk(skRoot), leaf, scp)).
+
+(* ==========================================================================
+   Top-level scenario: root (honest) issues cert1 (root -> DK) with scope
+   capAB and a recognized caveat. DK's key is LEAKED (fully dishonest/
+   insider-controlled): the attacker can sign an ARBITRARY cert2 as DK,
+   including attempts at widening (scope2 = capA) or an unrecognized
+   caveat. SK's key stays honest/uncorrupted (it is the accountable leaf
+   the chain authorizes, not an active participant in the attack).
+   ========================================================================== *)
+process
+  out(c, pk(skRoot));
+  new skDK: skey; out(c, skDK); out(c, pk(skDK));   (* leaked: dishonest issuer *)
+  new skSK: skey; out(c, pk(skSK));
+
+  let cert1Body = cat5(tagDeleg, pk(skRoot), pk(skDK), capAB, caveatKnown) in
+  let cert1 = sign(cert1Body, skRoot) in
+  out(c, cert1);
+
+  (* Verifier: re-validates an arbitrary attacker-supplied 2-link chain
+     [cert2, cert1] purporting root -> DK -> leaf, exactly as
+     map_core::delegation::validate_chain does. Replicated: the attacker
+     may present as many candidate chains as it likes. *)
+  ( !(
+      in(c, cert1In: bitstring);
+      in(c, cert2In: bitstring);
+      let b1 = getmess(cert1In) in
+      let cat5(=tagDeleg, issuer1, subject1, scope1, caveat1) = b1 in
+      let chk1 = checksign(cert1In, issuer1) in
+      if chk1 = b1 then
+      let b2 = getmess(cert2In) in
+      let cat5(=tagDeleg, issuer2, subject2, scope2, caveat2) = b2 in
+      let chk2 = checksign(cert2In, issuer2) in
+      if chk2 = b2 then
+      if issuer2 = subject1 then                (* chain link: cert2's issuer == cert1's subject *)
+      if caveat1 = caveatKnown || caveat1 = noCaveat then   (* fail-closed (identity §4) *)
+      if caveat2 = caveatKnown || caveat2 = noCaveat then
+      (* Tighten-only intersection: scope2 MUST be the same as, or a
+         narrower prefix-descendant of, scope1. `failSentinel` is a fresh
+         name generated per verifier invocation, so the attacker can never
+         choose scope2 to equal it -- this makes the `else` branch below an
+         honest "not OK" outcome, not something forgeable via a lucky guess. *)
+      new failSentinel: bitstring;
+      let eff =
+        (if scope2 = capA && scope1 = capA then scope2
+         else if scope2 = capAB && scope1 = capA then scope2
+         else if scope2 = capAB && scope1 = capAB then scope2
+         else if scope2 = capC && scope1 = capC then scope2
+         else failSentinel) in
+      if eff = scope2 then
+      event VerifierAccepted(issuer1, subject2, scope2)
+    )
+  )

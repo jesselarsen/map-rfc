@@ -158,13 +158,30 @@ scores, recompute from receipt store, byte-compare decisions; same for
 DHT index from descriptors.
 
 ### 6.3 Formal analysis program
-Model in Tamarin or ProVerif before beta: HELLO negotiation + channel
-binding (properties: mutual authentication, downgrade resistance, session
-binding of envelopes), and delegation-chain validation (property: scope
-attenuation is monotone). Publish models beside the spec; the state
-machines in core §12 and tasks §13 are written to be mechanically
-translatable. Claims not covered by models or tests are labeled
-assumptions (arch §7).
+
+**Delivered for P1–P3 (TASK-014, 2026-07-10).** ProVerif 2.05 models at
+`formal/` (repo root): `hello-cb.pv` (P1 downgrade resistance via the
+negotiation-recheck + transcript hash, core §6.2; P2 channel-binding
+session separation, core §7.3 — no two distinguishable sessions ever derive
+the same CB) and `delegation.pv` (P3 delegation-chain attenuation is
+tighten-only, identity §4 / TASK-010 `validate_chain`, including
+fail-closed unknown caveats). Adversary: full active Dolev-Yao network
+control plus a fully compromised insider (a legitimate registered agent's
+private key is leaked). All three properties hold in the honest models
+(no counterexample found) and each carries a mandatory negative control
+that fails with a concrete witnessing trace, proving the queries are not
+vacuous. No BLOCKING finding. Full methodology, the property-to-spec
+mapping, and the abstraction gaps (msg-id/timestamp replay cache,
+sequence numbers, suite negotiation, chain depth bounded to 2 links, zone
+attenuation, exporter modeled at exactly the strength of the deployed
+`/map/1.0.0` binding per TASK-012 FR-4) are in `formal/README.md`;
+captured tool output is under `formal/results/`.
+
+Remaining future formal work (not yet modeled): receipts non-repudiation,
+the payment binding chain (quote→agree→invoice→proof), reservation
+obligations, and the msg-id replay cache itself (closing the Q2 gap noted
+above to a stronger injective session-uniqueness property). Claims not
+covered by models or tests are labeled assumptions (arch §7).
 
 ### 6.4 Fuzzing and load
 Continuous structure-aware CBOR fuzzing of every decoder; churn simulation

@@ -1,0 +1,116 @@
+(* TASK-014 FR-4 negative control for Q1 (downgrade resistance).
+   IDENTICAL to hello-cb.pv EXCEPT: the initiator's safety recheck
+   `if chosen = v2 then` is REMOVED -- the initiator trusts whatever
+   version the (SessionID-matching) HELLO_ACK claims, without independently
+   recomputing what its own true offer honestly negotiates to. This is the
+   real map-session behavior WITHOUT its
+   `negotiate(&cfg.hello, &ack.as_hello())` re-run.
+
+   Expected result: Q1 is FALSE, with a witnessing trace -- the attacker,
+   dialing B as the insider C with a low-version offer but the SessionID
+   AND msgid copied from an eavesdropped real A-HELLO, obtains a genuine
+   B-signed low-version ack that satisfies every remaining check (signer,
+   claimed-peer, SessionID echo) and gets spliced into A's session, causing
+   A to (wrongly) believe it negotiated v1. This demonstrates the query has
+   teeth: SessionID-echo ALONE does not prevent downgrade -- msgid/SessionID
+   are observable, attacker-reusable values, not secrets; it is the content
+   recheck that provides the real defense. See formal/README.md.
+*)
+
+type skey.
+type pkey.
+fun pk(skey): pkey.
+fun sign(bitstring, skey): bitstring.
+reduc forall m: bitstring, sk: skey; getmess(sign(m, sk)) = m.
+reduc forall m: bitstring, sk: skey; checksign(sign(m, sk), pk(sk)) = m.
+
+fun h(bitstring): bitstring.
+fun kdf(bitstring, bitstring): bitstring.
+
+fun cat2(bitstring, bitstring): bitstring [data].
+fun pk2bs(pkey): bitstring [data].
+fun cat3(bitstring, bitstring, bitstring): bitstring [data].
+fun cat5(bitstring, pkey, bitstring, bitstring, bitstring): bitstring [data].
+
+free c: channel.
+free skA: skey [private].
+free skB: skey [private].
+
+free tagHello: bitstring.
+free tagAck: bitstring.
+free tagMsg: bitstring.
+
+free v1: bitstring.
+free v2: bitstring.
+free offerBoth: bitstring.
+free offerLowOnly: bitstring.
+
+event NegotiatedByInitiator(pkey, pkey, bitstring).
+event NegotiatedByResponder(pkey, pkey, bitstring).
+event SessionComplete(pkey, pkey, bitstring).
+event EnvelopeSealed(pkey, pkey, bitstring, bitstring).
+event EnvelopeAccepted(pkey, pkey, bitstring, bitstring).
+
+(* WEAKENED: no `if chosen = v2 then` recheck. *)
+let initiator(skA0: skey, pkB: pkey) =
+  new msgidH: bitstring;
+  new sidA: bitstring;
+  let helloBody = cat5(tagHello, pk(skA0), offerBoth, msgidH, sidA) in
+  let helloEnv = sign(helloBody, skA0) in
+  out(c, helloEnv);
+  in(c, ackEnv: bitstring);
+  let ackBody = getmess(ackEnv) in
+  let cat5(=tagAck, ackerPk, chosen, =msgidH, sidEchoed) = ackBody in
+  let chk = checksign(ackEnv, ackerPk) in
+  if chk = ackBody then
+  if ackerPk = pkB then
+  if sidEchoed = sidA then
+  (
+    let exporter = h(cat2(pk2bs(pk(skA0)), pk2bs(pkB))) in
+    let th = h(cat2(helloEnv, ackEnv)) in
+    let cb = kdf(th, exporter) in
+    event NegotiatedByInitiator(pk(skA0), pkB, chosen);
+    event SessionComplete(pk(skA0), pkB, cb);
+    new payload: bitstring;
+    let sealedBody = cat3(tagMsg, cb, payload) in
+    let sealedEnv = sign(sealedBody, skA0) in
+    event EnvelopeSealed(pk(skA0), pkB, cb, payload);
+    out(c, sealedEnv)
+  ).
+
+let responder(skB0: skey, expectedPeer: pkey) =
+  in(c, helloEnv: bitstring);
+  let helloBody = getmess(helloEnv) in
+  let cat5(=tagHello, claimedPk, offered, msgidH, sidA) = helloBody in
+  if claimedPk = expectedPeer then
+  let chk = checksign(helloEnv, claimedPk) in
+  if chk = helloBody then
+  (
+    let chosen = (if offered = offerBoth then v2 else v1) in
+    let ackBody = cat5(tagAck, pk(skB0), chosen, msgidH, sidA) in
+    let ackEnv = sign(ackBody, skB0) in
+    event NegotiatedByResponder(claimedPk, pk(skB0), chosen);
+    out(c, ackEnv);
+    let exporter = h(cat2(pk2bs(claimedPk), pk2bs(pk(skB0)))) in
+    let th = h(cat2(helloEnv, ackEnv)) in
+    let cb = kdf(th, exporter) in
+    in(c, sealedEnv: bitstring);
+    let sealedBody = getmess(sealedEnv) in
+    let cat3(=tagMsg, cbIn, payload) = sealedBody in
+    if cbIn = cb then
+    let chk2 = checksign(sealedEnv, claimedPk) in
+    if chk2 = sealedBody then
+    event EnvelopeAccepted(claimedPk, pk(skB0), cb, payload)
+  ).
+
+(* Q1 -- expected FALSE (downgrade to v1 becomes reachable). *)
+query pkA: pkey, pkB: pkey, v: bitstring;
+  event(NegotiatedByInitiator(pkA, pkB, v)) ==> v = v2.
+
+process
+  out(c, pk(skA));
+  out(c, pk(skB));
+  new skC: skey; out(c, skC); out(c, pk(skC));
+  ( !initiator(skA, pk(skB))
+  | !responder(skB, pk(skA))
+  | !responder(skB, pk(skC)) )

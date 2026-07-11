@@ -1,0 +1,131 @@
+(* TASK-014 FR-4 negative control for Q2 (channel-binding session
+   separation). IDENTICAL to hello-cb.pv EXCEPT: CB is derived WITHOUT the
+   transcript hash TH -- `cb = kdf(zeroConst, exporter)` instead of
+   `cb = kdf(h(cat2(helloEnv,ackEnv)), exporter)`. Since `exporter` is a
+   pure function of the two AgentIDs (identity-invariant across ALL
+   sessions between the same pair, per the TASK-012 exporter ruling), this
+   makes CB itself identity-invariant: every A-B handshake, no matter how
+   many, computes the exact same cb.
+
+   Expected result: Q2 (no CbCollision reachable) is FALSE, with a
+   witnessing trace -- B completes two DIFFERENT handshakes (different
+   msgid, hence genuinely distinguishable sessions) with A and derives the
+   SAME cb for both, which is exactly the "CB provides no session
+   separation" failure P2 exists to prevent (a message sealed for one
+   session's CB would trivially also verify under the other's). This
+   demonstrates the query has teeth: without the transcript hash
+   contributing session-specific freshness to CB, the channel binding
+   collapses to a per-pair-only value with no per-session freshness at all.
+   See formal/README.md.
+*)
+
+type skey.
+type pkey.
+fun pk(skey): pkey.
+fun sign(bitstring, skey): bitstring.
+reduc forall m: bitstring, sk: skey; getmess(sign(m, sk)) = m.
+reduc forall m: bitstring, sk: skey; checksign(sign(m, sk), pk(sk)) = m.
+
+fun h(bitstring): bitstring.
+fun kdf(bitstring, bitstring): bitstring.
+
+fun cat2(bitstring, bitstring): bitstring [data].
+fun pk2bs(pkey): bitstring [data].
+fun cat3(bitstring, bitstring, bitstring): bitstring [data].
+fun cat5(bitstring, pkey, bitstring, bitstring, bitstring): bitstring [data].
+
+free c: channel.
+free skA: skey [private].
+free skB: skey [private].
+
+free tagHello: bitstring.
+free tagAck: bitstring.
+free tagMsg: bitstring.
+
+free v1: bitstring.
+free v2: bitstring.
+free offerBoth: bitstring.
+free offerLowOnly: bitstring.
+free zeroConst: bitstring.   (* WEAKENED CB: a fixed constant replaces TH *)
+
+event NegotiatedByInitiator(pkey, pkey, bitstring).
+event NegotiatedByResponder(pkey, pkey, bitstring).
+event SessionComplete(pkey, pkey, bitstring).
+event EnvelopeSealed(pkey, pkey, bitstring, bitstring).
+event EnvelopeAccepted(pkey, pkey, bitstring, bitstring).
+
+table sessionCb(bitstring, bitstring).
+event CbCollision(bitstring, bitstring, bitstring).
+
+let initiator(skA0: skey, pkB: pkey) =
+  new msgidH: bitstring;
+  new sidA: bitstring;
+  let helloBody = cat5(tagHello, pk(skA0), offerBoth, msgidH, sidA) in
+  let helloEnv = sign(helloBody, skA0) in
+  out(c, helloEnv);
+  in(c, ackEnv: bitstring);
+  let ackBody = getmess(ackEnv) in
+  let cat5(=tagAck, ackerPk, chosen, =msgidH, sidEchoed) = ackBody in
+  let chk = checksign(ackEnv, ackerPk) in
+  if chk = ackBody then
+  if ackerPk = pkB then
+  if sidEchoed = sidA then
+  if chosen = v2 then
+  (
+    let exporter = h(cat2(pk2bs(pk(skA0)), pk2bs(pkB))) in
+    (* WEAKENED: cb no longer depends on th = h(cat2(helloEnv,ackEnv)). *)
+    let cb = kdf(zeroConst, exporter) in
+    event NegotiatedByInitiator(pk(skA0), pkB, chosen);
+    event SessionComplete(pk(skA0), pkB, cb);
+    new payload: bitstring;
+    let sealedBody = cat3(tagMsg, cb, payload) in
+    let sealedEnv = sign(sealedBody, skA0) in
+    event EnvelopeSealed(pk(skA0), pkB, cb, payload);
+    out(c, sealedEnv)
+  ).
+
+let responder(skB0: skey, expectedPeer: pkey) =
+  in(c, helloEnv: bitstring);
+  let helloBody = getmess(helloEnv) in
+  let cat5(=tagHello, claimedPk, offered, msgidH, sidA) = helloBody in
+  if claimedPk = expectedPeer then
+  let chk = checksign(helloEnv, claimedPk) in
+  if chk = helloBody then
+  (
+    let chosen = (if offered = offerBoth then v2 else v1) in
+    let ackBody = cat5(tagAck, pk(skB0), chosen, msgidH, sidA) in
+    let ackEnv = sign(ackBody, skB0) in
+    event NegotiatedByResponder(claimedPk, pk(skB0), chosen);
+    out(c, ackEnv);
+    let exporter = h(cat2(pk2bs(claimedPk), pk2bs(pk(skB0)))) in
+    (* WEAKENED: same session-invariant cb derivation as the initiator. *)
+    let cb = kdf(zeroConst, exporter) in
+    (
+      ( get sessionCb(otherMsgid, =cb) suchthat otherMsgid <> msgidH in
+          event CbCollision(otherMsgid, msgidH, cb)
+        else
+          insert sessionCb(msgidH, cb) )
+    | (
+        in(c, sealedEnv: bitstring);
+        let sealedBody = getmess(sealedEnv) in
+        let cat3(=tagMsg, cbIn, payload) = sealedBody in
+        if cbIn = cb then
+        let chk2 = checksign(sealedEnv, claimedPk) in
+        if chk2 = sealedBody then
+        event EnvelopeAccepted(claimedPk, pk(skB0), cb, payload)
+      )
+    )
+  ).
+
+(* Q2 -- expected FALSE (CbCollision becomes reachable: two distinguishable
+   A-B handshakes derive the identical, session-invariant cb). *)
+query m1: bitstring, m2: bitstring, cb: bitstring;
+  event(CbCollision(m1, m2, cb)).
+
+process
+  out(c, pk(skA));
+  out(c, pk(skB));
+  new skC: skey; out(c, skC); out(c, pk(skC));
+  ( !initiator(skA, pk(skB))
+  | !responder(skB, pk(skA))
+  | !responder(skB, pk(skC)) )

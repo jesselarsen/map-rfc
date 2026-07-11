@@ -439,12 +439,56 @@ treat as the frozen interop contract.
    cap exceeded, task-binding). Metered terms-3 / escrow / disputes future.
 6. Then: ~~DelegationCert implementation + envelope chain verification~~ DONE
    (TASK-010); ~~Ollama adapter for real~~ DONE (TASK-013); ~~extension code
-   points (BID/KVX/GIT)~~ DONE (TASK-011); formal models (Tamarin/ProVerif) of
-   HELLO + channel binding + delegation attenuation (TASK-014, pending); Go
-   implementation (impl #2 for the two-impl rule, TASK-015, pending);
-   ~~federation gateway~~ DONE (TASK-016). All 2026-07-08. **Only TASK-014
-   (formal) and TASK-015 (Go impl #2) remain unstarted — both need external
-   tooling (ProVerif / Go) that may be absent on this box.**
+   points (BID/KVX/GIT)~~ DONE (TASK-011); ~~formal models (ProVerif) of HELLO
+   + channel binding + delegation attenuation~~ DONE (TASK-014, 2026-07-10 —
+   see §7 step 12 below); Go implementation (impl #2 for the two-impl rule,
+   TASK-015, pending — needs a Go toolchain, unchecked); ~~federation
+   gateway~~ DONE (TASK-016). **Only TASK-015 (Go impl #2) remains
+   unstarted.**
+
+12. ~~**TASK-014 — formal analysis (P1/P2/P3), ops §6.3.**~~ DONE (2026-07-10).
+    New top-level `formal/` (spec-adjacent, not Rust): ProVerif 2.05 models.
+    `hello-cb.pv` — Q1 (P1 downgrade resistance, core §6.2) **true**; Q2 (P2
+    channel-binding session separation, core §7.3) **true**; Q3 reachability
+    confirmed. `delegation.pv` — Q4 (P3 tighten-only attenuation, identity §4
+    / TASK-010 `validate_chain`, incl. fail-closed caveats) **true**; Q5
+    reachability confirmed. **No BLOCKING finding.** Every property has a
+    mandatory FR-4 negative control that correctly FAILS with a witnessing
+    trace: `hello-cb-control-downgrade.pv` (drops the initiator's
+    negotiate-recheck → downgrade to v1 becomes reachable via a sid/msgid-
+    reuse attack through the leaked insider agent), `hello-cb-control-relay.pv`
+    (drops TH from the CB derivation → CB collides across distinguishable
+    sessions), `delegation-control.pv` (drops the tighten-only intersection
+    check → an arbitrary/widened scope gets accepted). ops §6.3 updated from
+    "plan" to "delivered for P1–P3" with results.
+    **Toolchain note (significant time sink, now resolved):** native-Windows
+    `opam install proverif` fails (`lablgtk` GTK2 GUI is a HARD dep, doesn't
+    compile against the installed mingw gcc); a from-source CLI-only
+    (`-nointeract`) build via `ocamlbuild` also fails (native-Windows-opam +
+    msys `mkdir` incompatibility, unresolved). **ProVerif works ONLY via
+    WSL2** (Ubuntu): `sudo apt-get install -y opam m4 unzip && opam init -y
+    --disable-sandboxing && eval $(opam env) && opam install proverif -y`.
+    Also hit and fixed: WSL2's network adapter was stuck down post-reboot
+    (Cloudflare WARP was blocking WSL2 traffic — disabling WARP + a full
+    Windows reboot fixed it, `wsl --shutdown` alone was NOT enough).
+    **Non-trivial modeling lessons (see formal/README.md "Modeling notes"
+    for the full account — read before extending these models):** (a) `reduc`
+    patterns can't match `free` names directly, only constructor structure —
+    use nested `if-then-else` as a TERM instead; (b) multi-clause `reduc`
+    needs `otherwise`, and the function needs a `fun NAME(...): type` line
+    immediately before it with NO trailing period (combined declaration);
+    (c) correspondence queries MUST be scoped to the honest principals (top-
+    level `[private]` free names referenced directly in the query) — an
+    unscoped query lets the Dolev-Yao attacker "attack" by just running a
+    fully self-consistent session/chain using its own leaked key, which is
+    not a real violation; (d) **the deepest lesson**: an event-correspondence
+    over SIGNED-message events is the wrong tool for "does derived value X
+    (like CB) separate sessions" — it collapses to plain signature
+    unforgeability once the value is embedded in a signed blob, and the
+    injective variant gets contaminated by the (correctly out-of-scope)
+    msg-id replay-cache gap. A direct `table`-based collision/uniqueness
+    check on the derived value itself (`get TBL(...) suchthat ... in ...
+    else insert TBL(...)`) is the right tool — this is what Q2 uses.
 
 ## 9. Working conventions
 

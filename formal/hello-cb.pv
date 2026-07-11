@@ -1,0 +1,221 @@
+(* TASK-014 FR-2 — HELLO/HELLO_ACK negotiation (P1) and channel-binding
+   anti-relay (P2), as specified in draft-map-core-00.md §6 (negotiation,
+   TH) and §7.3 (channel binding) and as implemented in
+   map-rs/crates/map-session/src/session.rs.
+
+   Scope / abstractions (see formal/README.md "Abstraction gaps" for the
+   full list): a single mutually-supported "high" version (v2) versus one
+   "low" legacy version (v1); no suite/extension negotiation (structurally
+   identical to version negotiation, omitted for model size); no msg-id/
+   timestamp replay-cache (core §7.1's ReplayCache) -- out of scope per
+   TASK-014 §FR-5. The exporter is modeled EXACTLY as strong as the
+   deployed /map/1.0.0 binding (TASK-012 FR-4 ruling) -- PUBLIC information
+   derivable from the two parties' AgentIDs, not a secret TLS-style
+   exporter. This is deliberate: modeling a stronger exporter would make Q2
+   dishonestly optimistic.
+
+   Every responder session pins an EXPECTED peer identity, exactly matching
+   the real `SessionConfig.expected_peer` (map-session/src/session.rs) --
+   transport-layer identity binding means a real session always knows in
+   advance who it is talking to.
+
+   Adversary: full active Dolev-Yao network control (channel `c`), PLUS an
+   insider -- agent C's private key is leaked, so the attacker can act as a
+   fully legitimate registered peer B is separately willing to talk to
+   (TASK-014 §9 edge case; also what feeds Q1's downgrade-attack search --
+   see the comment on `responder` below).
+*)
+
+(* ---------- Signatures (Ed25519 abstraction) ---------- *)
+type skey.
+type pkey.
+fun pk(skey): pkey.
+fun sign(bitstring, skey): bitstring.
+(* The signed message is recoverable without the key (COSE_Sign1 content is
+   cleartext; only the signature itself is checked) -- getmess models
+   reading the (unverified) claimed body so a self-certifying `kid` field
+   inside it can be extracted BEFORE picking which key to verify against,
+   exactly as map-core's envelope::open() does. *)
+reduc forall m: bitstring, sk: skey; getmess(sign(m, sk)) = m.
+reduc forall m: bitstring, sk: skey; checksign(sign(m, sk), pk(sk)) = m.
+
+(* ---------- One-way primitives ---------- *)
+fun h(bitstring): bitstring.               (* transcript hash TH, core §6.2 *)
+fun kdf(bitstring, bitstring): bitstring.   (* HKDF abstraction, core §7.3 *)
+
+(* ---------- Tuples (data constructors: publicly destructible/matchable) --*)
+fun cat2(bitstring, bitstring): bitstring [data].
+fun pk2bs(pkey): bitstring [data].   (* coercion: embed a pubkey inside a bitstring term *)
+fun cat3(bitstring, bitstring, bitstring): bitstring [data].
+fun cat5(bitstring, pkey, bitstring, bitstring, bitstring): bitstring [data].
+
+free c: channel.
+
+(* Two agents are declared as top-level (private) names, not `new`-bound
+   inside the process, so the queries below can name the honest pair
+   directly -- this is what scopes P1/P2 to "the real A/B session", matching
+   how authentication correspondences are always stated. *)
+free skA: skey [private].
+free skB: skey [private].
+
+(* ---------- Domain-separation tags (core §4 msg_type discriminates these) *)
+free tagHello: bitstring.
+free tagAck: bitstring.
+free tagMsg: bitstring.
+
+(* ---------- Protocol versions ---------- *)
+free v1: bitstring.          (* legacy *)
+free v2: bitstring.          (* current; both honest peers mutually support it *)
+free offerBoth: bitstring.       (* HELLO offering {v1,v2} *)
+free offerLowOnly: bitstring.    (* HELLO offering {v1} only *)
+
+(* ---------- Events ---------- *)
+event NegotiatedByInitiator(pkey, pkey, bitstring).  (* self, peer, version A believes *)
+event NegotiatedByResponder(pkey, pkey, bitstring).  (* initiator, self, version B echoed *)
+event SessionComplete(pkey, pkey, bitstring).        (* A, B, cb -- reachability marker *)
+event EnvelopeSealed(pkey, pkey, bitstring, bitstring).    (* sender, peer, cb, payload *)
+event EnvelopeAccepted(pkey, pkey, bitstring, bitstring).  (* peer, self, cb, payload *)
+
+(* Q2's real test (see below): does B ever compute the SAME CB for two
+   handshakes it can tell apart (different msgid)? `sessionCb` records
+   (msgid, cb) as B completes each handshake; `get ... suchthat` looks for
+   a PRIOR entry with the same cb but a DIFFERENT msgid. *)
+table sessionCb(bitstring, bitstring).
+event CbCollision(bitstring, bitstring, bitstring).  (* msgid1, msgid2, cb *)
+
+(* ==========================================================================
+   Initiator (A). Offers {v1,v2}; re-derives the SessionID echo AND
+   independently re-checks the responder's claimed choice against what A's
+   own honest negotiation would produce (map-session's
+   `negotiate(&cfg.hello, &ack.as_hello())` re-run on the initiator side) --
+   this is the safety-critical step Q1 exercises.
+   ========================================================================== *)
+let initiator(skA0: skey, pkB: pkey) =
+  new msgidH: bitstring;
+  new sidA: bitstring;
+  let helloBody = cat5(tagHello, pk(skA0), offerBoth, msgidH, sidA) in
+  let helloEnv = sign(helloBody, skA0) in
+  out(c, helloEnv);
+  in(c, ackEnv: bitstring);
+  let ackBody = getmess(ackEnv) in
+  let cat5(=tagAck, ackerPk, chosen, =msgidH, sidEchoed) = ackBody in
+  let chk = checksign(ackEnv, ackerPk) in
+  if chk = ackBody then
+  if ackerPk = pkB then
+  if sidEchoed = sidA then
+  (* Safety recheck: A only proceeds if the claimed choice is what A's own
+     true offer honestly negotiates to (never trusts B's claim blindly). *)
+  if chosen = v2 then
+  (
+    let exporter = h(cat2(pk2bs(pk(skA0)), pk2bs(pkB))) in  (* PUBLIC: initiator-AID||responder-AID *)
+    let th = h(cat2(helloEnv, ackEnv)) in
+    let cb = kdf(th, exporter) in
+    event NegotiatedByInitiator(pk(skA0), pkB, chosen);
+    event SessionComplete(pk(skA0), pkB, cb);
+    new payload: bitstring;
+    let sealedBody = cat3(tagMsg, cb, payload) in
+    let sealedEnv = sign(sealedBody, skA0) in
+    event EnvelopeSealed(pk(skA0), pkB, cb, payload);
+    out(c, sealedEnv)
+  ).
+
+(* ==========================================================================
+   Responder (B). Pins an EXPECTED peer identity (transport-layer identity
+   binding, TASK-012 FR-3 / identity §3.2), exactly like a real
+   SessionConfig.expected_peer -- a session is never "open to anyone".
+   B nonetheless runs a SEPARATE session expecting the insider C (spawned
+   below), which is what gives Q1's attack search its raw material: the
+   attacker, dialing in AS C with a low-version offer but a msgid/SessionID
+   copied from an eavesdropped real A-HELLO, obtains a genuine B-signed
+   low-version ack that (if the initiator DIDN'T recheck `chosen`) could be
+   spliced into A's own session -- this is precisely what the control
+   variant (hello-cb-control-downgrade.pv) demonstrates is reachable.
+   Echoes the INITIATOR's SessionID (core §6.1).
+
+   After completing a handshake, B checks `sessionCb` for a PRIOR entry
+   with the same CB but a DIFFERENT msgid (Q2's actual test -- see above)
+   before recording its own.
+   ========================================================================== *)
+let responder(skB0: skey, expectedPeer: pkey) =
+  in(c, helloEnv: bitstring);
+  let helloBody = getmess(helloEnv) in
+  let cat5(=tagHello, claimedPk, offered, msgidH, sidA) = helloBody in
+  if claimedPk = expectedPeer then
+  let chk = checksign(helloEnv, claimedPk) in
+  if chk = helloBody then
+  (
+    let chosen = (if offered = offerBoth then v2 else v1) in
+    let ackBody = cat5(tagAck, pk(skB0), chosen, msgidH, sidA) in
+    let ackEnv = sign(ackBody, skB0) in
+    event NegotiatedByResponder(claimedPk, pk(skB0), chosen);
+    out(c, ackEnv);
+    let exporter = h(cat2(pk2bs(claimedPk), pk2bs(pk(skB0)))) in
+    let th = h(cat2(helloEnv, ackEnv)) in
+    let cb = kdf(th, exporter) in
+    (
+      ( get sessionCb(otherMsgid, =cb) suchthat otherMsgid <> msgidH in
+          event CbCollision(otherMsgid, msgidH, cb)
+        else
+          insert sessionCb(msgidH, cb) )
+    | (
+        in(c, sealedEnv: bitstring);
+        let sealedBody = getmess(sealedEnv) in
+        let cat3(=tagMsg, cbIn, payload) = sealedBody in
+        if cbIn = cb then
+        let chk2 = checksign(sealedEnv, claimedPk) in
+        if chk2 = sealedBody then
+        event EnvelopeAccepted(claimedPk, pk(skB0), cb, payload)
+      )
+    )
+  ).
+
+(* ==========================================================================
+   Queries
+   ========================================================================== *)
+
+(* Q1 (P1, core §6.2): downgrade resistance. Whenever the initiator
+   completes negotiation believing a version, it is ALWAYS v2 (the honest
+   mutual maximum) -- no attacker strategy (including replaying a
+   genuinely-signed low-version HELLO_ACK obtained via an insider session
+   with a reused/observed msgid+SessionID) can force acceptance of v1. *)
+query pkA: pkey, pkB: pkey, v: bitstring;
+  event(NegotiatedByInitiator(pkA, pkB, v)) ==> v = v2.
+
+(* Q2 (P2, core §7.3): channel-binding session separation. B never computes
+   the SAME CB for two handshakes it can tell apart (different msgid) --
+   i.e. CB genuinely depends on session-specific material (TH), not just
+   the (session-invariant, PUBLIC) exporter. This is the precise property
+   that makes "an envelope verifies only on the session whose CB it was
+   sealed under" possible: if CB can collide across distinguishable
+   sessions, a message sealed in one necessarily also verifies in the
+   other. (An accept/seal event-correspondence formulation was tried first
+   and rejected -- see formal/README.md "Modeling notes" for why a plain
+   correspondence is cb-strength-independent (holds trivially from
+   signature unforgeability alone) and an injective one is contaminated by
+   the -- correctly out-of-scope, §FR-5 -- msg-id replay-cache gap; CB
+   collision is the query that actually isolates what P2 is about.)
+
+   Expected: no trace (query PROVED true, no CbCollision reachable) --
+   this is a proof over UNBOUNDED sessions (`!`), unlike Q1/Q3 which are
+   process-structural. *)
+query m1: bitstring, m2: bitstring, cb: bitstring;
+  event(CbCollision(m1, m2, cb)).
+
+(* Q3: reachability sanity (non-vacuity guard). Expected result:
+   "cannot be proved" WITH a witnessing trace -- that is success: it shows
+   sessions genuinely complete under the model, so Q1/Q2 holding is not
+   vacuously true over an empty trace set. See README for the precise
+   ProVerif output interpretation. *)
+query pkA: pkey, pkB: pkey, cb: bitstring;
+  event(SessionComplete(pkA, pkB, cb)).
+
+process
+  out(c, pk(skA));
+  out(c, pk(skB));
+  (* Insider: agent C's key is fully leaked (both halves), letting the
+     attacker act as a genuine registered peer that B is separately willing
+     to talk to (see the `responder` comment above). *)
+  new skC: skey; out(c, skC); out(c, pk(skC));
+  ( !initiator(skA, pk(skB))
+  | !responder(skB, pk(skA))
+  | !responder(skB, pk(skC)) )
