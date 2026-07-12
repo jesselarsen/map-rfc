@@ -35,7 +35,7 @@ func TestProduceParity(t *testing.T) {
 		"TV-001", "TV-002", "TV-003", "TV-004", "TV-005", "TV-006", "TV-007",
 		"TV-008", "TV-009", "TV-010", "TV-010b", "TV-011", "TV-012", "TV-013",
 		"TV-014", "TV-015",
-		"NV-001", "NV-002", "NV-003", "NV-004", "NV-005", "NV-006", "NV-007", "NV-008",
+		"NV-001", "NV-002", "NV-003", "NV-004", "NV-005", "NV-006", "NV-007", "NV-008", "NV-009",
 	}
 	failed := false
 	for _, id := range sections {
@@ -192,6 +192,11 @@ func TestReject(t *testing.T) {
 	_, _, err = envelope.OpenDelegated(get("NV-007"), nil, TS)
 	requireClass(t, "NV-007", err, envelope.CodeBadDelegation)
 
+	// NV-009 max-depth-exceeded chain -> BAD_DELEGATION (2003). Parent
+	// declares max-depth 0; identical scopes isolate the depth bound.
+	_, _, err = envelope.OpenDelegated(get("NV-009"), nil, TS)
+	requireClass(t, "NV-009", err, envelope.CodeBadDelegation)
+
 	// NV-008 lease outside the reserved window: opens fine; tasks §6
 	// requires the requester to treat it as a rejection.
 	o8, err := envelope.Open(get("NV-008"), nil)
@@ -205,6 +210,38 @@ func TestReject(t *testing.T) {
 	from, until := uint64(win[0].(cbor.Uint)), uint64(win[1].(cbor.Uint))
 	if from >= TS && until <= DelegExpiry {
 		t.Errorf("NV-008: window [%d,%d] unexpectedly inside the reservation", from, until)
+	}
+}
+
+// TestDelegationDepthBoundary pins the VALID side of the max-depth rule
+// (ARCHITECT RULING 2026-07-12: a cert with max-depth d admits at most d
+// certs between itself and the leaf), the complement to NV-009's violation.
+func TestDelegationDepthBoundary(t *testing.T) {
+	aidA, _ := identity.Parse(aid(KeyA))
+
+	// (a) parent max-depth 1, exactly one further hop -> valid.
+	parent := mustSeal(KeyA, 0x0502, msgid(30), delegateBody(KeyA, KeyDK, []string{Cap}, 1))
+	child := mustSeal(KeyDK, 0x0502, msgid(31), delegateBody(KeyDK, KeySK, []string{Cap}, -1))
+	off, err := envelope.SealDelegated(KeySK, 0x0200, msgid(32), TS, offerContent(), [][]byte{child, parent}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, root, err := envelope.OpenDelegated(off, nil, TS)
+	if err != nil {
+		t.Fatalf("depth-1 chain with one hop must validate: %v", err)
+	}
+	if root != aidA {
+		t.Errorf("accountable root != Key A")
+	}
+
+	// (b) single delegated cert declaring max-depth 0 -> valid (0 certs below).
+	leaf := mustSeal(KeyA, 0x0502, msgid(33), delegateBody(KeyA, KeyDK, []string{Cap}, 0))
+	off2, err := envelope.SealDelegated(KeyDK, 0x0200, msgid(34), TS, offerContent(), [][]byte{leaf}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := envelope.OpenDelegated(off2, nil, TS); err != nil {
+		t.Fatalf("single depth-0 cert must validate: %v", err)
 	}
 }
 

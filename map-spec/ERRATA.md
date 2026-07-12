@@ -26,6 +26,9 @@ InputSpec keys 2 (content-addressed) and 3 (ContextRef) in map-tasks and
 add a TV-007 produce/consume guard to the Rust conformance crate; fetch
 SEMANTICS (actually retrieving content-addressed inputs) remain future —
 the codec and the vector guard are the deliverable. → TASK-018.
+[IMPLEMENTED 2026-07-12: map-tasks InputSpec models keys 1/2/3 (≥1 required);
+Rust conformance TV-007 is now produce+consume. Both impls at full TV-007
+parity.]
 
 RESOLVED 2026-07-12 (was PENDING-ARCHITECT 2026-07-06 TASK-008) — no error
 code existed for a provider refusing to countersign a receipt whose
@@ -79,7 +82,9 @@ textual form in K′ preimages pinned to unpadded base-10 ASCII decimal
 (discovery §6 patched); (b) `max-depth` counting pinned: a cert with
 max-depth d admits at most d certificates between itself and the leaf
 (identity §4 patched); a depth-exceeded negative vector NV-009 exercises
-it → TASK-018; (c) Hello-vs-HelloAck field-shape asymmetry: caution note
+it → TASK-018 [IMPLEMENTED 2026-07-12: NV-009 added to gen_vectors.py
+(additive; frozen bytes untouched) + reject guards and depth-boundary
+positive tests in both impls]; (c) Hello-vs-HelloAck field-shape asymmetry: caution note
 added to core §6.1; (d) policy-reject NVs (NV-004/006/008) intentionally
 carry no core §9 code — no change. NOTE: with 6007 now registered, an
 in-session rejection of a mismatched task binding SHOULD use ERROR 6007
@@ -96,5 +101,5 @@ package must define its CDDL before any metered implementation.
 
 NOTE (bookkeeping, TASK-010): the widened-scope negative vector is NV-007
 (TASK-010's planned "NV-006" was already taken by the bound-PAY_QUOTE
-pass). The NV counter stands at NV-008; TASK-018's depth vector takes
-NV-009.
+pass). The NV counter now stands at **NV-009** (TASK-018's max-depth
+vector, added 2026-07-12); a future negative vector takes NV-010.

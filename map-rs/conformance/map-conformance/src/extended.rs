@@ -22,7 +22,7 @@ use crate::from_hex;
 use map_core::delegation::DelegError;
 use map_core::{open_delegated, validate_cert};
 use map_pay::codec::{PayAgree, PayQuote};
-use map_tasks::msg::{Lease, Reserve};
+use map_tasks::msg::{Assign, Lease, Reserve};
 use sha2::{Digest, Sha256};
 use map_core::cbor::{encode, CborError};
 use map_core::envelope::{open, EnvelopeError, Opened};
@@ -93,7 +93,26 @@ pub fn case_tv006_offer() -> Result<(), String> {
     expect_open(TV006_ENV_HEX, &key_a(), msg_type::OFFER).map(|_| ())
 }
 pub fn case_tv007_assign() -> Result<(), String> {
-    expect_open(TV007_ENV_HEX, &key_a(), msg_type::ASSIGN).map(|_| ())
+    let opened = expect_open(TV007_ENV_HEX, &key_a(), msg_type::ASSIGN)?;
+    // Produce+consume guard (TASK-018): the Assign codec — including
+    // InputSpec key 2 (content-addressed [+ Multihash]) — must round-trip the
+    // frozen ASSIGN byte-for-byte, not merely open the envelope. This closes
+    // the ERRATA 2026-07-05 hole where TV-007 was consume-only for Rust.
+    let assign = Assign::from_value(&opened.body.content).map_err(|e| format!("Assign: {e}"))?;
+    // The vector's InputSpec is content-addressed (key 2), not inline.
+    let blocks = assign.input.blocks.as_ref().ok_or("TV-007 InputSpec missing key 2 (content-addressed blocks)")?;
+    if blocks.len() != 1 || blocks[0].len() != 34 || blocks[0][0..2] != [0x12, 0x20] {
+        return Err("TV-007 InputSpec block is not a single sha2-256 multihash".into());
+    }
+    if assign.input.inline.is_some() {
+        return Err("TV-007 InputSpec must not carry inline key 1".into());
+    }
+    let re = encode(&assign.to_value()).map_err(|e| format!("encode: {e}"))?;
+    let orig = encode(&opened.body.content).map_err(|e| format!("encode content: {e}"))?;
+    if re != orig {
+        return Err("Assign did not round-trip byte-for-byte".into());
+    }
+    Ok(())
 }
 pub fn case_tv008_chunk() -> Result<(), String> {
     expect_open(TV008_ENV_HEX, &key_b(), msg_type::CHUNK).map(|_| ())
@@ -169,6 +188,18 @@ pub fn case_nv007_widened_scope() -> Result<(), String> {
         Ok(_) => Err("NV-007 chain accepted (must not)".into()),
         Err(EnvelopeError::Delegation(DelegError::WidenedScope { .. })) => Ok(()),
         Err(e) => Err(format!("NV-007 expected WidenedScope, got {e:?}")),
+    }
+}
+
+/// NV-009 — a 2-link chain whose PARENT declares max-depth 0 while the child
+/// delegates one hop further; scopes are identical (no widening), isolating
+/// the identity §4 depth bound. MUST reject as DepthExceeded (wire 2003).
+/// (TASK-018; max-depth counting per the 2026-07-12 ARCHITECT RULING.)
+pub fn case_nv009_depth_exceeded() -> Result<(), String> {
+    match open_delegated(&from_hex(NV009_HEX)?, b"", None, DELEG_NOW_MS) {
+        Ok(_) => Err("NV-009 chain accepted (must not)".into()),
+        Err(EnvelopeError::Delegation(DelegError::DepthExceeded)) => Ok(()),
+        Err(e) => Err(format!("NV-009 expected DepthExceeded, got {e:?}")),
     }
 }
 

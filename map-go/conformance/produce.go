@@ -291,6 +291,18 @@ func Produce() map[string][]byte {
 		{K: cbor.Uint(3), V: cbor.Array{cbor.Uint(DelegExpiry + 3600000), cbor.Uint(DelegExpiry + 7200000)}},
 	})
 
+	// NV-009: 2-link chain RIK->DK->SK whose PARENT declares max-depth 0
+	// (key 7) yet DK delegates one hop further. Both links carry the
+	// IDENTICAL scope (Cap), so scope is NOT widened — only the identity §4
+	// depth bound is violated. OFFER signed by SK carries [child, parent].
+	nv9Parent := mustSeal(KeyA, 0x0502, msgid(22), delegateBody(KeyA, KeyDK, []string{Cap}, 0))
+	nv9Child := mustSeal(KeyDK, 0x0502, msgid(23), delegateBody(KeyDK, KeySK, []string{Cap}, -1))
+	nv009, err := envelope.SealDelegated(KeySK, 0x0200, msgid(24), TS, offerContent(), [][]byte{nv9Child, nv9Parent}, nil)
+	if err != nil {
+		panic(err)
+	}
+	out["NV-009"] = nv009
+
 	return out
 }
 

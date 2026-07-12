@@ -327,6 +327,22 @@ nv007 = sealed_delegated(ka_sk, 0x0200, msgid(17), deleg_offer,
 lease_bad = {1: RSV_ID, 2: 0, 3: [RSV_UNTIL + 3600000, RSV_UNTIL + 7200000]}
 nv008 = sealed(kb, 0x0210, msgid(21), lease_bad)["envelope"]
 
+# NV-009 delegation chain that exceeds max-depth -> MUST reject (identity §4
+#   attenuation; wire 2003). A 2-link chain RIK-A->DK->SK where the PARENT
+#   (RIK-A->DK) declares max-depth 0 (key 7) — DK may not further delegate —
+#   yet DK->SK does. Scopes are IDENTICAL (= CAP) on both links, so scope is
+#   NOT widened; only the depth bound is violated, isolating the max-depth
+#   check exactly as NV-003 isolates canonicality. Envelope signed by SK
+#   carries [child, parent] (leaf..root). (max-depth counting pinned by the
+#   2026-07-12 ARCHITECT RULING: a cert with max-depth d admits at most d
+#   certs between itself and the leaf; the parent at chain index 1 has 1.)
+nv9_parent_body = {1: aid_a, 2: aid_a_dk, 3: TS, 4: DELEG_EXPIRY, 5: [CAP], 7: 0}
+nv9_parent = sealed(ka, 0x0502, msgid(22), nv9_parent_body)
+nv9_child_body = {1: aid_a_dk, 2: aid_a_sk, 3: TS, 4: DELEG_EXPIRY, 5: [CAP]}
+nv9_child = sealed(ka_dk, 0x0502, msgid(23), nv9_child_body)
+nv009 = sealed_delegated(ka_sk, 0x0200, msgid(24), deleg_offer,
+                         [nv9_child["envelope"], nv9_parent["envelope"]])["envelope"]
+
 # =====================================================================
 # Emit markdown. Existing sections (through Verification procedure) are kept
 # byte-for-byte; new sections are appended, closing with Derived constants.
@@ -647,6 +663,17 @@ treat this as a rejection. The envelope is well-formed and signed by Key B — i
 opens — but the lease is semantically invalid (cf. NV-004/NV-006, policy rejects).
 envelope (hex, {len(nv008)} bytes):
   {nv008.hex()}
+
+### NV-009 — delegation chain exceeding max-depth → BAD_DELEGATION (2003)
+A 2-link chain RIK→DK→SK whose parent (RIK→DK) declares max-depth 0 (key 7) —
+DK may not further delegate — yet DK→SK does. Both links carry the IDENTICAL
+scope ("{CAP}"), so scope is NOT widened; only the identity §4 depth bound is
+violated, isolating the max-depth check. The envelope is signed by SK (the
+leaf) and opens; `open_delegated` MUST reject the chain with a depth error.
+Per the 2026-07-12 ARCHITECT RULING, a cert with max-depth d admits at most d
+certificates between itself and the leaf; the parent (chain index 1) has one.
+envelope (hex, {len(nv009)} bytes):
+  {nv009.hex()}
 """
 
 derived = f"""
@@ -682,3 +709,4 @@ print("TV-011", len(tv011["envelope"]), "| TV-012", len(tv012["envelope"]),
       "| NV-007", len(nv007), "(delegation)")
 print("TV-013", len(tv013["envelope"]), "| TV-014", len(tv014["envelope"]),
       "| TV-015", len(tv015["envelope"]), "| NV-008", len(nv008), "(pay-agree + reservations)")
+print("NV-009", len(nv009), "(delegation max-depth exceeded)")

@@ -603,6 +603,24 @@ mod tests {
     }
 
     #[test]
+    fn depth_boundary_exactly_met_is_valid() {
+        // ARCHITECT RULING 2026-07-12: a cert with max-depth d admits at most d
+        // certs between itself and the leaf. Pin the boundary (complement to
+        // `depth_exceeded`, which is the d=0 + one-hop violation):
+        //  (a) parent max-depth 1, exactly one further hop -> valid, no budget left;
+        let (rik, dk, sk) = (kp(1), kp(2), kp(3));
+        let c_a = cert(&rik, &dk, None, None, Some(1), vec![]);
+        let c_b = cert(&dk, &sk, None, None, None, vec![]);
+        let scope = validate_chain(&[c_b, c_a], &sk.agent_id(), None, NOW).unwrap();
+        assert_eq!(scope.depth_left, 0);
+        //  (b) a single-cert chain whose leaf declares max-depth 0 -> valid
+        //      (zero certs below it), and it may not delegate further.
+        let c_leaf = cert(&rik, &dk, None, None, Some(0), vec![]);
+        let scope1 = validate_chain(&[c_leaf], &dk.agent_id(), None, NOW).unwrap();
+        assert_eq!(scope1.depth_left, 0);
+    }
+
+    #[test]
     fn broken_link_and_wrong_leaf() {
         let (rik, dk, sk, other) = (kp(1), kp(2), kp(3), kp(4));
         let c_a = cert(&rik, &dk, None, None, None, vec![]);

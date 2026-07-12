@@ -80,6 +80,7 @@ pub fn cases() -> Vec<(&'static str, fn() -> Result<(), String>)> {
         ("NV-006 task-binding mismatch", extended::case_nv006_task_binding_mismatch),
         ("NV-007 widened delegation scope", extended::case_nv007_widened_scope),
         ("NV-008 lease out of window", extended::case_nv008_lease_out_of_window),
+        ("NV-009 delegation depth exceeded", extended::case_nv009_depth_exceeded),
     ]
 }
 
@@ -177,6 +178,7 @@ mod tests {
     case_test!(nv006_task_binding_mismatch, extended::case_nv006_task_binding_mismatch);
     case_test!(nv007_widened_scope, extended::case_nv007_widened_scope);
     case_test!(nv008_lease_out_of_window, extended::case_nv008_lease_out_of_window);
+    case_test!(nv009_depth_exceeded, extended::case_nv009_depth_exceeded);
 
     #[test]
     fn run_all_is_green_and_complete() {
@@ -186,7 +188,7 @@ mod tests {
             "conformance failures: {:?}",
             report.failed
         );
-        assert_eq!(report.passed.len(), 38);
-        assert_eq!(report.total(), 38);
+        assert_eq!(report.passed.len(), 39);
+        assert_eq!(report.total(), 39);
     }
 }

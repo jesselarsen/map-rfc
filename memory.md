@@ -240,6 +240,18 @@ Known code caveats:
 
 ## 6. Test vectors (ground truth for conformance)
 
+**Counter at NV-009 (TASK-018, 2026-07-12).** NV-009 = a 2-link delegation
+chain whose PARENT declares max-depth 0 yet DK delegates further; identical
+scopes isolate the identity §4 depth bound → BAD_DELEGATION (2003). Added
+additively to gen_vectors.py (TV-001..015 + NV-001..008 frozen bytes
+untouched — the script's in-line asserts + a git diff of only-additions are
+the guard). **TV-007 is now full produce+consume parity in BOTH impls**: the
+Rust map-tasks `InputSpec` codec models keys 1/2/3 (≥1 required), and the
+Rust conformance TV-007 case round-trips the frozen ASSIGN byte-exact — this
+CLOSES the long-standing ERRATA 2026-07-05 parity hole (Rust was
+consume-only). Rust conformance = 39 cases; map-go = 25 vectors. Next NV is
+NV-010.
+
 File: `map-spec/test-vectors/map-test-vectors.md`. Regenerate with
 `python3 gen_vectors.py` (run from its directory; needs
 `pip install pynacl cbor2 base58`; writes UTF-8 explicitly — don't drop
@@ -506,9 +518,11 @@ treat as the frozen interop contract.
     NEW vector NV-009 max-depth-exceeded chain, additive to
     gen_vectors.py, guards in BOTH impls). Still open in ERRATA: PayInvoice
     key 4 watermark CDDL (needs a metered-terms package).
-    **TASK-017 DONE 2026-07-12 (see §5).** NEXT: execute TASK-018
-    (coding-LLM session; §17 prompt hand-over-verbatim), then the live
-    Rust↔Go interop matrix package.
+    **TASK-017 + TASK-018 both DONE 2026-07-12 (see §5, §6).** The entire
+    PENDING-ARCHITECT queue is now resolved AND implemented; only the
+    PayInvoice-watermark item remains (deferred to a metered-terms package).
+    NEXT: the live Rust↔Go interop matrix package (needs a Go session layer;
+    not yet authored) — the last thing between the drafts and leaving -00.
 
 12. ~~**TASK-014 — formal analysis (P1/P2/P3), ops §6.3.**~~ DONE (2026-07-10).
     New top-level `formal/` (spec-adjacent, not Rust): ProVerif 2.05 models.

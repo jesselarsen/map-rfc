@@ -5,9 +5,11 @@
 //!
 //! Payment references (Offer key 4, Quote key 2, Assign key 6) are modeled as
 //! omittable `Option<Value>` and are NOT populated in this revision — TASK-009
-//! wires them. Note tasks §2 currently makes Quote key 2 REQUIRED; see
-//! `map-spec/ERRATA.md` (2026-07-05). `InputSpec` models inline bytes (key 1)
-//! only; content-addressed fetch (keys 2/3) is out of scope (ERRATA).
+//! wires them. Quote key 2 is now OPTIONAL (tasks §2, ARCHITECT RULING
+//! 2026-07-12). `InputSpec` models all three keys — inline bytes (1),
+//! content-addressed blocks (2), and ContextRefs (3) — so the frozen TV-007
+//! ASSIGN round-trips (TASK-018; the fetch/retrieval SEMANTICS remain future
+//! work, only the codec is in scope).
 
 use crate::{ChunkKind, TaskId};
 use map_core::cbor::Value;
@@ -103,24 +105,65 @@ impl TaskConstraints {
     }
 }
 
-/// Input specification (tasks §2.1). Inline bytes (key 1) only in this revision.
+/// Input specification (tasks §2.1):
+///   ? 1 => bstr             inline input (<= negotiated size)
+///   ? 2 => [+ Multihash]    content-addressed blocks to fetch (Zone<=1)
+///   ? 3 => [+ ContextRef]   retrieved-context references (proprietary; §9)
+/// At least one key MUST be present (a fully empty InputSpec is malformed).
+/// The draft leaves `ContextRef`'s shape open, so key 3 entries are carried as
+/// opaque `Value`s (round-tripped byte-exact, not interpreted). Fetch/retrieval
+/// semantics are future work — this is the codec only (TASK-018).
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct InputSpec {
-    pub inline: Option<Vec<u8>>, // 1
+    pub inline: Option<Vec<u8>>,       // 1
+    pub blocks: Option<Vec<Vec<u8>>>,  // 2: content-addressed Multihashes
+    pub context: Option<Vec<Value>>,   // 3: ContextRefs (opaque)
 }
 impl InputSpec {
     pub fn inline(bytes: Vec<u8>) -> Self {
-        InputSpec { inline: Some(bytes) }
+        InputSpec { inline: Some(bytes), ..Default::default() }
+    }
+    /// Content-addressed InputSpec (key 2) — a non-empty list of Multihashes.
+    pub fn blocks(blocks: Vec<Vec<u8>>) -> Self {
+        InputSpec { blocks: Some(blocks), ..Default::default() }
     }
     pub fn to_value(&self) -> Value {
         let mut m = Vec::new();
-        if let Some(b) = &self.inline { m.push((Value::Uint(1), Value::Bytes(b.clone()))); }
+        if let Some(b) = &self.inline {
+            m.push((Value::Uint(1), Value::Bytes(b.clone())));
+        }
+        if let Some(blocks) = &self.blocks {
+            m.push((Value::Uint(2), Value::Array(blocks.iter().map(|h| Value::Bytes(h.clone())).collect())));
+        }
+        if let Some(ctx) = &self.context {
+            m.push((Value::Uint(3), Value::Array(ctx.clone())));
+        }
         Value::Map(m)
     }
     pub fn from_value(v: &Value) -> Result<InputSpec, MsgError> {
-        Ok(InputSpec {
-            inline: v.map_get(1).map(|x| x.as_bytes().map(|b| b.to_vec()).ok_or(MsgError::BadField(1))).transpose()?,
-        })
+        let inline = v
+            .map_get(1)
+            .map(|x| x.as_bytes().map(|b| b.to_vec()).ok_or(MsgError::BadField(1)))
+            .transpose()?;
+        let blocks = match v.map_get(2) {
+            None => None,
+            Some(Value::Array(items)) if !items.is_empty() => Some(
+                items
+                    .iter()
+                    .map(|h| h.as_bytes().map(|b| b.to_vec()).ok_or(MsgError::BadField(2)))
+                    .collect::<Result<Vec<_>, _>>()?,
+            ),
+            Some(_) => return Err(MsgError::BadField(2)), // absent-or-non-empty-array only
+        };
+        let context = match v.map_get(3) {
+            None => None,
+            Some(Value::Array(items)) if !items.is_empty() => Some(items.clone()),
+            Some(_) => return Err(MsgError::BadField(3)),
+        };
+        if inline.is_none() && blocks.is_none() && context.is_none() {
+            return Err(MsgError::MissingField(1)); // at least one key required
+        }
+        Ok(InputSpec { inline, blocks, context })
     }
 }
 
@@ -573,6 +616,44 @@ mod tests {
         assert_eq!(Cancel::from_value(&Cancel { task: task(), code: 5001 }.to_value()).unwrap(), Cancel { task: task(), code: 5001 });
         let fc = FlowCredit { scope: [7u8; 32], msg_credits: 64, byte_credits: 1024 };
         assert_eq!(FlowCredit::from_value(&fc.to_value()).unwrap(), fc);
+    }
+
+    #[test]
+    fn input_spec_all_keys_roundtrip() {
+        // tasks §2.1: each of keys 1/2/3, and combinations, round-trips.
+        let mh = |b: u8| {
+            let mut h = vec![0x12u8, 0x20];
+            h.extend_from_slice(&[b; 32]);
+            h
+        };
+        // key 1 only (inline).
+        let inline = InputSpec::inline(b"prompt".to_vec());
+        assert_eq!(InputSpec::from_value(&inline.to_value()).unwrap(), inline);
+        // key 2 only (content-addressed blocks).
+        let blocks = InputSpec::blocks(vec![mh(0xaa), mh(0xbb)]);
+        assert_eq!(InputSpec::from_value(&blocks.to_value()).unwrap(), blocks);
+        // key 3 only (opaque ContextRefs).
+        let ctx = InputSpec {
+            context: Some(vec![Value::Map(vec![(Value::Uint(1), Value::Text("ref".into()))])]),
+            ..Default::default()
+        };
+        assert_eq!(InputSpec::from_value(&ctx.to_value()).unwrap(), ctx);
+        // all three together.
+        let all = InputSpec { inline: Some(b"p".to_vec()), blocks: Some(vec![mh(1)]), context: Some(vec![Value::Uint(9)]) };
+        assert_eq!(InputSpec::from_value(&all.to_value()).unwrap(), all);
+    }
+
+    #[test]
+    fn input_spec_empty_or_malformed_rejected() {
+        // At least one key MUST be present (a fully empty InputSpec is malformed).
+        assert_eq!(InputSpec::from_value(&Value::Map(vec![])), Err(MsgError::MissingField(1)));
+        // key 2 must be a NON-EMPTY array of byte strings.
+        assert_eq!(InputSpec::from_value(&Value::Map(vec![(Value::Uint(2), Value::Array(vec![]))])), Err(MsgError::BadField(2)));
+        assert_eq!(InputSpec::from_value(&Value::Map(vec![(Value::Uint(2), Value::Uint(3))])), Err(MsgError::BadField(2)));
+        assert_eq!(
+            InputSpec::from_value(&Value::Map(vec![(Value::Uint(2), Value::Array(vec![Value::Uint(1)]))])),
+            Err(MsgError::BadField(2))
+        );
     }
 
     #[test]
