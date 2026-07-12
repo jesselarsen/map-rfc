@@ -258,6 +258,20 @@ without modification. Adapter seams (`ollama-provider`, `gateway`) and the
 `map-cli` tool (`keygen`, projection rebuild) exist; live transport,
 delegation, and payments remain future work per the MVP ordering above.
 
+Status (TASK-015, 2026-07-11): **impl #2 is at frozen-vector parity.**
+`map-go/` (Go, zero external deps, written from the drafts and vectors
+under the independence rule — no Rust source consulted) reproduces every
+frozen positive vector byte-for-byte from seeds (TV-001..015 incl.
+TV-010b; TV-007 ASSIGN is produce+consume in Go, closing that ERRATA
+parity hole on the Go side), consumes them from frozen bytes, and rejects
+NV-001..008 with the required classes, including the §6.2
+canonicality-vs-signature isolation case (NV-003) and scope-widening
+delegation (NV-007 → 2003). Strict Ed25519 verification (canonical A/R/S,
+small-order rejection) is implemented and tested per TASK-015 §FR-4. The
+live pairwise interop MATRIX (two implementations against each other over
+a real transport) remains future work — vector parity alone does not
+advance any document out of draft.
+
 ## 9. Compliance and regulatory notes (informative)
 
 Receipts and descriptors are pseudonymous personal data under GDPR-like
