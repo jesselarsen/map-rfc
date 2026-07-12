@@ -219,6 +219,12 @@ HelloAck = {
 }                          ;  fields 1..5 deterministically encoded)
 ```
 
+Note the field-shape asymmetry under identical field numbers: Hello
+fields 1/2 are *lists* (offered sets) while HelloAck fields 1/2 are
+*singletons* (the chosen values) — implementers regularly miss this;
+TV-001/TV-003 are the byte-level guard. (Caution added 2026-07-12 from
+the map-go ambiguity report.)
+
 If no version or suite is mutual, the responder sends ERROR 1001 with the
 supported sets and closes. Both peers MUST verify each envelope's signer
 matches the transport-authenticated identity (§7.3) — the HELLO exchange is
@@ -352,7 +358,10 @@ Code space (registry; Specification Required):
   violation.
 - **2xxx auth/authz**: 2000 bad signature/identity misbind, 2001 expired
   object, 2002 revoked key, 2003 invalid delegation chain, 2004 zone
-  violation, 2005 not authorized for message type.
+  violation, 2005 not authorized for message type, 2006 countersignature
+  refused (the receiver declines to attest the sender's claimed
+  facts — e.g. receipt usage/timestamps outside countersignature
+  tolerance, trust §3; added 2026-07-12).
 - **3xxx capability**: 3000 unsupported message/capability, 3001 model
   unavailable, 3002 context too large, 3003 ontology term unknown.
 - **4xxx resource**: 4000 overloaded, 4001 queue full, 4002 insufficient
@@ -361,7 +370,14 @@ Code space (registry; Specification Required):
   5002 cancelled, 5003 checkpoint invalid, 5004 tool denied, 5005 output
   policy violation, 5006 resumption impossible.
 - **6xxx payment**: 6000 quote expired, 6001 payment required, 6002
-  settlement failed, 6003 dispute opened, 6004 method unsupported.
+  settlement failed, 6003 dispute opened, 6004 method unsupported,
+  6005 authorized cap exceeded (PayAgree.4), 6006 agreement digest
+  mismatch (quote/agreement envelope digest does not match the
+  referenced bytes — price-switch defense, pay §3.1), 6007 task
+  binding mismatch (PayQuote.9 ≠ the OFFER's TaskID, pay §3),
+  6008 invalid payment proof (forged or mismatched settlement proof,
+  pay §5). 6005–6008 added 2026-07-12; 6002 remains the generic
+  settlement failure for causes not covered by a specific code.
 
 Retryability semantics: `retryable = true` means the identical request MAY
 succeed later at the same peer; false means the requester MUST change

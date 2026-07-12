@@ -5,8 +5,11 @@ reference-implementation program (ops §8) under a split-role model:
 
 - **Architect**: reviews the specs, performs the design analysis, and
   authors these packages. Does not write the production implementation.
-  **As of 2026-07-04 the architect role is UNSTAFFED after TASK-016's
-  authoring pass — see "Operating without the architect" below.**
+  **A 2026-07-12 architect session resolved the entire PENDING-ARCHITECT
+  queue (rulings + spec patches in `map-spec/ERRATA.md`) and authored
+  TASK-017/018. The role is again unstaffed after that pass — the
+  "Operating without the architect" protocol below stays in force for
+  anything those packages don't pre-decide.**
 - **Coding LLM / engineer**: executes one package at a time. Each package's
   §17 "Coding Task Prompt" is intended to be handed over verbatim; the rest
   of the package is the binding context it references.
@@ -89,6 +92,8 @@ input. When something nonetheless needs a ruling:
 | 014 | [TASK-014](TASK-014-formal-analysis.md) — ProVerif models P1–P3 + negative controls | 010 | DONE 2026-07-10 (formal/ at repo root: hello-cb.pv + delegation.pv, all 3 negative controls fail as designed, no BLOCKING finding. ProVerif only works via WSL2 on this box — see memory.md §7 step 12) |
 | 015 | [TASK-015](TASK-015-go-implementation.md) — map-go impl #2 at frozen-vector parity (independence rule) | 011 | DONE 2026-07-11 (`map-go/`: zero-dep Go module — stdlib `crypto/hkdf`, no x/crypto needed; all 24 frozen vectors produced byte-exact + consumed + NVs rejected with required classes; FR-4 strict verify incl. non-canonical y=p and small-order rejection tests; TV-007 produce+consume, closing that ERRATA parity hole Go-side; 5-item ambiguity report in map-go/README.md; ops §8 status note added). **ALL packages complete.** Live pairwise interop matrix remains future — memory.md §7 step 13 |
 | 016 | [TASK-016](TASK-016-federation-gateway.md) — running gateway: G-rules enforced, zone/scope gating, E2E demo | 008, 010, 013 | DONE 2026-07-08 (GatewayProvider Executor+admit gate, 15 tests incl. FR-6 E2E; discovery §4 gateway-of key. Reject codes 2004/2005/2003 not FR-2's 3xxx; gateway deps ollama-provider for the backend trait). **Completes the roadmap** — only 014 (formal) + 015 (Go) remain, both need external tooling |
+| 017 | [TASK-017](TASK-017-envelope-byte-payrefs-and-error-codes.md) — I1 envelope-byte pay-ref digests (session raw-bytes seam) + codes 2006/6005–6008 | 008, 009 | READY (P1 — Rust pay digests currently interop-incompatible with TV-013/map-go; architect rulings 2026-07-12) |
+| 018 | [TASK-018](TASK-018-inputspec-parity-and-nv009.md) — InputSpec keys 2/3 (TV-007 Rust parity) + NV-009 max-depth vector, both impls | 010, 011, 015 | READY (P2; additive vectors only — frozen bytes untouched) |
 
 Recommended order: **006 → 007 → 008 & 009 (parallel) → 012 & 013
 (parallel)**, with **010 and 011 anytime after their deps** (they touch

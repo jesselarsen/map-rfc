@@ -62,9 +62,18 @@ Requester                                   Provider
   | build ReceiptCore; sign role 1              |
   | -- RECEIPT {core, sig_req} ---------------→ |  verify core against own
   |                                             |  records; sign role 2
-  | ←-- RECEIPT_ACK {sig_prov} ---------------- |  store; done
+  | ←-- RECEIPT_ACK {full dual Receipt} ------- |  store; done
   | store dual-signed receipt                   |
 ```
+
+RECEIPT_ACK content is the COMPLETE dual-signed
+`Receipt {1: core, 2: sig_req, 3: sig_prov}` — not the provider
+signature alone — so the requester stores it without reassembly
+(ARCHITECT RULING 2026-07-12, aligning the diagram with the reference
+implementation; see ERRATA). A provider that refuses to countersign
+because the claimed usage/timestamps fall outside its countersignature
+tolerance (§3) replies ERROR 2006 (countersignature refused, core §9),
+retryable = false.
 
 Either party MAY hold a receipt; both SHOULD. The provider's incentive to
 countersign is direct: dual-signed receipts are its portable, verifiable

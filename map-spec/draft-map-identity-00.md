@@ -75,11 +75,14 @@ prefix — this is the identity leg of cryptographic agility.
 ### 3.2 Binding rules
 
 B1: On libp2p, the connection's PeerID key MUST equal the peer's SK, and
-the envelope `kid` MUST be an AgentID whose key is either that SK or the
-root of a delegation chain (in ProtHdr key 33) terminating in that SK.
-B2: On TLS transports, the certificate/raw public key MUST satisfy the same
-rule. B3: `kid` always names the *accountable* identity (typically the RIK
-or DK AgentID); the SK proves possession via the transport plus signature.
+the envelope `kid` MUST be an AgentID whose key is that SK — either
+directly, or as the LEAF subject of a delegation chain carried in ProtHdr
+key 33. B2: On TLS transports, the certificate/raw public key MUST satisfy
+the same rule. B3: `kid` names the *signing* key; the **accountable**
+identity is the chain root's issuer when a chain is present, and `kid`
+itself otherwise. Verifiers resolve and report the accountable identity;
+receipts and trust records accrue to it. (B1/B3 rewritten 2026-07-12 with
+the §4 kid ruling; see ERRATA.)
 
 ## 4. Delegation certificates
 
@@ -100,8 +103,16 @@ DelegateBody = {                      ; carried in Body key 10
 Chain validation: each cert's issuer key signs its envelope; each child is
 the next cert's issuer; scopes/zones/depth only ever *attenuate* (a child
 scope MUST be a subset of the parent's; violations ⇒ 2003); all validity
-windows MUST cover the verification time; the chain root MUST equal the
-envelope `kid`. Semantics deliberately parallel UCAN (informative
+windows MUST cover the verification time; the envelope `kid` MUST equal
+the chain LEAF's subject (the leaf key produces the envelope signature;
+violations ⇒ 2003), and the verifier resolves the chain root's issuer as
+the accountable identity (§3.2 B3). `max-depth` (key 7) bounds further
+delegation below the declaring certificate: a chain is invalid (2003)
+when any certificate has more certificates between itself and the leaf
+than its declared max-depth — a cert with max-depth 0 must itself be the
+leaf cert. (kid sentence corrected and max-depth counting pinned
+2026-07-12, ARCHITECT RULING; wire behavior was already frozen by
+TV-012 — see ERRATA.) Semantics deliberately parallel UCAN (informative
 reference) so existing tooling and audit intuition transfer. Tool-grant
 tokens in tasks §7 are DelegationCerts with task-pinning caveats — one
 mechanism, two uses.
@@ -117,14 +128,11 @@ check is performed by the consumer); `2` = **audience** (value: a 34-byte
 AgentID — the chain is valid only when the validating party's own AgentID
 equals it).
 
-[EDITORIAL NOTE — PENDING-ARCHITECT (see `map-spec/ERRATA.md`, 2026-07-08):
-the clause "the chain root MUST equal the envelope `kid`" above cannot hold
-for a data envelope signed by the *delegated leaf* key (the leaf, not the
-root, produces the signature the `kid` names). The reference implementation
-verifies the envelope signature against the **leaf** (`kid` == chain leaf
-subject) and returns the **root** as the accountable identity. A future
-architect resolves the normative wording; the byte-level behavior is frozen
-by TV-012.]
+[RESOLVED 2026-07-12 (was PENDING-ARCHITECT 2026-07-08): the former
+clause "the chain root MUST equal the envelope `kid`" was corrected in
+§4 and §3.2 above — `kid` equals the chain leaf's subject; the root is
+the accountable identity. Byte-level behavior unchanged (frozen by
+TV-012). Full record in `map-spec/ERRATA.md`.]
 
 ## 5. Descriptor binding and proof of possession
 

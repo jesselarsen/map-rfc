@@ -472,6 +472,29 @@ treat as the frozen interop contract.
     `C:\Program Files\Go\bin` to PATH in each PowerShell command; no mingw
     needed for Go.
 
+14. **ARCHITECT SESSION 2026-07-12 — PENDING-ARCHITECT queue fully
+    resolved.** All 7 queued items + the 5 map-go ambiguities ruled;
+    ERRATA.md rewritten as a RESOLVED record (read it for the rulings'
+    rationale). Spec patches landed in the same change: tasks §2 Quote.2
+    now OPTIONAL; trust §2 RECEIPT_ACK = full dual Receipt + 2006 on
+    refusal; core §9 adds 2006 countersign-refused and 6005/6006/6007/6008
+    pay codes; identity §3.2 B1/B3 + §4 kid clause corrected (kid = chain
+    LEAF subject, root = accountable — wire already frozen by TV-012) and
+    max-depth counting pinned (cert admits ≤ d certs leafward of it);
+    discovery §6 shard rendered as unpadded decimal; core §6.1
+    Hello-vs-HelloAck shape caution. KEY RULING: pay §3.1 envelope-byte
+    digest binding STANDS (TV-013 froze it; Rust's content-binding is an
+    interop BUG). Two implementation packages authored, NOT yet executed:
+    **TASK-017** (P1: map-session raw-bytes seam — `send` returns sealed
+    bytes, `Incoming.raw`; re-bind pay digests to envelope bytes; rewire
+    RECEIPT_REJECT_CODE→2006 and split PAY_REJECT→6005-6008) and
+    **TASK-018** (P2: InputSpec keys 2/3 + TV-007 Rust conformance guard;
+    NEW vector NV-009 max-depth-exceeded chain, additive to
+    gen_vectors.py, guards in BOTH impls). Still open in ERRATA: PayInvoice
+    key 4 watermark CDDL (needs a metered-terms package). NEXT: execute
+    TASK-017 then TASK-018 (coding-LLM sessions; §17 prompts are
+    hand-over-verbatim), then the live Rust↔Go interop matrix package.
+
 12. ~~**TASK-014 — formal analysis (P1/P2/P3), ops §6.3.**~~ DONE (2026-07-10).
     New top-level `formal/` (spec-adjacent, not Rust): ProVerif 2.05 models.
     `hello-cb.pv` — Q1 (P1 downgrade resistance, core §6.2) **true**; Q2 (P2

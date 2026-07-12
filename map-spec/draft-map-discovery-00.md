@@ -215,6 +215,12 @@ shard(agent) = first byte of the DIGEST carried in
 K'(cap, s)   = multihash(suite-hash, "map:idx:1:" || CapURI || ":" || s)
 ```
 
+In the key preimage, `s` is rendered as its unpadded base-10 ASCII
+decimal ("0".."255" — e.g. shard 141 contributes the three bytes
+`31 34 31`), not as a raw byte or hex. (Pinned 2026-07-12 from the
+map-go ambiguity report; the derived-constants test vector K′ already
+froze this form.)
+
 Providers publish only to their own shard `K'(cap, shard(agent))`.
 Queriers sample `r` uniformly random shards (RECOMMENDED r = 3, doubling
 until enough candidates or r = 16) and merge. Properties: publication load

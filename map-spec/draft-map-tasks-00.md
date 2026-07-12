@@ -81,7 +81,10 @@ TaskConstraints = {
   ? 7 => Multihash,         ; required model weights digest (hard if set)
   ? 8 => ExtMap
 }
-Quote = { 1 => TaskID, 2 => PayQuoteRef /*pay §3.1*/, 3 => uint /*guaranteed ttft-ms*/,
+Quote = { 1 => TaskID, ? 2 => PayQuoteRef /*pay §3.1; absent = gratis or
+          settlement out of band — payment is optional at the protocol
+          layer (ARCHITECT RULING 2026-07-12, was required; ERRATA)*/,
+          3 => uint /*guaranteed ttft-ms*/,
           4 => Timestamp /*expiry*/, ? 5 => ExtMap }
 Accept = { }                                 ; empty content map
 Reject = { 1 => uint /*reason-code, §14*/ }
