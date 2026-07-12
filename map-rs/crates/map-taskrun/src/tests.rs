@@ -16,8 +16,22 @@ use map_tasks::{ChunkKind, ReqState, TaskId};
 const TS: u64 = 1_780_000_000_000;
 const CAP: &str = "map:cap:inference/text-generation";
 
+/// A stand-in "envelope frame" for session-less pump tests: a byte string
+/// distinct from `encode(content)` (so it exercises the envelope-byte digest
+/// path, not a content re-encoding — pay §3.1 / TASK-017). Deterministic in
+/// (mt, content), so a provider can bind the same bytes a requester receives.
+fn synth_env(mt: u16, content: &Value) -> Vec<u8> {
+    map_core::cbor::encode(&Value::Array(vec![
+        Value::Text("map-env".into()),
+        Value::Uint(mt as u64),
+        content.clone(),
+    ]))
+    .expect("synth env encodes")
+}
+
 fn mk(mt: u16, content: Value) -> Incoming {
-    Incoming { msg_type: mt, content, msg_id: MsgId([0u8; 16]), seq: 0 }
+    let raw = synth_env(mt, &content);
+    Incoming { msg_type: mt, content, msg_id: MsgId([0u8; 16]), seq: 0, raw }
 }
 fn task() -> TaskId {
     TaskId([1u8; 32])
@@ -483,6 +497,10 @@ mod receipts_evidence {
         let issued = requester_issue(&claimed, [7u8; 32], &ka(), &kb().agent_id(), TaskOutcome::Verified, None, &mut a_store).unwrap();
         let out = provider_countersign(&mk(msg_type::RECEIPT, issued[0].1.clone()), &observed, &kb(), &mut ReceiptStore::new());
         assert_eq!(out[0].0, msg_type::ERROR);
+        // ERRATA 2026-07-12: countersignature refusal is code 2006 (was 5000).
+        let em = map_core::errors::ErrorMsg::from_value(&out[0].1).unwrap();
+        assert_eq!(em.code, 2006);
+        assert!(!em.retryable);
     }
 
     #[test]
@@ -492,6 +510,7 @@ mod receipts_evidence {
         let issued = requester_issue(&inputs_n(5), [7u8; 32], &ka(), &kb().agent_id(), TaskOutcome::Verified, None, &mut a_store).unwrap();
         let out = provider_countersign(&mk(msg_type::RECEIPT, issued[0].1.clone()), &inputs_n(9), &kb(), &mut ReceiptStore::new());
         assert_eq!(out[0].0, msg_type::ERROR);
+        assert_eq!(map_core::errors::ErrorMsg::from_value(&out[0].1).unwrap().code, 2006);
     }
 
     #[test]
@@ -636,12 +655,22 @@ mod payments_flow {
         RequesterPayment::new(task, ka().agent_id(), kb().agent_id())
     }
 
+    /// Issue a PAY_QUOTE and bind the provider to the exact frame the requester
+    /// will digest (`Incoming.raw`), mirroring the pump feeding back the bytes
+    /// `Session::send` returned (TASK-017 §FR-3). Returns that Incoming.
+    fn issue_bound(pp: &mut ProviderPayment, qid: [u8; 16], task: [u8; 32], total: AssetAmount, expiry: u64) -> Incoming {
+        let q = pp.issue_quote(qid, task, total, expiry);
+        let inc = mk(msg_type::PAY_QUOTE, q[0].1.clone());
+        pp.bind_quote_envelope(&inc.raw);
+        inc
+    }
+
     /// Drive quote→agree→invoice→pay→proof→settle→receipt. Returns the parts so
     /// tests can inspect state and balances.
     fn full_leg() -> (ProviderPayment, RequesterPayment, LedgerOperator) {
         let (mut pp, mut rp, mut op) = (provider_pay(), requester_pay(Some([9; 32])), operator());
-        let q = pp.issue_quote(QID, [9; 32], usd(500), TS + 60_000);
-        let agree = rp.on_quote(&mk(msg_type::PAY_QUOTE, q[0].1.clone()), TS);
+        let quote_inc = issue_bound(&mut pp, QID, [9; 32], usd(500), TS + 60_000);
+        let agree = rp.on_quote(&quote_inc, TS);
         assert_eq!(agree[0].0, msg_type::PAY_AGREE);
         assert!(pp.on_agree(&mk(msg_type::PAY_AGREE, agree[0].1.clone())).is_empty());
         let inv = pp.invoice(IID, TS);
@@ -676,8 +705,8 @@ mod payments_flow {
     #[test]
     fn retries_move_money_at_most_once() {
         let (mut pp, mut rp, mut op) = (provider_pay(), requester_pay(Some([9; 32])), operator());
-        let q = pp.issue_quote(QID, [9; 32], usd(500), TS + 60_000);
-        let agree = rp.on_quote(&mk(msg_type::PAY_QUOTE, q[0].1.clone()), TS);
+        let quote_inc = issue_bound(&mut pp, QID, [9; 32], usd(500), TS + 60_000);
+        let agree = rp.on_quote(&quote_inc, TS);
         pp.on_agree(&mk(msg_type::PAY_AGREE, agree[0].1.clone()));
         let inv = pp.invoice(IID, TS);
         // Pay once.
@@ -711,6 +740,8 @@ mod payments_flow {
         let q = provider_pay().issue_quote(QID, [7; 32], usd(500), TS + 60_000); // bound to task 7
         let out = rp.on_quote(&mk(msg_type::PAY_QUOTE, q[0].1.clone()), TS);
         assert_eq!(out[0].0, msg_type::ERROR);
+        // ERRATA 2026-07-12: task-binding mismatch is its own code 6007.
+        assert_eq!(map_core::errors::ErrorMsg::from_value(&out[0].1).unwrap().code, 6007);
         assert_eq!(rp.state(), RequesterPayState::Failed);
     }
 
@@ -751,26 +782,78 @@ mod payments_flow {
         let bad = PayInvoice { invoice_id: IID, quote_id: QID, amount: usd(999), method_payload: vec![], timestamp_ms: TS };
         let out = rp.on_invoice(&mk(msg_type::PAY_INVOICE, bad.to_value()), &mut op, TS);
         assert_eq!(out[0].0, msg_type::ERROR);
+        // ERRATA 2026-07-12: authorized-cap exceeded is its own code 6005.
+        assert_eq!(map_core::errors::ErrorMsg::from_value(&out[0].1).unwrap().code, 6005);
         assert_eq!(op.balance(&ka().agent_id()), 1000); // untouched
     }
 
     #[test]
     fn price_switch_digest_mismatch_rejected() {
         let mut pp = provider_pay();
-        pp.issue_quote(QID, [9; 32], usd(500), TS + 60_000);
+        let _ = issue_bound(&mut pp, QID, [9; 32], usd(500), TS + 60_000);
         // A PAY_AGREE bound to a DIFFERENT quote digest → price-switch → reject.
         let switched = PayAgree { quote_id: QID, quote_digest: pay_ref_digest(b"a different quote"), method: CREDIT_LEDGER_METHOD.into(), authorized_cap: Some(usd(500)) };
         let out = pp.on_agree(&mk(msg_type::PAY_AGREE, switched.to_value()));
         assert_eq!(out[0].0, msg_type::ERROR);
+        // ERRATA 2026-07-12: price switch is agreement-digest-mismatch 6006.
+        assert_eq!(map_core::errors::ErrorMsg::from_value(&out[0].1).unwrap().code, 6006);
         assert_eq!(pp.state(), ProviderPayState::Failed);
+    }
+
+    #[test]
+    fn payagree_binds_received_envelope_bytes_not_content() {
+        // FR-6(b)/(d): the requester digests the RECEIVED PAY_QUOTE envelope
+        // (Incoming.raw), so the PAY_AGREE digest equals pay_ref_digest(frame)
+        // and NOT pay_ref_digest(encode(content)) (pay §3.1, I1).
+        let q = PayQuote {
+            quote_id: QID,
+            pricing_model: 0,
+            rate_table: vec![(0, usd(500))],
+            total: Some(usd(500)),
+            methods: vec![MethodOffer { uri: CREDIT_LEDGER_METHOD.into(), params: vec![] }],
+            expiry_ms: TS + 1000,
+            terms: Some(0),
+            ext: None,
+            task_binding: Some([9; 32]),
+        };
+        // A real signed COSE envelope carrying the quote — the "frame on the wire".
+        let body = map_core::envelope::Body {
+            version: map_core::PROTOCOL_VERSION_1_0,
+            msg_type: msg_type::PAY_QUOTE,
+            msg_id: MsgId([10u8; 16]),
+            timestamp_ms: TS,
+            recipient: Some(ka().agent_id()),
+            ttl_ms: None,
+            session_id: Some([0u8; 16]),
+            seq: Some(0),
+            content: q.to_value(),
+        };
+        let frame = map_core::envelope::seal(&kb(), &body, b"").unwrap();
+        let content_digest = pay_ref_digest(&map_core::cbor::encode(&q.to_value()).unwrap());
+        let frame_digest = pay_ref_digest(&frame);
+        assert_ne!(frame_digest, content_digest, "envelope and content digests must differ");
+
+        let inc = Incoming {
+            msg_type: msg_type::PAY_QUOTE,
+            content: q.to_value(),
+            msg_id: MsgId([10u8; 16]),
+            seq: 0,
+            raw: frame.clone(),
+        };
+        let mut rp = requester_pay(Some([9; 32]));
+        let out = rp.on_quote(&inc, TS);
+        assert_eq!(out[0].0, msg_type::PAY_AGREE);
+        let agree = PayAgree::from_value(&out[0].1).unwrap();
+        assert_eq!(agree.quote_digest, frame_digest, "PAY_AGREE must bind the envelope digest");
+        assert_ne!(agree.quote_digest, content_digest, "must NOT bind the content re-encoding");
     }
 
     #[test]
     fn forged_ledger_entry_rejected() {
         // Set the flow to Invoiced, then feed a PROOF signed by the WRONG operator.
         let (mut pp, mut rp, op) = (provider_pay(), requester_pay(Some([9; 32])), operator());
-        let q = pp.issue_quote(QID, [9; 32], usd(500), TS + 60_000);
-        let agree = rp.on_quote(&mk(msg_type::PAY_QUOTE, q[0].1.clone()), TS);
+        let quote_inc = issue_bound(&mut pp, QID, [9; 32], usd(500), TS + 60_000);
+        let agree = rp.on_quote(&quote_inc, TS);
         pp.on_agree(&mk(msg_type::PAY_AGREE, agree[0].1.clone()));
         pp.invoice(IID, TS);
         // Forge: a rogue operator signs an entry moving the same amount.

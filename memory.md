@@ -154,6 +154,20 @@ matrix is still unmet, so no document leaves draft yet.
 
 ## 5. Current state — Rust workspace (`map-rs/`) — **BUILDS + TESTS GREEN**
 
+**TASK-017 DONE 2026-07-12** (implements the architect rulings of §7 step
+14): `map-session` `Session::send` now returns the SEALED envelope bytes and
+`Incoming` carries `raw: Vec<u8>` (the exact received frame, I1). Payment
+digests re-bound to envelope bytes — requester digests `inc.raw`; provider
+calls `ProviderPayment::bind_quote_envelope(sealed)` with what `send`
+returned (the pump feeds it back; session-less unit tests use the `synth_env`
+stand-in in tests.rs). This fixes an interop BUG: the old content-re-encoding
+digest never matched frozen TV-013 or map-go. Pay/receipt reject codes split
+per core §9: 2006 countersign-refused (`RECEIPT_REJECT_CODE`, was 5000),
+6005 cap-exceeded, 6006 agreement-digest-mismatch (price switch), 6007
+task-binding-mismatch, 6008 invalid-payment-proof; 6002 stays generic. New
+test `payagree_binds_received_envelope_bytes_not_content` (FR-6 b/d) proves
+envelope≠content digest. Whole workspace green, zero warnings.
+
 TASK-001 (2026-07-03) took the workspace from never-compiled to
 `cargo build --workspace` + `cargo test --workspace` green, zero warnings.
 The six pre-existing crates needed **no code changes** — the "small fix loop"
@@ -491,9 +505,10 @@ treat as the frozen interop contract.
     **TASK-018** (P2: InputSpec keys 2/3 + TV-007 Rust conformance guard;
     NEW vector NV-009 max-depth-exceeded chain, additive to
     gen_vectors.py, guards in BOTH impls). Still open in ERRATA: PayInvoice
-    key 4 watermark CDDL (needs a metered-terms package). NEXT: execute
-    TASK-017 then TASK-018 (coding-LLM sessions; §17 prompts are
-    hand-over-verbatim), then the live Rust↔Go interop matrix package.
+    key 4 watermark CDDL (needs a metered-terms package).
+    **TASK-017 DONE 2026-07-12 (see §5).** NEXT: execute TASK-018
+    (coding-LLM session; §17 prompt hand-over-verbatim), then the live
+    Rust↔Go interop matrix package.
 
 12. ~~**TASK-014 — formal analysis (P1/P2/P3), ops §6.3.**~~ DONE (2026-07-10).
     New top-level `formal/` (spec-adjacent, not Rust): ProVerif 2.05 models.

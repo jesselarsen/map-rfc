@@ -19,11 +19,12 @@ use map_trust::{
     ROLE_REQUESTER,
 };
 
-/// Interim wire code for a tolerance/observation-mismatch rejection. core §9 has
-/// no dedicated "receipt claim rejected" code (5xxx is execution); 5000
-/// (TASK_FAILED) stands in — the claim is rejected as not matching observed
-/// execution. A dedicated code is a PENDING-ARCHITECT item (map-spec/ERRATA.md).
-const RECEIPT_REJECT_CODE: u16 = codes::TASK_FAILED;
+/// Wire code for a countersignature refusal: the provider declines to attest
+/// the requester's claimed usage/timestamps because they fall outside its
+/// tolerance (trust §3). Dedicated code 2006 COUNTERSIGN_REFUSED, registered
+/// 2026-07-12 (ERRATA ruling; was the misleading 5000 TASK_FAILED — the task
+/// did not fail, the attestation was refused). retryable = false.
+const RECEIPT_REJECT_CODE: u16 = codes::COUNTERSIGN_REFUSED;
 
 #[derive(Debug)]
 pub enum ReceiptError {

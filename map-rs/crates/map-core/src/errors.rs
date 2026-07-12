@@ -21,6 +21,11 @@ pub mod codes {
     pub const BAD_DELEGATION: u16 = 2003;
     pub const ZONE_VIOLATION: u16 = 2004;
     pub const NOT_AUTHORIZED: u16 = 2005;
+    /// The receiver declines to attest the sender's claimed facts (e.g. a
+    /// receipt whose usage/timestamps fall outside the countersignature
+    /// tolerance, trust §3). Added 2026-07-12 (ERRATA ruling); retryable
+    /// is false — the requester must change its claim, not retry it.
+    pub const COUNTERSIGN_REFUSED: u16 = 2006;
     // 3xxx capability
     pub const UNSUPPORTED: u16 = 3000;
     pub const MODEL_UNAVAILABLE: u16 = 3001;
@@ -46,6 +51,17 @@ pub mod codes {
     pub const SETTLEMENT_FAILED: u16 = 6002;
     pub const DISPUTE_OPENED: u16 = 6003;
     pub const METHOD_UNSUPPORTED: u16 = 6004;
+    // 6005-6008 added 2026-07-12 (ERRATA ruling): the specific pay
+    // rejections that previously all collapsed to SETTLEMENT_FAILED.
+    /// PayAgree.4 authorized cap exceeded (pay §3.1).
+    pub const CAP_EXCEEDED: u16 = 6005;
+    /// Quote/agreement envelope digest does not match the referenced
+    /// bytes — the price-switch defense (pay §3.1).
+    pub const AGREEMENT_DIGEST_MISMATCH: u16 = 6006;
+    /// PayQuote.9 task binding present but != the OFFER's TaskID (pay §3).
+    pub const TASK_BINDING_MISMATCH: u16 = 6007;
+    /// Forged or mismatched settlement proof / ledger entry (pay §5).
+    pub const INVALID_PAYMENT_PROOF: u16 = 6008;
 }
 
 pub fn family(code: u16) -> &'static str {

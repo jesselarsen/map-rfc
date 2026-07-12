@@ -19,7 +19,7 @@ const CAP: &str = "map:cap:inference/text-generation";
 const NOW: u64 = 1_780_000_000_000;
 
 fn mk(mt: u16, content: Value) -> Incoming {
-    Incoming { msg_type: mt, content, msg_id: MsgId([0u8; 16]), seq: 0 }
+    Incoming { msg_type: mt, content, msg_id: MsgId([0u8; 16]), seq: 0, raw: Vec::new() }
 }
 
 /// Ping-pong the two runtimes until quiescent.

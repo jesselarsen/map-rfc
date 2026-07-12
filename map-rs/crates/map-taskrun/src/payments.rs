@@ -4,10 +4,19 @@
 //!   task runs → provider PAY_INVOICE → requester pays via the ledger operator,
 //!   PAY_PROOF → provider verifies + settles once → PAY_RECEIPT.
 //!
-//! Digest binding uses the canonical message content (see
-//! `map_pay::codec::pay_ref_digest` and ERRATA.md). Every settlement link is
-//! checked; retries move money at most once (the operator + SettlementLedger
-//! are both idempotent by id).
+//! Digest binding is over the **received envelope bytes** of the referenced
+//! message (invariant I1, pay §3.1) — the requester digests `Incoming.raw`;
+//! the provider digests the sealed PAY_QUOTE bytes fed back via
+//! [`ProviderPayment::bind_quote_envelope`] after `Session::send`. (Was over
+//! re-encoded content; corrected per ERRATA 2026-07-12 / TASK-017 — a
+//! content digest never matched frozen TV-013 or map-go.) Every settlement
+//! link is checked; retries move money at most once (the operator +
+//! SettlementLedger are both idempotent by id).
+//!
+//! Rejection codes are specific per core §9 (2026-07-12): 6005 cap-exceeded,
+//! 6006 agreement-digest-mismatch (price switch), 6007 task-binding-mismatch,
+//! 6008 invalid-payment-proof; 6002 SETTLEMENT_FAILED for causes without a
+//! dedicated code.
 
 use crate::Outgoing;
 use map_core::cbor::encode;
@@ -18,12 +27,6 @@ use map_pay::codec::{pay_ref_digest, AssetAmount, MethodOffer, PayAgree, PayInvo
 use map_pay::credit_ledger::{verify_entry, EntryProof, LedgerError, LedgerOperator, CREDIT_LEDGER_METHOD};
 use map_pay::{InvoiceId, Settle, SettlementLedger};
 use map_session::Incoming;
-
-/// Interim wire code for pay rejections without a dedicated core §9 code
-/// (cap-exceeded, digest-mismatch, task-binding-mismatch, bad-proof). 6002
-/// SETTLEMENT_FAILED stands in; dedicated codes are a PENDING-ARCHITECT item
-/// (map-spec/ERRATA.md).
-const PAY_REJECT: u16 = codes::SETTLEMENT_FAILED;
 
 fn err(code: u16) -> Vec<Outgoing> {
     vec![(msg_type::ERROR, ErrorMsg::new(code, false).to_value())]
@@ -80,7 +83,11 @@ impl ProviderPayment {
         self.receipt.as_ref()
     }
 
-    /// Issue a flat (model 0) PAY_QUOTE bound to `task`, alongside the task QUOTE.
+    /// Issue a flat (model 0) PAY_QUOTE bound to `task`, alongside the task
+    /// QUOTE. The digest the requester will agree to is over the SEALED
+    /// envelope bytes (I1), which do not exist yet — the caller MUST feed
+    /// them back via [`bind_quote_envelope`] with the value `Session::send`
+    /// returned, before processing the PAY_AGREE.
     pub fn issue_quote(&mut self, quote_id: [u8; 16], task: [u8; 32], total: AssetAmount, expiry_ms: u64) -> Vec<Outgoing> {
         let q = PayQuote {
             quote_id,
@@ -93,14 +100,22 @@ impl ProviderPayment {
             ext: None,
             task_binding: Some(task),
         };
-        self.quote_digest = pay_ref_digest(&encode(&q.to_value()).expect("quote encodes"));
+        self.quote_digest.clear(); // set by bind_quote_envelope once sealed
         let out = vec![(msg_type::PAY_QUOTE, q.to_value())];
         self.quote = Some(q);
         out
     }
 
-    /// Verify PAY_AGREE binds THIS quote (id + digest) and picks the offered
-    /// method. A digest mismatch is the price-switch defense (pay §7).
+    /// Record the sealed PAY_QUOTE envelope bytes (what `Session::send`
+    /// returned) so the incoming PAY_AGREE's digest can be checked against
+    /// the exact frame the requester received (I1, pay §3.1).
+    pub fn bind_quote_envelope(&mut self, envelope: &[u8]) {
+        self.quote_digest = pay_ref_digest(envelope);
+    }
+
+    /// Verify PAY_AGREE binds THIS quote (id + envelope digest) and picks the
+    /// offered method. A digest mismatch is the price-switch defense
+    /// (pay §3.1 → ERROR 6006); an unoffered method is 6004.
     pub fn on_agree(&mut self, inc: &Incoming) -> Vec<Outgoing> {
         let agree = match PayAgree::from_value(&inc.content) {
             Ok(a) => a,
@@ -108,11 +123,16 @@ impl ProviderPayment {
         };
         let q = match &self.quote {
             Some(q) => q,
-            None => return err(PAY_REJECT),
+            None => return err(codes::SETTLEMENT_FAILED), // no active quote
         };
-        if agree.quote_id != q.quote_id || agree.quote_digest != self.quote_digest || agree.method != CREDIT_LEDGER_METHOD {
+        debug_assert!(!self.quote_digest.is_empty(), "bind_quote_envelope must precede on_agree");
+        if agree.method != CREDIT_LEDGER_METHOD {
             self.state = ProviderPayState::Failed;
-            return err(PAY_REJECT);
+            return err(codes::METHOD_UNSUPPORTED);
+        }
+        if agree.quote_id != q.quote_id || agree.quote_digest != self.quote_digest {
+            self.state = ProviderPayState::Failed;
+            return err(codes::AGREEMENT_DIGEST_MISMATCH); // price switch
         }
         self.state = ProviderPayState::Agreed;
         Vec::new()
@@ -141,17 +161,17 @@ impl ProviderPayment {
         };
         let (inv_id, amount) = match &self.pending_invoice {
             Some(x) => x.clone(),
-            None => return err(PAY_REJECT),
+            None => return err(codes::SETTLEMENT_FAILED), // no active invoice
         };
         if proof.invoice_id != inv_id {
-            return err(PAY_REJECT);
+            return err(codes::SETTLEMENT_FAILED); // proof for a different invoice
         }
         let entry = match EntryProof::from_bytes(&proof.proof_payload) {
             Ok(e) => e,
             Err(_) => return err(codes::MALFORMED),
         };
         if !verify_entry(&entry, &self.operator_aid, inv_id, &self.requester_aid, &self.provider_aid, &amount) {
-            return err(PAY_REJECT); // forged / mismatched entry
+            return err(codes::INVALID_PAYMENT_PROOF); // forged / mismatched entry
         }
         match self.ledger.settle_once(InvoiceId(inv_id)) {
             Settle::FirstTime => {
@@ -167,7 +187,7 @@ impl ProviderPayment {
             }
             Settle::AlreadySettled => match &self.receipt {
                 Some(r) => vec![(msg_type::PAY_RECEIPT, r.to_value())],
-                None => err(PAY_REJECT),
+                None => err(codes::SETTLEMENT_FAILED),
             },
         }
     }
@@ -231,7 +251,7 @@ impl RequesterPayment {
         if let Some(task) = self.expected_task {
             if q.task_binding != Some(task) {
                 self.state = RequesterPayState::Failed;
-                return err(PAY_REJECT); // binding mismatch/absence (FR-2)
+                return err(codes::TASK_BINDING_MISMATCH); // binding mismatch/absence (FR-2)
             }
         }
         if now_ms > q.expiry_ms {
@@ -242,7 +262,10 @@ impl RequesterPayment {
             self.state = RequesterPayState::Failed;
             return err(codes::METHOD_UNSUPPORTED);
         }
-        let digest = pay_ref_digest(&encode(&q.to_value()).expect("quote encodes"));
+        // Digest the RECEIVED PAY_QUOTE envelope bytes, not a re-encoding of
+        // its content (I1, pay §3.1). The provider bound the same frame via
+        // bind_quote_envelope, so the digests match iff no byte was switched.
+        let digest = pay_ref_digest(&inc.raw);
         self.agreed_cap = q.total.clone();
         self.quote_id = Some(q.quote_id);
         self.state = RequesterPayState::Agreed;
@@ -264,15 +287,15 @@ impl RequesterPayment {
             Err(_) => return err(codes::MALFORMED),
         };
         if Some(inv.quote_id) != self.quote_id {
-            return err(PAY_REJECT);
+            return err(codes::SETTLEMENT_FAILED); // invoice for an unknown quote
         }
         let cap = match &self.agreed_cap {
             Some(c) => c.clone(),
-            None => return err(PAY_REJECT),
+            None => return err(codes::SETTLEMENT_FAILED), // no agreed cap
         };
         if !amount_within(&inv.amount, &cap) {
             self.state = RequesterPayState::Failed;
-            return err(PAY_REJECT); // cap exceeded / exponent mismatch
+            return err(codes::CAP_EXCEEDED); // over the authorized ceiling / exponent mismatch
         }
         match operator.pay(inv.invoice_id, &self.requester_aid, &self.provider_aid, &inv.amount, now_ms) {
             Ok(entry) => {
@@ -290,7 +313,7 @@ impl RequesterPayment {
             }
             Err(LedgerError::ExponentMismatch) => {
                 self.state = RequesterPayState::Failed;
-                err(PAY_REJECT)
+                err(codes::CAP_EXCEEDED) // exponent mismatch against the cap
             }
         }
     }

@@ -35,7 +35,7 @@ register **2006 countersignature refused** in the 2xxx auth/authz family
 (a refusal to attest is signature-adjacent; a new 7xxx family for one code
 is not justified). core §9 + trust §2 patched; `RECEIPT_REJECT_CODE`
 rewiring → TASK-017. retryable = false (the requester must change its
-claim, not retry it).
+claim, not retry it). [IMPLEMENTED 2026-07-12.]
 
 RESOLVED 2026-07-12 (was PENDING-ARCHITECT 2026-07-06 TASK-008) — trust §2
 diagram showed `RECEIPT_ACK {sig_prov}` while the implementation returns
@@ -54,6 +54,8 @@ DIFFERENT digest and fails interop against any conformant peer (map-go
 already implements the envelope-byte form). map-session must expose
 sealed-on-send / raw-on-recv envelope bytes and map-taskrun payments must
 bind them. → TASK-017 (the substantive package of this queue).
+[IMPLEMENTED 2026-07-12: `Session::send` returns sealed bytes, `Incoming.raw`
+added; requester digests `inc.raw`, provider binds via `bind_quote_envelope`.]
 
 RESOLVED 2026-07-12 (was PENDING-ARCHITECT 2026-07-06 TASK-009) — four
 distinct pay rejections (cap exceeded, quote-digest mismatch, task-binding
@@ -61,7 +63,7 @@ mismatch, forged/mismatched proof) all collapsed to 6002. RULING: register
 **6005 authorized-cap-exceeded, 6006 agreement-digest-mismatch, 6007
 task-binding-mismatch, 6008 invalid-payment-proof**; 6002 remains the
 generic settlement failure. core §9 patched; `PAY_REJECT` split →
-TASK-017.
+TASK-017. [IMPLEMENTED 2026-07-12.]
 
 RESOLVED 2026-07-12 (was PENDING-ARCHITECT 2026-07-08 TASK-010) — identity
 §4 "the chain root MUST equal the envelope `kid`" was cryptographically

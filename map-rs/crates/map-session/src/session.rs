@@ -115,6 +115,10 @@ pub struct Incoming {
     pub content: Value,
     pub msg_id: MsgId,
     pub seq: u64,
+    /// The exact received envelope frame, byte-for-byte (invariant I1).
+    /// Payment references digest THESE bytes, never a re-serialization of
+    /// `content` (pay §3.1; TASK-017 / ERRATA 2026-07-12).
+    pub raw: Vec<u8>,
 }
 
 /// An established (or in-handshake) session over a transport.
@@ -295,14 +299,17 @@ impl<T: Transport, C: Clock, M: MsgIdSource> Session<T, C, M> {
 
     // ---- in-session I/O ---------------------------------------------------
 
-    /// Send an in-session message. Precondition: Established.
-    pub fn send(&mut self, msg_type: u16, content: Value) -> Result<(), SessionError> {
+    /// Send an in-session message. Precondition: Established. Returns the
+    /// sealed envelope bytes that were written to the transport, so the
+    /// caller can bind a payment reference to the exact sent frame (I1,
+    /// pay §3.1) without re-sealing.
+    pub fn send(&mut self, msg_type: u16, content: Value) -> Result<Vec<u8>, SessionError> {
         if self.state != SessionState::Established {
             return Err(SessionError::State);
         }
-        self.emit(msg_type, content)?;
+        let env = self.emit(msg_type, content)?;
         self.msgs_sent += 1;
-        Ok(())
+        Ok(env)
     }
 
     /// Receive the next real message. PING is auto-answered with PONG and the
@@ -365,7 +372,7 @@ impl<T: Transport, C: Clock, M: MsgIdSource> Session<T, C, M> {
                 t if t == msg_type::PONG => {
                     self.pings_unanswered = 0;
                     self.msgs_received += 1;
-                    return Ok(incoming(opened.body, seq));
+                    return Ok(incoming(opened.body, seq, frame));
                 }
                 t if t == msg_type::CLOSE => {
                     self.state = SessionState::Closed;
@@ -379,7 +386,7 @@ impl<T: Transport, C: Clock, M: MsgIdSource> Session<T, C, M> {
                 }
                 _ => {
                     self.msgs_received += 1;
-                    return Ok(incoming(opened.body, seq));
+                    return Ok(incoming(opened.body, seq, frame));
                 }
             }
         }
@@ -447,7 +454,8 @@ impl<T: Transport, C: Clock, M: MsgIdSource> Session<T, C, M> {
     // ---- internals --------------------------------------------------------
 
     /// Seal and send one in-session envelope (CB-bound, seq-numbered).
-    fn emit(&mut self, msg_type: u16, content: Value) -> Result<(), SessionError> {
+    /// Returns the sealed frame (I1: the exact bytes on the wire).
+    fn emit(&mut self, msg_type: u16, content: Value) -> Result<Vec<u8>, SessionError> {
         let msg_id = self.ids.next_msg_id();
         let ts = self.clock.now_ms();
         let body = Body {
@@ -467,7 +475,7 @@ impl<T: Transport, C: Clock, M: MsgIdSource> Session<T, C, M> {
             SessionError::Transport
         })?;
         self.out_seq += 1;
-        Ok(())
+        Ok(env)
     }
 
     /// Best-effort ERROR notification (core §14: no received content echoed).
@@ -543,12 +551,13 @@ fn handshake_body(msg_type: u16, version: u16, msg_id: [u8; 16], ts: u64, sessio
     }
 }
 
-fn incoming(body: Body, seq: u64) -> Incoming {
+fn incoming(body: Body, seq: u64, raw: Vec<u8>) -> Incoming {
     Incoming {
         msg_type: body.msg_type,
         content: body.content,
         msg_id: body.msg_id,
         seq,
+        raw,
     }
 }
 
