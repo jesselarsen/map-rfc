@@ -442,9 +442,32 @@ treat as the frozen interop contract.
    points (BID/KVX/GIT)~~ DONE (TASK-011); ~~formal models (ProVerif) of HELLO
    + channel binding + delegation attenuation~~ DONE (TASK-014, 2026-07-10 —
    see §7 step 12 below); Go implementation (impl #2 for the two-impl rule,
-   TASK-015, pending — needs a Go toolchain, unchecked); ~~federation
-   gateway~~ DONE (TASK-016). **Only TASK-015 (Go impl #2) remains
-   unstarted.**
+   TASK-015, **NOT YET STARTED — this is the ONE remaining package; RESUME
+   HERE**); ~~federation gateway~~ DONE (TASK-016).
+
+   **>>> TASK-015 RESUME NOTES (next session start here) <<<**
+   - **Go IS installed and confirmed working: `go1.26.5` at
+     `C:\Program Files\Go` (windows/amd64), GOPATH `C:\Users\Master\go`.** NOT
+     on PATH by default — prepend `C:\Program Files\Go\bin` in each PowerShell
+     command: `$env:PATH = "C:\Program Files\Go\bin;$env:PATH"; go test ./...`.
+     (Go build is self-contained — does NOT need the mingw-on-PATH dance that
+     the Rust map-net crate needs; that's only for Rust/libp2p.)
+   - Package: `tasks/TASK-015-go-implementation.md` (READ FIRST — not yet read
+     this session). Goal: a SECOND implementation (`map-go`, a new top-level
+     Go module) that consumes/produces the FROZEN test vectors byte-for-byte —
+     this is the real ops §6.1 two-independent-implementations gate. The Rust
+     scaffold is impl #1.
+   - Ground truth for parity: `map-spec/test-vectors/map-test-vectors.md`
+     (TV-001..015, TV-010b, NV-001..008) + `map-spec/test-vectors/gen_vectors.py`.
+     The Go impl must reproduce those exact bytes (canonical CBOR RFC 8949
+     §4.2.1, COSE_Sign1 tag 18, Ed25519, AgentID = 0xED01||pubkey).
+   - Per the package's §FR-4 note, Go may use a "documented strict equivalent"
+     of `verify_strict` — check the package for the exact requirement.
+   - Watch-out (from memory §6 test-vector notes): TV-007 ASSIGN is currently
+     Rust-consume-only (InputSpec key-2 content-addressed vs codec inline) — a
+     known frozen-vector parity hole flagged in ERRATA; the Go impl will hit it.
+   - Same working conventions apply: commit+push per package completion,
+     update memory.md §5/§8 + tasks/README.md on completion (project rule).
 
 12. ~~**TASK-014 — formal analysis (P1/P2/P3), ops §6.3.**~~ DONE (2026-07-10).
     New top-level `formal/` (spec-adjacent, not Rust): ProVerif 2.05 models.
