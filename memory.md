@@ -521,8 +521,29 @@ treat as the frozen interop contract.
     **TASK-017 + TASK-018 both DONE 2026-07-12 (see §5, §6).** The entire
     PENDING-ARCHITECT queue is now resolved AND implemented; only the
     PayInvoice-watermark item remains (deferred to a metered-terms package).
-    NEXT: the live Rust↔Go interop matrix package (needs a Go session layer;
-    not yet authored) — the last thing between the drafts and leaving -00.
+
+15. **ARCHITECT SESSION 2026-07-12 (second pass) — interop-matrix packages
+    authored.** Line-level extraction of the Rust wire surfaces
+    (map-session handshake/recv-order, hello negotiate rules, replay/seq
+    constants, framing, exporter construction) distilled INTO the packages
+    so the Go implementer never reads Rust (independence rule).
+    **TASK-019** (READY, P1): map-go session layer — Hello/HelloAck codecs
+    (list-vs-singleton shapes, ACK key 4 = responder's OWN max), Negotiate
+    (highest mutual version, first mutual suite in INITIATOR order, ext
+    min-version intersection), ReplayCache (±120 s, 10-min window),
+    SeqTracker (dense from 0), 4-byte-BE TCP framing with size-first reads,
+    exporter = init-AID||resp-AID (68 B, matches InMemoryDuplex + core §10
+    libp2p binding), full FR-5 receive order, handshake ERROR msg-id
+    0xEE×16, session-id echo required. **TASK-020** (BLOCKED on 019, P1):
+    the live matrix — 8 scenarios (echo/replay/seq-gap/tamper/cross-session
+    relay/version-disjoint/wrong-sid/delegated) × 2 orientations over TCP,
+    peer binaries (`map-cli interop`, `map-go/cmd/map-interop`), PowerShell
+    driver, `interop/MATRIX.md` as the ops §6.1 record. **FINDING pinned in
+    both packages: Rust `Session::recv` never enforces the core §6.1
+    per-frame session-id check (1006) — Go implements it in 019, Rust fixed
+    in 020 FR-2; do NOT weaken Go to match.** NEXT: execute TASK-019, then
+    TASK-020; on a 16/16 matrix the only remaining spec action is the
+    rev-01 editorial cut.
 
 12. ~~**TASK-014 — formal analysis (P1/P2/P3), ops §6.3.**~~ DONE (2026-07-10).
     New top-level `formal/` (spec-adjacent, not Rust): ProVerif 2.05 models.
