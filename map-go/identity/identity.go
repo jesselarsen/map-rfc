@@ -41,6 +41,13 @@ func (a AgentID) Pub() ed25519.PublicKey {
 	return ed25519.PublicKey(a[2:])
 }
 
+// Bytes returns a copy of the 34-byte AgentID as a slice.
+func (a AgentID) Bytes() []byte {
+	b := make([]byte, len(a))
+	copy(b, a[:])
+	return b
+}
+
 // Multibase returns the text form: multibase base58btc (identity §3.1), "z6Mk...".
 func (a AgentID) Multibase() string {
 	return "z" + base58Encode(a[:])

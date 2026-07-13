@@ -41,13 +41,19 @@ const (
 	versionV1    = 0x0100
 )
 
-// Body is the parsed envelope body (core §4.1). Payload field numbers:
-// 0 version, 1 msg-type, 2 msg-id, 3 timestamp, 10 content.
+// Body is the parsed envelope body (core §4.1). Field numbers:
+// 0 version, 1 msg-type, 2 msg-id, 3 timestamp, ?4 recipient AgentID,
+// ?5 ttl-ms, ?6 session-id, ?7 seq, 10 content. The optional in-session
+// keys are pointers so "absent" is distinct from a zero value.
 type Body struct {
 	Version   uint64
 	MsgType   uint64
 	MsgID     []byte
 	Timestamp uint64
+	Recipient *identity.AgentID // 4 (REQUIRED in-session)
+	TTLMs     *uint64           // 5 (store-and-forward objects)
+	SessionID []byte            // 6 (16 bytes; REQUIRED in-session)
+	Seq       *uint64           // 7 (REQUIRED in-session, §7.2)
 	Content   cbor.Value
 }
 
@@ -62,7 +68,9 @@ type Opened struct {
 	Body      Body
 }
 
-// buildBody encodes the standard Body map (core §4.1) for msg-type/content.
+// buildBody encodes the minimal Body map (core §4.1) with keys {0,1,2,3,10}
+// — the out-of-session / vector shape. Kept byte-stable so frozen vectors
+// reproduce exactly.
 func buildBody(msgType uint64, msgID []byte, ts uint64, content cbor.Value) []byte {
 	return cbor.Encode(cbor.Map{
 		{K: cbor.Uint(0), V: cbor.Uint(versionV1)},
@@ -71,6 +79,32 @@ func buildBody(msgType uint64, msgID []byte, ts uint64, content cbor.Value) []by
 		{K: cbor.Uint(3), V: cbor.Uint(ts)},
 		{K: cbor.Uint(10), V: content},
 	})
+}
+
+// buildFullBody encodes a Body including whichever optional keys are set
+// (the session layer uses keys 4/6/7). The deterministic encoder sorts keys,
+// so append order is irrelevant.
+func buildFullBody(b Body) []byte {
+	m := cbor.Map{
+		{K: cbor.Uint(0), V: cbor.Uint(b.Version)},
+		{K: cbor.Uint(1), V: cbor.Uint(b.MsgType)},
+		{K: cbor.Uint(2), V: cbor.Bytes(b.MsgID)},
+		{K: cbor.Uint(3), V: cbor.Uint(b.Timestamp)},
+	}
+	if b.Recipient != nil {
+		m = append(m, cbor.Pair{K: cbor.Uint(4), V: cbor.Bytes(b.Recipient[:])})
+	}
+	if b.TTLMs != nil {
+		m = append(m, cbor.Pair{K: cbor.Uint(5), V: cbor.Uint(*b.TTLMs)})
+	}
+	if b.SessionID != nil {
+		m = append(m, cbor.Pair{K: cbor.Uint(6), V: cbor.Bytes(b.SessionID)})
+	}
+	if b.Seq != nil {
+		m = append(m, cbor.Pair{K: cbor.Uint(7), V: cbor.Uint(*b.Seq)})
+	}
+	m = append(m, cbor.Pair{K: cbor.Uint(10), V: b.Content})
+	return cbor.Encode(m)
 }
 
 func sigStructure(protected, externalAAD, payload []byte) []byte {
@@ -121,6 +155,40 @@ func SealDelegated(priv ed25519.PrivateKey, msgType uint64, msgID []byte, ts uin
 		{K: cbor.Uint(hdrChain), V: certs},
 	})
 	return seal(priv, protected, buildBody(msgType, msgID, ts, content), externalAAD), nil
+}
+
+// SealBody seals a fully-specified Body (with any in-session keys) under the
+// given external AAD (the channel binding for in-session envelopes). The
+// session layer uses this; Seal is the minimal-body convenience wrapper.
+func SealBody(priv ed25519.PrivateKey, b Body, externalAAD []byte) ([]byte, error) {
+	kid, err := identity.FromPub(priv.Public().(ed25519.PublicKey))
+	if err != nil {
+		return nil, err
+	}
+	protected := cbor.Encode(cbor.Map{
+		{K: cbor.Uint(hdrAlg), V: cbor.Int(coseAlgEdDSA)},
+		{K: cbor.Uint(hdrKid), V: cbor.Bytes(kid[:])},
+	})
+	return seal(priv, protected, buildFullBody(b), externalAAD), nil
+}
+
+// SealBodyDelegated is SealBody carrying a delegation chain (leaf..root) in
+// protected-header key 33 — used for a delegated HELLO handshake (identity §6).
+func SealBodyDelegated(priv ed25519.PrivateKey, b Body, chain [][]byte, externalAAD []byte) ([]byte, error) {
+	kid, err := identity.FromPub(priv.Public().(ed25519.PublicKey))
+	if err != nil {
+		return nil, err
+	}
+	certs := make(cbor.Array, len(chain))
+	for i, c := range chain {
+		certs[i] = cbor.Bytes(c)
+	}
+	protected := cbor.Encode(cbor.Map{
+		{K: cbor.Uint(hdrAlg), V: cbor.Int(coseAlgEdDSA)},
+		{K: cbor.Uint(hdrKid), V: cbor.Bytes(kid[:])},
+		{K: cbor.Uint(hdrChain), V: certs},
+	})
+	return seal(priv, protected, buildFullBody(b), externalAAD), nil
 }
 
 // Open verifies an envelope over its exact received bytes (core §4.3
@@ -274,10 +342,40 @@ func parseBody(payload []byte) (Body, error) {
 				return b, malformed("body: timestamp must be uint")
 			}
 			b.Timestamp, have3 = uint64(u), true
+		case 4:
+			bs, ok := p.V.(cbor.Bytes)
+			if !ok {
+				return b, malformed("body: recipient must be a byte string")
+			}
+			aid, err := identity.Parse(bs)
+			if err != nil {
+				return b, malformed("body: recipient: %v", err)
+			}
+			b.Recipient = &aid
+		case 5:
+			u, ok := p.V.(cbor.Uint)
+			if !ok {
+				return b, malformed("body: ttl must be uint")
+			}
+			ttl := uint64(u)
+			b.TTLMs = &ttl
+		case 6:
+			bs, ok := p.V.(cbor.Bytes)
+			if !ok || len(bs) != 16 {
+				return b, malformed("body: session-id must be a 16-byte string")
+			}
+			b.SessionID = bs
+		case 7:
+			u, ok := p.V.(cbor.Uint)
+			if !ok {
+				return b, malformed("body: seq must be uint")
+			}
+			seq := uint64(u)
+			b.Seq = &seq
 		case 10:
 			b.Content = p.V
 		default:
-			// Optional body keys 4..9 (core §4.1): accepted, not modeled here.
+			// Body keys 8 (crit) / 9 (ext) (core §4.1): accepted, not modeled.
 		}
 	}
 	if !have0 || !have1 || !have2 || !have3 || b.Content == nil {

@@ -51,7 +51,43 @@ consume-only for TV-007.
 | `hello` | negotiation transcript hash (core §6.2), channel binding (core §7.3) |
 | `receipt` | dual-signed ExecutionReceipt, role-bound MAPReceipt signatures (trust §3) |
 | `discovery` | cap index keys, sharding (discovery §6), descriptor LWW freshness (§5) |
+| `session` | the session layer (TASK-019): HELLO negotiation, channel binding, replay/seq, TCP framing (see below) |
 | `conformance` | vector-file reader, transcript Merkle (tasks §8.1), vector regeneration, the conformance tests |
+
+## Session layer (TASK-019)
+
+`session` is the wire twin of the Rust `map-session` crate — everything
+needed for a Go peer to run a live MAP session:
+
+- **HELLO / HELLO_ACK** codecs and `Negotiate` (core §6.1): highest mutual
+  version, first mutual suite in the *initiator's* preference order,
+  extension intersection at min version, `max-message-size` = min of both.
+  HELLO fields 1/2 are lists; HELLO_ACK's are singletons and its key 4 is
+  the *responder's own* max (the initiator computes the min).
+- **Transcript hash + channel binding** reused from `hello`; CB is the
+  COSE `external_aad` on every in-session envelope (§7.3), so a frame
+  recorded on one session cannot verify on another.
+- **Anti-replay** (per-sender msg-id uniqueness, ±120 s skew, 10-min
+  cache) and **dense sequence** tracking (core §7).
+- **Framing + transport**: 4-byte big-endian length prefix, size-first
+  reads (core §6.3, §10). `TCPTransport` over `net.Conn` and an in-process
+  `InMemoryDuplex` for tests. The channel-binding exporter is
+  `initiator-AgentID || responder-AgentID` — the same construction the
+  core §10 libp2p binding uses. **Test-harness transport only**: raw TCP
+  does not authenticate the static keys; deployment bindings are core
+  §10's TLS/QUIC/libp2p.
+- **State machine**: `Initiate`/`Respond` complete the handshake (with
+  delegation-chain resolution — the accountable peer is the chain root);
+  `Send` returns the sealed frame (the TASK-017 I1 seam); `Recv` runs the
+  normative receive order (size → verify → sender → session-id → replay →
+  seq), auto-answers PING with PONG, and surfaces CLOSE/ERROR. `Close`
+  sends a CLOSE with a reason.
+
+Per-frame session-id enforcement (core §6.1: a mismatch is a 1006 state
+violation) is implemented here; the Rust reference does not yet enforce it
+and is corrected in TASK-020. Zero external dependencies (net, crypto/rand,
+crypto/hkdf, time — all stdlib). The cross-language interop matrix is
+TASK-020; this package ends at a Go↔Go TCP loopback.
 
 ## Strict Ed25519 verification (§FR-4)
 
