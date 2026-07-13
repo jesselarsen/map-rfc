@@ -16,4 +16,4 @@ pub mod transport;
 
 pub use clock::{Clock, CountingMsgIds, FixedClock, MsgIdSource, RandomMsgIds, SteppingClock, SystemClock};
 pub use session::{Incoming, Session, SessionConfig, SessionError, SessionState};
-pub use transport::{InMemoryDuplex, Transport, TransportError};
+pub use transport::{InMemoryDuplex, TcpTransport, Transport, TransportError};

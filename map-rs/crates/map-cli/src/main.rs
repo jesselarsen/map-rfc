@@ -11,6 +11,8 @@
 //! `std::env::args_os` (no clap). The demo uses only fixed seeds and counters —
 //! never wall-clock time or OS randomness — so its output is reproducible.
 
+mod interop;
+
 use map_identity::Keypair;
 use map_tasks::TaskId;
 use map_trust::{
@@ -51,6 +53,8 @@ fn main() {
     let result = match args.get(1).map(String::as_str) {
         Some("keygen") => cmd_keygen(&args),
         Some("projection-rebuild-demo") => cmd_projection_demo(&args),
+        // The interop peer prints its own OK/FAIL line and exits directly.
+        Some("interop") => interop::run(&args),
         #[cfg(feature = "real-backend")]
         Some("serve-ollama") => cmd_serve_ollama(&args),
         _ => {

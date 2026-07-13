@@ -10,7 +10,9 @@ name = "map-cli"
 path = "src/main.rs"
 
 [dependencies]
+map-core = { path = "../map-core" }
 map-identity = { path = "../map-identity" }
+map-session = { path = "../map-session" }
 map-tasks = { path = "../map-tasks" }
 map-trust = { path = "../map-trust" }
 sha2.workspace = true

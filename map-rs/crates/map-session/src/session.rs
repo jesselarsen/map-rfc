@@ -7,7 +7,7 @@
 //! from one session therefore fails verification in any other (different CB).
 
 use crate::clock::{Clock, MsgIdSource};
-use crate::transport::Transport;
+use crate::transport::{Transport, TransportError};
 use map_core::cbor::Value;
 use map_core::errors::{codes, ErrorMsg};
 use map_core::hello::{channel_binding, negotiate, transcript_hash, Hello, HelloAck, Negotiated, NegotiateError};
@@ -312,6 +312,13 @@ impl<T: Transport, C: Clock, M: MsgIdSource> Session<T, C, M> {
         Ok(env)
     }
 
+    /// Push a pre-sealed frame straight to the transport, bypassing sealing
+    /// and the send counters. Conformance-harness use only (replay, relay, and
+    /// crafted-frame scenarios); not part of normal operation.
+    pub fn send_raw(&self, frame: &[u8]) -> Result<(), SessionError> {
+        self.transport.send(frame).map_err(|_| SessionError::Transport)
+    }
+
     /// Receive the next real message. PING is auto-answered with PONG and the
     /// loop continues; CLOSE/ERROR surface as `Err`. The FR-7 check order is
     /// normative — size (raw frame) → verify → sender → replay → seq — with the
@@ -321,7 +328,17 @@ impl<T: Transport, C: Clock, M: MsgIdSource> Session<T, C, M> {
             if self.state != SessionState::Established {
                 return Err(SessionError::State);
             }
-            let frame = self.transport.recv().map_err(|_| SessionError::Transport)?;
+            let frame = match self.transport.recv() {
+                Ok(f) => f,
+                // A framed transport (e.g. TCP) rejects an oversize prefix
+                // before the body; map that to the same 1004 path as the
+                // post-read size check below.
+                Err(TransportError::TooLarge) => {
+                    self.send_error(codes::TOO_LARGE, false);
+                    return Err(SessionError::TooLarge);
+                }
+                Err(_) => return Err(SessionError::Transport),
+            };
 
             if frame.len() as u64 > self.negotiated.max_message_size as u64 {
                 // Unverifiable (never decoded): notify without echoing content.
@@ -342,6 +359,15 @@ impl<T: Transport, C: Clock, M: MsgIdSource> Session<T, C, M> {
             if opened.sender != self.cfg.expected_peer {
                 self.send_error(codes::BAD_SIGNATURE, false);
                 return Err(SessionError::PeerMismatch);
+            }
+            // Every in-session envelope MUST carry THIS session's SessionID
+            // (core §6.1); a mismatch is a state violation and closes the
+            // session. (TASK-020 FR-2: the reference previously skipped this
+            // check post-handshake — Go enforced it first, TASK-019.)
+            if opened.body.session_id != Some(self.session_id) {
+                self.send_error(codes::STATE_VIOLATION, false);
+                self.state = SessionState::Closed;
+                return Err(SessionError::State);
             }
             match self.in_replay.check(&opened.sender, opened.body.msg_id, opened.body.timestamp_ms, self.clock.now_ms()) {
                 ReplayCheck::Fresh => {}

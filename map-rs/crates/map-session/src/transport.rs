@@ -12,11 +12,17 @@ use std::sync::mpsc::{channel, Receiver, Sender};
 pub enum TransportError {
     /// The peer endpoint was dropped; no more frames can be sent or received.
     Closed,
+    /// A framed transport read a length prefix above the negotiated maximum
+    /// (rejected before the body — core §6.3). The session maps this to 1004.
+    TooLarge,
 }
 
 impl fmt::Display for TransportError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str("transport closed")
+        match self {
+            TransportError::Closed => f.write_str("transport closed"),
+            TransportError::TooLarge => f.write_str("frame exceeds negotiated maximum"),
+        }
     }
 }
 impl std::error::Error for TransportError {}
@@ -62,6 +68,62 @@ impl Transport for InMemoryDuplex {
     }
     fn recv(&self) -> Result<Vec<u8>, TransportError> {
         self.rx.recv().map_err(|_| TransportError::Closed)
+    }
+    fn exporter(&self) -> &[u8] {
+        &self.exporter
+    }
+}
+
+/// The 4-byte big-endian frame length prefix (core §10 stream framing).
+pub const LEN_PREFIX_BYTES: usize = 4;
+
+/// A blocking, length-prefixed transport over a `std::net::TcpStream`
+/// (TASK-020 FR-1). **Test-harness only**: raw TCP does not authenticate the
+/// static keys, so the exporter (the two AgentIDs) is honest only because the
+/// harness pins both peer identities — never a deployment transport (those are
+/// core §10's TLS/QUIC/libp2p bindings). Reads are size-first: a length prefix
+/// above `max` is rejected before the body is read (core §6.3).
+pub struct TcpTransport {
+    stream: std::net::TcpStream,
+    exporter: Vec<u8>,
+    max: u32,
+}
+
+impl TcpTransport {
+    /// Wrap a connected stream. `initiator`/`responder` are the two
+    /// authenticated AgentIDs (stream-initiator first); `max` is the read
+    /// ceiling (use the local HELLO's max-message-size).
+    pub fn new(stream: std::net::TcpStream, initiator: &AgentId, responder: &AgentId, max: u32) -> Self {
+        let mut exporter = Vec::with_capacity(68);
+        exporter.extend_from_slice(initiator.as_bytes());
+        exporter.extend_from_slice(responder.as_bytes());
+        TcpTransport { stream, exporter, max }
+    }
+}
+
+impl Transport for TcpTransport {
+    fn send(&self, frame: &[u8]) -> Result<(), TransportError> {
+        use std::io::Write;
+        let len = u32::try_from(frame.len()).map_err(|_| TransportError::Closed)?;
+        // `&TcpStream` implements Write, so a shared &self suffices.
+        let mut s = &self.stream;
+        s.write_all(&len.to_be_bytes()).map_err(|_| TransportError::Closed)?;
+        s.write_all(frame).map_err(|_| TransportError::Closed)?;
+        s.flush().map_err(|_| TransportError::Closed)?;
+        Ok(())
+    }
+    fn recv(&self) -> Result<Vec<u8>, TransportError> {
+        use std::io::Read;
+        let mut s = &self.stream;
+        let mut lp = [0u8; LEN_PREFIX_BYTES];
+        s.read_exact(&mut lp).map_err(|_| TransportError::Closed)?;
+        let len = u32::from_be_bytes(lp);
+        if len > self.max {
+            return Err(TransportError::TooLarge);
+        }
+        let mut buf = vec![0u8; len as usize];
+        s.read_exact(&mut buf).map_err(|_| TransportError::Closed)?;
+        Ok(buf)
     }
     fn exporter(&self) -> &[u8] {
         &self.exporter

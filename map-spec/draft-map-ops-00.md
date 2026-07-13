@@ -144,6 +144,18 @@ conformance suites, and live pairwise interop matrices. Advancement rule:
 no document leaves draft status without **two independent
 implementations** passing the full matrix against each other.
 
+**Status (TASK-020, 2026-07-13): the live pairwise matrix is delivered —
+16/16, Rust (`map-rs`) ↔ Go (`map-go`).** Both implementations complete
+real MAP sessions against each other over framed TCP, in both orientations
+(each side as dialer and as listener), across 8 scenarios: echo, replay
+(1003), sequence gap (1003), tamper (2000), cross-session relay (2000 — the
+live §7.3 anti-relay property), version-disjoint handshake (1001),
+foreign-SessionID rejection (1006, core §6.1), and delegated handshake with
+accountable-root resolution (identity §4/§6). The record, toolchain
+versions, and reproduction driver are in `interop/MATRIX.md`. This is the
+substantive session-layer matrix; live cross-language task/receipt/payment
+flows layer on the same session (I2) and remain future work.
+
 ### 6.2 Required negative tests (minimum)
 Duplicate delivery of every idempotent message (ASSIGN, RECEIPT,
 PAY_INVOICE, PAY_PROOF) — observable effect exactly once. Replayed

@@ -117,6 +117,18 @@ func (s *Session) AccountablePeer() identity.AgentID { return s.accountablePeer 
 // Negotiated returns the negotiation result.
 func (s *Session) Negotiated() Negotiated { return s.negotiated }
 
+// ChannelBinding returns the session's channel binding (harness use: craft
+// frames that must verify under this session's CB).
+func (s *Session) ChannelBinding() [32]byte { return s.cb }
+
+// SessionID returns this session's 16-byte id (harness use).
+func (s *Session) SessionID() []byte { return s.sessionID }
+
+// SendRaw pushes a pre-sealed frame straight to the transport, bypassing
+// sealing and the send counters. Conformance-harness use only (replay,
+// relay, crafted-frame scenarios).
+func (s *Session) SendRaw(frame []byte) error { return s.transport.Send(frame) }
+
 // zeros16 is the handshake-ERROR session-id placeholder.
 var zeros16 = make([]byte, 16)
 

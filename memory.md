@@ -26,7 +26,8 @@ Naming: the protocol is **MAP**; "Hermes" is reserved for an orchestrator
 ./map-spec/                  the specification family (11 markdown docs)
 ./map-spec/test-vectors/     TV-001/TV-002 + gen_vectors.py (regenerator)
 ./map-rs/                    Rust workspace (unzip map-rs.zip here)
-./map-go/                    Go module — impl #2, vector-parity scope (TASK-015)
+./map-go/                    Go module — impl #2 (vectors + session layer)
+./interop/                   live Rust↔Go interop matrix: driver + MATRIX.md (TASK-020)
 ```
 
 The two engineering-policy documents from the original project
@@ -546,9 +547,28 @@ treat as the frozen interop contract.
     driver, `interop/MATRIX.md` as the ops §6.1 record. **FINDING pinned in
     both packages: Rust `Session::recv` never enforces the core §6.1
     per-frame session-id check (1006) — Go implements it in 019 (DONE), Rust
-    fixed in 020 FR-2; do NOT weaken Go to match.** NEXT: execute TASK-020
-    (the live matrix); on a 16/16 matrix the only remaining spec action is
-    the rev-01 editorial cut.
+    fixed in 020 FR-2.** **TASK-020 DONE 2026-07-13: the live matrix is
+    16/16 PASS (see §5).** on a 16/16 matrix the only remaining spec action
+    is the rev-01 editorial cut.
+
+16. **TASK-020 DONE 2026-07-13 — LIVE Rust↔Go interop matrix, 16/16 PASS.**
+    The ops §6.1 gate is MET. Added: Rust `TcpTransport` (map-session,
+    std::net, 4-byte-BE framing, identity-pair exporter) + `TransportError::
+    TooLarge`; the FR-2 **session-id 1006 fix** in `Session::recv` (was
+    silently skipped post-handshake — Go had it first) + its unit test;
+    `Session::send_raw` (harness hook); `map-cli interop` subcommand
+    (crates/map-cli/src/interop.rs; map-cli gained map-core + map-session
+    deps) and `map-go/cmd/map-interop` + Go `Session.SendRaw/ChannelBinding/
+    SessionID` accessors + `identity.AgentID.Bytes()`. 8 scenarios (echo,
+    replay, seqgap, tamper, relay=cross-session anti-relay, versiondisjoint,
+    wrongsid, delegated) × 2 orientations, over framed TCP loopback. Driver
+    `interop/run-matrix.ps1` (builds both, runs 16 cells, exits nonzero on
+    any fail); record `interop/MATRIX.md`; `interop/README.md`. ops §6.1
+    status note updated to "live matrix delivered 16/16". Scenario seeds:
+    A=01×32 (dialer/root), B=02×32 (listener), DK=03×32 (delegated leaf).
+    Whole Rust workspace + map-go green, zero warnings. NEXT: rev-01
+    editorial cut (fold ERRATA resolutions into normative text) — the last
+    spec action before leaving -00.
 
 12. ~~**TASK-014 — formal analysis (P1/P2/P3), ops §6.3.**~~ DONE (2026-07-10).
     New top-level `formal/` (spec-adjacent, not Rust): ProVerif 2.05 models.

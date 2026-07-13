@@ -425,6 +425,23 @@ fn non_monotonic_seq_is_rejected_1003() {
 }
 
 #[test]
+fn wrong_session_id_is_state_violation_1006() {
+    // core §6.1 / TASK-020 FR-2: an in-session frame whose body key 6 is not
+    // THIS session's SessionID is a state violation, and closes the session.
+    let (mut b, in_tx, _out, sid) = establish_responder(&default_hello(), [5u8; 16]);
+    let a = kp(1);
+    let cb = *b.channel_binding();
+    let b_id = kp(2).agent_id();
+    let mut wrong = sid;
+    wrong[0] ^= 0xFF;
+    // Correctly signed and CB-bound, but carrying a foreign session-id.
+    in_tx.send(craft_frame(&a, &b_id, wrong, [7u8; 16], 0, PRIVATE, Value::Uint(1), &cb)).unwrap();
+    assert!(matches!(b.recv(), Err(SessionError::State)));
+    // The session is closed; a subsequent recv is a State error too.
+    assert!(matches!(b.recv(), Err(SessionError::State)));
+}
+
+#[test]
 fn bad_signature_is_rejected_2000() {
     let (mut b, in_tx, _out, sid) = establish_responder(&default_hello(), [5u8; 16]);
     let a = kp(1);
