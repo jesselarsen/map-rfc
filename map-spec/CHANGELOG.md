@@ -65,8 +65,30 @@ NV-009 was added additively. Both reference implementations (`map-rs`,
   omitted it post-handshake and now enforces it (TASK-020 FR-2), matching
   `map-go` and the `wrongsid` interop cells.
 
+### Post-cut addition — 2026-07-14 (additive; folded into the `-01` texts)
+
+The formerly-open usage-watermark item is now defined (design rationale in
+`ERRATA.md`, RESOLVED 2026-07-14; implementation packaged as TASK-021/022):
+
+- **pay §4/§4.1** — `PayInvoice` key 4 pinned as `UsageWatermark`
+  `{1 TaskID, 2 through-chunk-seq, 3 cumulative Usage,
+  4 cumulative-billed}` with normative billing arithmetic (exact
+  uint×decimal, no rounding) and six ordered verification checks; the
+  ERROR 6001 detail schema `{1 => UsageWatermark}` carries the final
+  unpaid watermark.
+- **pay §3** — rate-table unit-code registry (0 flat, 1 per-token-in,
+  2 per-token-out, 3 per-millisecond, 4 per-invocation) and the
+  same-exponent/same-asset rule for a quote's rate table.
+- **tasks §3** — kind-3 (usage-update) chunk `content` pinned:
+  deterministic-CBOR cumulative `Usage` map.
+- **core §9** — code **6009** invoice-watermark violation registered;
+  6007's description broadened to cover `UsageWatermark.1` task-binding
+  mismatches (same meaning, wider referent).
+
+All additive: postpaid (`terms` ≠ 3) messages are byte-for-byte unaffected,
+and key 4 was already reserved-optional. New vectors TV-016/NV-010 arrive
+with TASK-021.
+
 ### Still open (tracked in `ERRATA.md`, deferred to a future revision)
 
-- **pay §4** — `PayInvoice` key 4 (usage watermark) has no concrete CDDL; a
-  metered-terms (terms 3) package must define it before any metered
-  implementation. Not needed by the postpaid-flat path shipped to date.
+- (none — the pay §4 watermark item above was the last one.)

@@ -160,10 +160,14 @@ Chunk = {
 }
 ```
 
-Chunks flow under FLOW_CREDIT (core §8.1). `usage-update` chunks carry
-running metered usage `{tokens-in, tokens-out, ms}` enabling pay-as-you-go
-settlement (pay §4). Ordering is per `chunk-seq`; the transcript (§8.1) is
-defined over output-kind chunks in seq order, making audits unambiguous.
+Chunks flow under FLOW_CREDIT (core §8.1). A `usage-update` (kind 3)
+chunk's `content` is the deterministic CBOR encoding (core §4.2) of a
+`Usage` map — the §4 Complete key 4 shape `{1 tokens-in, 2 tokens-out,
+3 ttft-ms, 4 wall-ms}` — with counters CUMULATIVE since task start; these
+are the meter readings pay §4.1 verifies watermarked invoices against, so
+a metered provider MUST emit one at or before each watermark it bills.
+Ordering is per `chunk-seq`; the transcript (§8.1) is defined over
+output-kind chunks in seq order, making audits unambiguous.
 
 ## 4. COMPLETE and output commitment
 

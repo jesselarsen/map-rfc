@@ -102,6 +102,25 @@ PayAgree = {                          ; msg-type 0x0401
 }
 ```
 
+Rate-table **unit codes** (registry; Specification Required, ops §3):
+
+| unit | meaning | used by model |
+|---|---|---|
+| 0 | flat total (the whole task) | 0 |
+| 1 | per token in | 1 |
+| 2 | per token out | 1 |
+| 3 | per millisecond of wall time | 2 |
+| 4 | per invocation | 3 |
+
+Units price a SINGLE counted unit (per token, per millisecond — not
+per-1k), so every billed amount is an exact `uint counter × Amount`
+product: no rounding rule exists anywhere in this document, by
+construction. **Same-exponent rule**: all Amounts in one quote's rate
+table MUST share one decimal exponent and MUST be in one Asset;
+`cumulative-billed` and invoice amounts derived from them carry that same
+exponent, so verifiers compare mantissas directly (an exponent mismatch
+is a rejection, never a conversion).
+
 A signed PAY_AGREE referencing the quote digest is the enforceable
 agreement both sides hold; ASSIGN carries its reference (tasks §2.1).
 Quotes are binding until expiry (unlike descriptor PricingHints, which are
@@ -163,13 +182,73 @@ proof, not by count).
 
 ```cddl
 PayInvoice = { 1 => bstr .size 16 /*invoice-id*/, 2 => bstr /*quote-id*/,
-  3 => [Asset, Amount], ? 4 => { usage watermark }, 5 => bstr /*method
+  3 => [Asset, Amount], ? 4 => UsageWatermark, 5 => bstr /*method
   payload: e.g. BOLT12 offer, processor intent id*/, 6 => Timestamp }
 PayProof   = { 1 => bstr /*invoice-id*/, 2 => tstr /*method*/,
   3 => bstr /*proof payload: preimage, intent confirmation, tx ref*/ }
 PayReceipt = { 1 => bstr /*invoice-id*/, 2 => [Asset, Amount],
   3 => Timestamp, ? 4 => Multihash /*proof digest*/ }
+
+UsageWatermark = {                    ; PayInvoice key 4 (terms 3 only)
+  1 => TaskID,                        ; the metered task this invoice bills
+  2 => uint,                          ; through-chunk-seq: highest chunk-seq
+                                      ;  covered by this invoice (inclusive)
+  3 => Usage,                         ; CUMULATIVE usage since task start at
+                                      ;  that point (tasks §4 Complete key 4
+                                      ;  shape: {1 tokens-in, 2 tokens-out,
+                                      ;  3 ttft-ms, 4 wall-ms})
+  4 => [Asset, Amount]                ; cumulative-billed: total billed
+}                                     ;  through and including THIS invoice
 ```
+
+### 4.1 Watermark semantics and verification
+
+A watermark is **cumulative since task start**, never a delta: a re-sent
+invoice is byte-identical (idempotency falls out), each invoice is
+independently verifiable, and monotonicity is a component-wise `>=`.
+All four keys are REQUIRED when the watermark is present. Under terms 3
+(metered-incremental) every PAY_INVOICE MUST carry key 4; under any other
+terms key 4 MUST be absent.
+
+`cumulative-billed` (key 4) MUST equal the agreed rate table applied to
+the cumulative usage (key 3) under the agreed pricing model (§3):
+
+- model 1 (per-token):  `tokens-in × rate[1] + tokens-out × rate[2]`
+- model 2 (per-second): `wall-ms × rate[3]` (rate unit 3 is per
+  MILLISECOND — §3 unit codes — so the product is exact)
+- model 3 (per-invocation): `invocations × rate[4]` (one invocation per
+  task in this revision)
+
+All products are exact (uint counter × decimal-fraction rate under the §3
+same-exponent rule); no rounding is defined or permitted. The invoice
+`amount` (key 3) MUST equal this invoice's `cumulative-billed` minus the
+`cumulative-billed` of the last invoice the requester settled for this
+task (zero for the first).
+
+The requester MUST verify, in order, before paying:
+
+1. presence: key 4 present iff terms 3 — else ERROR **6009** (core §9,
+   invoice-watermark violation);
+2. task binding: `TaskID` equals the task bound by the agreement — else
+   ERROR 6007;
+3. monotonicity: `through-chunk-seq`, every `Usage` component, and
+   `cumulative-billed` are `>=` the last ACCEPTED watermark's — else 6009;
+4. meter consistency: the watermark's `Usage` equals the usage carried by
+   the latest received usage-update chunk (tasks §3, kind 3) with
+   `chunk-seq <= through-chunk-seq` — a provider MUST meter (emit the
+   kind-3 chunk) before it bills — else 6009;
+5. arithmetic: the model formula above and the amount-delta rule — else
+   6009;
+6. cap: `cumulative-billed` does not exceed the PAY_AGREE authorized cap
+   (§3) — else ERROR 6005.
+
+A rejected invoice is not settled and does not advance the accepted
+watermark. When the provider pauses an exhausted stream (ERROR 6001,
+retryable), the **final unpaid watermark** travels in the ERROR's detail
+map (core §9 key 5) as `{1 => UsageWatermark}`; on CANCEL instead of
+top-up, the amount owed anchors to the last countersigned checkpoint
+(tasks §8.2 key 5 usage, billed under the same formula), which both
+sides hold signed.
 
 PAY_RECEIPT is the payee's signed past-tense fact "this invoice settled";
 it feeds ExecutionReceipt.payment-ref and is the payer's permanent proof

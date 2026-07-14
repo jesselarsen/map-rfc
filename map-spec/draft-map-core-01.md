@@ -373,10 +373,14 @@ Code space (registry; Specification Required):
   6005 authorized cap exceeded (PayAgree.4), 6006 agreement digest
   mismatch (quote/agreement envelope digest does not match the
   referenced bytes — price-switch defense, pay §3.1), 6007 task
-  binding mismatch (PayQuote.9 ≠ the OFFER's TaskID, pay §3),
-  6008 invalid payment proof (forged or mismatched settlement proof,
-  pay §5). 6002 remains the generic settlement failure for causes not
-  covered by a specific code.
+  binding mismatch (a pay message's task binding ≠ the bound task:
+  PayQuote.9 vs the OFFER's TaskID, pay §3; UsageWatermark.1 vs the
+  agreement's task, pay §4.1), 6008 invalid payment proof (forged or
+  mismatched settlement proof, pay §5), 6009 invoice-watermark violation
+  (a metered invoice's UsageWatermark fails a pay §4.1 check: presence,
+  monotonicity, meter consistency, or billing arithmetic). 6002 remains
+  the generic settlement failure for causes not covered by a specific
+  code.
 
 Retryability semantics: `retryable = true` means the identical request MAY
 succeed later at the same peer; false means the requester MUST change

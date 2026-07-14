@@ -579,7 +579,32 @@ treat as the frozen interop contract.
     A=01×32 (dialer/root), B=02×32 (listener), DK=03×32 (delegated leaf).
     Whole Rust workspace + map-go green, zero warnings. NEXT: rev-01
     editorial cut (fold ERRATA resolutions into normative text) — the last
-    spec action before leaving -00.
+    spec action before leaving -00. **rev-01 cut DONE 2026-07-13 (see §4).**
+
+17. **ARCHITECT SESSION 2026-07-14 — UsageWatermark designed; the last
+    undefined wire surface is closed.** Normative spec patches landed: pay
+    §4/§4.1 pin `PayInvoice` key 4 as `UsageWatermark {1 TaskID, 2
+    through-chunk-seq, 3 CUMULATIVE Usage, 4 cumulative-billed}` with exact
+    (no-rounding) billing arithmetic and SIX ordered verification checks;
+    pay §3 gains the rate-table unit-code registry (0 flat / 1 per-token-in
+    / 2 per-token-out / 3 per-MILLISECOND / 4 per-invocation — per-single-
+    unit so bills are exact uint×decimal products) + same-exponent/same-
+    asset rule; tasks §3 pins kind-3 chunk content = deterministic-CBOR
+    cumulative Usage; core §9 adds 6009 invoice-watermark-violation (6007
+    wording broadened). 6001's final-unpaid-watermark travels in ERROR
+    detail {1 => UsageWatermark}; CANCEL owes to the last countersigned
+    checkpoint. Full rationale in ERRATA.md (RESOLVED 2026-07-14);
+    CHANGELOG has a post-cut additive addendum. Packages authored, NOT
+    executed: **TASK-021** (P2: map-pay codec + `billed`/`verify_watermark`
+    exact-arithmetic helpers + code 6009 + vectors TV-016/NV-010 — billing
+    constants pre-computed: model-1 rates 3000/5000 µUSD over usage
+    {1523,812,431,42000} ⇒ cumulative-billed 8_629_000 — + conformance in
+    BOTH impls, Go arithmetic written from spec not ported) and **TASK-022**
+    (P3, blocked on 021: terms-3 runtime in map-taskrun — metered provider/
+    requester pair, six-check verification incl. meter-consistency vs
+    received kind-3 chunks, 6001 pause/top-up, checkpoint-anchored CANCEL;
+    R1 flags resume-after-6001 signaling as likely PENDING-ARCHITECT).
+    NEXT: execute TASK-021 then TASK-022 (§17 prompts hand-over-verbatim).
 
 12. ~~**TASK-014 — formal analysis (P1/P2/P3), ops §6.3.**~~ DONE (2026-07-10).
     New top-level `formal/` (spec-adjacent, not Rust): ProVerif 2.05 models.

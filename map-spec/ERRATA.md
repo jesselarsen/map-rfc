@@ -100,9 +100,28 @@ the wire reply).
 
 ## Still open (future packages; not blocking)
 
-OPEN: pay §4 `PayInvoice` key 4 (usage watermark) has no concrete field
-shape; TASK-009 (postpaid flat) omits it. A metered-terms (terms 3)
-package must define its CDDL before any metered implementation.
+RESOLVED 2026-07-14 (was OPEN: pay §4 `PayInvoice` key 4 had no concrete
+shape) — ARCHITECT DESIGN: `UsageWatermark = {1 TaskID, 2
+through-chunk-seq, 3 cumulative Usage, 4 cumulative-billed}` with the
+§4.1 ordered verification checks. Key decisions and why: CUMULATIVE
+semantics, never delta (byte-identical retransmission ⇒ idempotency for
+free; self-contained verification; monotonicity is a component-wise >=);
+reuse the existing Usage map shape (one usage vocabulary across
+Complete.4, ReceiptCore.8, checkpoints, kind-3 chunks, watermarks);
+rate-table unit codes pinned to per-SINGLE-unit prices (per token, per
+millisecond) so every bill is an exact uint×decimal product — NO rounding
+rule exists anywhere in pay, by construction; §3 same-exponent/same-asset
+rule makes comparisons mantissa-only (codifies the reference impl's
+existing `amount_within` behavior); tasks §3 kind-3 chunk content pinned
+to deterministic-CBOR cumulative Usage (the meter readings check 4
+verifies against — a provider MUST meter before it bills); new code 6009
+invoice-watermark violation (6007 wording broadened to cover
+UsageWatermark.1; cap breach stays 6005); the 6001 "final unpaid
+watermark" travels in the ERROR detail map as {1 => UsageWatermark}; on
+CANCEL the owed amount anchors to the last countersigned checkpoint.
+Spec patched (pay §3/§4/§4.1, tasks §3, core §9) in the same change.
+→ TASK-021 (codec + TV-016/NV-010 vectors, both impls) then TASK-022
+(terms-3 runtime, Rust).
 
 NOTE (bookkeeping, TASK-010): the widened-scope negative vector is NV-007
 (TASK-010's planned "NV-006" was already taken by the bound-PAY_QUOTE
