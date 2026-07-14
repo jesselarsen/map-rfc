@@ -1,4 +1,4 @@
-//! MAP tasks bounded context (draft-map-tasks-00).
+//! MAP tasks bounded context (draft-map-tasks-01).
 //!
 //! Data ownership (tasks §1): requester owns terms, provider owns execution
 //! state, the countersigned transcript commitment is the only shared fact.

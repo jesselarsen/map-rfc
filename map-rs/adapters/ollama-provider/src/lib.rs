@@ -1,4 +1,4 @@
-//! MAP local-inference provider adapter (draft-map-ops-00 §8).
+//! MAP local-inference provider adapter (draft-map-ops-01 §8).
 //!
 //! This crate is the **seam** a real Ollama backend will fill, not the backend
 //! itself: it defines the [`InferenceBackend`] trait, a deterministic

@@ -349,8 +349,8 @@ nv009 = sealed_delegated(ka_sk, 0x0200, msgid(24), deleg_offer,
 # =====================================================================
 prefix = f"""# MAP Test Vectors (TV-001, TV-002)
 
-Status: Normative examples for draft-map-core-00 and draft-map-trust-00.
-All CBOR uses the deterministic encoding profile of draft-map-core-00 §4.2
+Status: Normative examples for draft-map-core-01 and draft-map-trust-01.
+All CBOR uses the deterministic encoding profile of draft-map-core-01 §4.2
 (RFC 8949 §4.2.1 core deterministic encoding; definite lengths only).
 All signatures are Ed25519 (RFC 8032) and verify against the keys below.
 

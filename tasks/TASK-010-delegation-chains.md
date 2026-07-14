@@ -157,7 +157,7 @@ Vectors: TV-011/012 byte-exact; NV-006; TV-001..010 regression.
 ## 17. Coding Task Prompt (hand to the coding LLM verbatim)
 
 > In `map-rs/` + `map-spec/`, implement §FR-1..FR-6 per §4–§14.
-> Identity §4 CDDL (`draft-map-identity-00.md`) is authoritative for
+> Identity §4 CDDL (`draft-map-identity-01.md`) is authoritative for
 > DelegateBody; core ProtHdr key 33 order is leaf..root. Do NOT modify
 > `envelope::open()` — add `open_delegated`. Unknown caveats fail
 > closed; scope intersection is tighten-only; both are normative. Apply
@@ -172,7 +172,7 @@ Vectors: TV-011/012 byte-exact; NV-006; TV-001..010 regression.
 ```
 cd map-rs && cargo +stable-x86_64-pc-windows-gnu test --workspace
 cd ../map-spec/test-vectors && python3 gen_vectors.py && git diff --stat
-git diff map-spec/draft-map-identity-00.md   # caveat ids + fail-closed + cap 8
+git diff map-spec/draft-map-identity-01.md   # caveat ids + fail-closed + cap 8
 ```
 
 ## 19. Known Risks

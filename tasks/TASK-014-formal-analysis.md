@@ -112,7 +112,7 @@ from-clean-checkout reproduction run following only the README.
 ## 17. Coding Task Prompt (hand to the coding LLM verbatim)
 
 > Create `formal/` at the repo root per §FR-1..6. Model the protocol AS
-> SPECIFIED in map-spec/draft-map-core-00.md §6–§7 and the TASK-010
+> SPECIFIED in map-spec/draft-map-core-01.md §6–§7 and the TASK-010
 > delegation rules — where the implementation and spec differ, the spec
 > wins and the difference is a finding. The exporter is modeled per
 > §4–8 (per-session fresh name shared by endpoints). Every query maps
@@ -129,7 +129,7 @@ from-clean-checkout reproduction run following only the README.
 cat formal/README.md                      # pins, commands, mapping table
 proverif formal/hello-cb.pv               # per README expected output
 proverif formal/hello-cb-control.pv       # must FAIL queries
-git diff map-spec/draft-map-ops-00.md     # 6.3 plan→delivered
+git diff map-spec/draft-map-ops-01.md     # 6.3 plan→delivered
 ```
 
 ## 19. Known Risks

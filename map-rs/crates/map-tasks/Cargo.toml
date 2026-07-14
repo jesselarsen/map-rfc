@@ -3,7 +3,7 @@ name = "map-tasks"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
-description = "MAP tasks bounded context: TaskID, chunks, transcript Merkle commitment, flow credit, state machine (draft-map-tasks-00)"
+description = "MAP tasks bounded context: TaskID, chunks, transcript Merkle commitment, flow credit, state machine (draft-map-tasks-01)"
 
 [dependencies]
 map-core = { path = "../map-core" }

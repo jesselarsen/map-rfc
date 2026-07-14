@@ -1,4 +1,4 @@
-//! MAP core bounded context (draft-map-core-00).
+//! MAP core bounded context (draft-map-core-01).
 //!
 //! Aggregate root: the session. Durable fact: the negotiation transcript
 //! hash. Derived, prunable state: replay caches and flow-credit counters

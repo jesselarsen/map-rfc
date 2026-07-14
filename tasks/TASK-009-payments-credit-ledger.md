@@ -157,7 +157,7 @@ agreeable path.
 
 > In `map-rs/`, extend `crates/map-pay` (codec.rs, credit_ledger.rs) and
 > `crates/map-taskrun` (payments.rs; add map-pay dep) per §4–§14. CDDL
-> field numbers from `map-spec/draft-map-pay-00.md` §3/§3.1/§4 — verify
+> field numbers from `map-spec/draft-map-pay-01.md` §3/§3.1/§4 — verify
 > before coding; STOP and report gaps (candidates: PayInvoice.4 usage-
 > watermark exact shape — omit if unclear and report; distinct 6xxx
 > codes). Digests over received envelope bytes only (I1). Idempotency is

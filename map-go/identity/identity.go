@@ -1,4 +1,4 @@
-// Package identity implements MAP AgentIDs (draft-map-identity-00 §3)
+// Package identity implements MAP AgentIDs (draft-map-identity-01 §3)
 // and the strict Ed25519 verification profile required by TASK-015 §FR-4.
 package identity
 

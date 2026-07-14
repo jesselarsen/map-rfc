@@ -1,4 +1,4 @@
-//! MAP session layer over a pluggable transport (draft-map-core-00 §6/§7/§12).
+//! MAP session layer over a pluggable transport (draft-map-core-01 §6/§7/§12).
 //!
 //! Proves the protocol logic end-to-end in-process: the HELLO/HELLO_ACK
 //! handshake, transcript hash and channel binding, the session state machine,

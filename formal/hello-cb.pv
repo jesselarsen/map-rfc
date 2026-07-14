@@ -1,5 +1,5 @@
 (* TASK-014 FR-2 — HELLO/HELLO_ACK negotiation (P1) and channel-binding
-   anti-relay (P2), as specified in draft-map-core-00.md §6 (negotiation,
+   anti-relay (P2), as specified in draft-map-core-01.md §6 (negotiation,
    TH) and §7.3 (channel binding) and as implemented in
    map-rs/crates/map-session/src/session.rs.
 

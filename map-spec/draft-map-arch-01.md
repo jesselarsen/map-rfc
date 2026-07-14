@@ -1,6 +1,6 @@
 ---
 title: "The Manolito Agent Protocol (MAP): Architecture, Requirements, and Threat Model"
-docname: draft-map-arch-00
+docname: draft-map-arch-01
 category: info
 submissiontype: independent
 ---
@@ -24,7 +24,7 @@ locally measured performance. This document defines the architecture, design
 goals and non-goals, the system and trust models, the threat model, the
 privacy model (including data-sensitivity zones), scalability targets, and
 the map of companion documents. It contains no wire formats; those are
-defined in draft-map-core-00 and its siblings.
+defined in draft-map-core-01 and its siblings.
 
 ## 1. Introduction and Heritage
 
@@ -54,24 +54,24 @@ capitals, as shown here. No adaptation or weakening of these terms applies.
 - **Agent**: a protocol participant identified by an AgentID. May act as
   Requester, Provider, Relay, Gateway, or several at once.
 - **AgentID**: a self-certifying identifier derived from an Ed25519 public
-  key (draft-map-identity-00).
+  key (draft-map-identity-01).
 - **Requester / Provider**: the party commissioning a task / the party
   executing it. Roles are per-task, not per-node.
 - **Orchestrator**: application logic on a requester that decomposes,
   routes, and merges tasks. Out of protocol scope except where it emits
   MAP messages.
 - **Descriptor**: a signed, content-addressed advertisement of an agent's
-  stable properties (draft-map-discovery-00).
+  stable properties (draft-map-discovery-01).
 - **Capability**: a registered hierarchical URI naming a service class,
-  e.g. `map:cap:inference/text-generation` (draft-map-discovery-00 §4).
+  e.g. `map:cap:inference/text-generation` (draft-map-discovery-01 §4).
 - **Envelope**: the signed CBOR/COSE container for every MAP message
-  (draft-map-core-00).
+  (draft-map-core-01).
 - **Receipt**: dual-signed evidence of a completed interaction
-  (draft-map-trust-00).
+  (draft-map-trust-01).
 - **Zone**: a data-sensitivity class constraining where payloads may flow
   (§8).
 - **Mesh**: a connected deployment of MAP agents sharing bootstrap and
-  policy; meshes MAY federate (draft-map-ops-00).
+  policy; meshes MAY federate (draft-map-ops-01).
 
 ## 4. Design Goals
 
@@ -132,7 +132,7 @@ timeout, resumption, and compensation behavior.
 - Guaranteeing the *semantic quality* of AI outputs — MAP makes behavior
   *attributable and evidence-bearing*, not correct.
 - Backward wire compatibility with legacy Manolito clients (a conceptual
-  migration guide is provided in draft-map-ops-00 §7).
+  migration guide is provided in draft-map-ops-01 §7).
 
 ## 5. System Model
 
@@ -175,7 +175,7 @@ T5. Reputation derives only from evidence signed by counterparties, weighted
 by the evaluator's trust in those counterparties.
 T6. Transports provide confidentiality and integrity between endpoints once
 established; endpoint *identity binding* is MAP's responsibility (channel
-binding, draft-map-core-00 §7.3).
+binding, draft-map-core-01 §7.3).
 T7. The cryptographic primitives of the negotiated suite are sound; clocks
 are loosely synchronized (±120 s); no global time authority exists.
 T8. Availability of any single peer, relay, or bootstrap node is never
@@ -215,7 +215,7 @@ documents):
 Formal analysis plan: the session-establishment, channel-binding, and
 delegation subsystems SHOULD be modeled in Tamarin or ProVerif before the
 family advances maturity; the state machines in core/tasks are specified to
-be directly translatable (draft-map-ops-00 §6.3).
+be directly translatable (draft-map-ops-01 §6.3).
 
 ## 8. Privacy Model
 
@@ -256,7 +256,7 @@ protocol errors (code 2004) and receipt-recordable events.
 DHT queries reveal interest in a capability to the queried nodes; status
 queries reveal requester–candidate pairs; relays learn traffic timing.
 Mitigations offered (shard sampling, relayed queries, decoy traffic,
-ephemeral identities per draft-map-identity-00 §8) reduce but do not
+ephemeral identities per draft-map-identity-01 §8) reduce but do not
 eliminate these. Deployments with strong anonymity needs SHOULD run MAP
 over an anonymity network and use Zone-3 ephemeral identities.
 
@@ -292,20 +292,20 @@ is the structural fix for critique C3.
 
 A conforming *provider* implements Core+Discovery+Tasks; a conforming
 *requester* Core+Discovery+Tasks; Trust and Pay are RECOMMENDED for public
-meshes. Test-suite structure: draft-map-ops-00 §6.
+meshes. Test-suite structure: draft-map-ops-01 §6.
 
 ## 11. Document Map
 
 | Document | Scope | Depends on |
 |---|---|---|
-| draft-map-arch-00 | this document | — |
-| draft-map-core-00 | envelope, negotiation, sessions, errors, flow control, extension framework, transport bindings | identity |
-| draft-map-identity-00 | AgentID, key hierarchy, delegation, rotation, revocation, DID/WebAuthn interop | — |
-| draft-map-discovery-00 | descriptors, capability ontology, two-plane discovery, NAT traversal profile | core |
-| draft-map-tasks-00 | negotiation, inference & streaming, tools, checkpoints, delegation, memory/context | core, discovery |
-| draft-map-trust-00 | receipts, evidence exchange, admission costs, trust computation guidance | core |
-| draft-map-pay-00 | quotes, agreements, proofs, receipts, settlement-method registry, disputes | core, tasks |
-| draft-map-ops-00 | registries & governance, federation, interop/testing, reference implementation, migration | all |
+| draft-map-arch-01 | this document | — |
+| draft-map-core-01 | envelope, negotiation, sessions, errors, flow control, extension framework, transport bindings | identity |
+| draft-map-identity-01 | AgentID, key hierarchy, delegation, rotation, revocation, DID/WebAuthn interop | — |
+| draft-map-discovery-01 | descriptors, capability ontology, two-plane discovery, NAT traversal profile | core |
+| draft-map-tasks-01 | negotiation, inference & streaming, tools, checkpoints, delegation, memory/context | core, discovery |
+| draft-map-trust-01 | receipts, evidence exchange, admission costs, trust computation guidance | core |
+| draft-map-pay-01 | quotes, agreements, proofs, receipts, settlement-method registry, disputes | core, tasks |
+| draft-map-ops-01 | registries & governance, federation, interop/testing, reference implementation, migration | all |
 
 ## 12. Security Considerations
 

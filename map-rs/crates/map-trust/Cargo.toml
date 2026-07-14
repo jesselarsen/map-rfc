@@ -3,7 +3,7 @@ name = "map-trust"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
-description = "MAP trust bounded context: dual-signed receipts, append-only idempotent store, rebuildable Beta projection (draft-map-trust-00)"
+description = "MAP trust bounded context: dual-signed receipts, append-only idempotent store, rebuildable Beta projection (draft-map-trust-01)"
 
 [dependencies]
 map-core = { path = "../map-core" }

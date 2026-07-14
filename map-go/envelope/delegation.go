@@ -7,7 +7,7 @@ import (
 	"github.com/jesselarsen/map-rfc/map-go/identity"
 )
 
-// Delegation-chain validation, draft-map-identity-00 §4 / §6.
+// Delegation-chain validation, draft-map-identity-01 §4 / §6.
 //
 // A DelegationCert is itself an envelope (msg-type 0x0502) whose kid is the
 // ISSUER; its Body content is DelegateBody:

@@ -1,4 +1,4 @@
-//! MAP discovery message flows over `map-session` (draft-map-discovery-00
+//! MAP discovery message flows over `map-session` (draft-map-discovery-01
 //! §2–§7). Implements descriptor publish/ingest, an in-process `MeshIndex`
 //! standing in for the Kademlia DHT (the real DHT arrives with libp2p,
 //! TASK-012), and the CAP_QUERY/STATUS responder + client calls.

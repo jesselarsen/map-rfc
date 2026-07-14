@@ -194,8 +194,8 @@ TV; reject per NV with the named error class).
 
 > Work in `map-spec/test-vectors/`. Extend `gen_vectors.py` per §2–§14 of
 > this document. BEFORE writing any vector, open the owning draft
-> (`map-spec/draft-map-discovery-00.md` §2, `draft-map-tasks-00.md`
-> §2–§4 and §8.1, `draft-map-pay-00.md` §3, `draft-map-core-00.md` §6 and
+> (`map-spec/draft-map-discovery-01.md` §2, `draft-map-tasks-01.md`
+> §2–§4 and §8.1, `draft-map-pay-01.md` §3, `draft-map-core-01.md` §6 and
 > §9) and copy the exact CDDL field numbers into a comment above that
 > vector's dict; if the draft's field numbering is ambiguous or missing
 > for any field you need, STOP for that vector and record the gap in your

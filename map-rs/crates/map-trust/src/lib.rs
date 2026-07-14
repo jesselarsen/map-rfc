@@ -1,4 +1,4 @@
-//! MAP trust bounded context (draft-map-trust-00).
+//! MAP trust bounded context (draft-map-trust-01).
 //!
 //! Data semantics (trust §1, normative): a receipt is a past-tense,
 //! immutable domain event identified by its content address. The store is

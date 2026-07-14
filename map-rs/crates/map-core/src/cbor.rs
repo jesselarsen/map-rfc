@@ -1,4 +1,4 @@
-//! Deterministic CBOR per draft-map-core-00 §4.2 (RFC 8949 §4.2.1 profile).
+//! Deterministic CBOR per draft-map-core-01 §4.2 (RFC 8949 §4.2.1 profile).
 //!
 //! Two jobs, both normative:
 //! * **Encode** canonically: shortest-form heads, definite lengths, map keys

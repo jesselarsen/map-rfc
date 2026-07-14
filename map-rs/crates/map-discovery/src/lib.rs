@@ -1,4 +1,4 @@
-//! MAP discovery bounded context (draft-map-discovery-00).
+//! MAP discovery bounded context (draft-map-discovery-01).
 //!
 //! Data semantics (discovery §5, ops §2): the agent is the sole source of
 //! truth for its descriptor; everything here — provider-record keys, caches

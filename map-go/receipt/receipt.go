@@ -1,5 +1,5 @@
 // Package receipt implements the dual-signed ExecutionReceipt of
-// draft-map-trust-00 §3 (TV-002 / NV-005). The receipt core is kept as
+// draft-map-trust-01 §3 (TV-002 / NV-005). The receipt core is kept as
 // received bytes (invariant I1): signatures are computed and verified
 // over enc(["MAPReceipt", role, core-bytes]) with the exact core bytes.
 package receipt

@@ -1,6 +1,6 @@
 ---
 title: "MAP Trust: Execution Receipts, Evidence Exchange, and Local Reputation"
-docname: draft-map-trust-00
+docname: draft-map-trust-01
 category: std
 ---
 
@@ -68,12 +68,10 @@ Requester                                   Provider
 
 RECEIPT_ACK content is the COMPLETE dual-signed
 `Receipt {1: core, 2: sig_req, 3: sig_prov}` — not the provider
-signature alone — so the requester stores it without reassembly
-(ARCHITECT RULING 2026-07-12, aligning the diagram with the reference
-implementation; see ERRATA). A provider that refuses to countersign
-because the claimed usage/timestamps fall outside its countersignature
-tolerance (§3) replies ERROR 2006 (countersignature refused, core §9),
-retryable = false.
+signature alone — so the requester stores it without reassembly. A
+provider that refuses to countersign because the claimed usage/timestamps
+fall outside its countersignature tolerance (§3) replies ERROR 2006
+(countersignature refused, core §9), retryable = false.
 
 Either party MAY hold a receipt; both SHOULD. The provider's incentive to
 countersign is direct: dual-signed receipts are its portable, verifiable
@@ -133,10 +131,9 @@ MUST be within ±5% of the provider's OBSERVED value (minimum ±1), with started
 ended timestamps (5,6) within ±2000 ms. The tolerance band is anchored to the
 observed (provider, trusted) value, NOT `max(claimed, observed)`, so an inflated
 claim cannot widen its own acceptance band — this is the countersignature-farming
-defense (§11). A mismatch → the provider replies ERROR and does not countersign;
-the requester keeps a unilateral receipt. (The exact wire error code is a
-PENDING-ARCHITECT item — no dedicated "receipt claim rejected" code exists in
-core §9; implementations use 5000 in the interim. See map-spec/ERRATA.md.)
+defense (§11). A mismatch → the provider replies ERROR 2006 (countersignature
+refused, core §9, retryable = false) and does not countersign; the requester
+keeps a unilateral receipt.
 
 Outcome mapping (field 7) from the requester's task terminal (tasks §13):
 a Verified completion → 0 (ok); a Failed task → 1 (failed); a TTFT-timeout

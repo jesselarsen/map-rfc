@@ -1,5 +1,5 @@
 // Package hello implements the negotiation transcript hash and channel
-// binding of draft-map-core-00 §6.2 / §7.3 (MAP-SUITE-1: SHA-256, HKDF).
+// binding of draft-map-core-01 §6.2 / §7.3 (MAP-SUITE-1: SHA-256, HKDF).
 package hello
 
 import (

@@ -1,5 +1,5 @@
 // Package discovery implements capability index keys and sharding
-// (draft-map-discovery-00 §6) and the descriptor freshness rule (§5).
+// (draft-map-discovery-01 §6) and the descriptor freshness rule (§5).
 package discovery
 
 import (

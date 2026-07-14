@@ -3,7 +3,7 @@ name = "map-discovery"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
-description = "MAP discovery bounded context: descriptors, capability keys, sharding, seq-LWW cache (draft-map-discovery-00)"
+description = "MAP discovery bounded context: descriptors, capability keys, sharding, seq-LWW cache (draft-map-discovery-01)"
 
 [dependencies]
 map-core = { path = "../map-core" }

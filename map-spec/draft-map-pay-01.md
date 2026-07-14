@@ -1,6 +1,6 @@
 ---
 title: "MAP Payments: Negotiation, Settlement-Method Abstraction, Metering, and Disputes"
-docname: draft-map-pay-00
+docname: draft-map-pay-01
 category: std
 ---
 

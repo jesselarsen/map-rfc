@@ -174,7 +174,7 @@ roots match.
 
 > In `map-rs/`, add the FR-1 message codecs to `crates/map-tasks`
 > (pure to_value/from_value, field numbers exactly as §FR-1 quotes from
-> tasks §2–§4 — verify against `map-spec/draft-map-tasks-00.md` before
+> tasks §2–§4 — verify against `map-spec/draft-map-tasks-01.md` before
 > coding; if any field number is absent from the draft, STOP on that item
 > and report) and create workspace member `crates/map-taskrun` per
 > §4–§14. Runtimes are pump-driven state machines: no threads, no

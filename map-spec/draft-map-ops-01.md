@@ -1,6 +1,6 @@
 ---
 title: "MAP Operations: Governance, Registries, Federation, Interoperability, and Migration"
-docname: draft-map-ops-00
+docname: draft-map-ops-01
 category: bcp
 ---
 

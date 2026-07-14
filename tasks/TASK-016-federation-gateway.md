@@ -146,7 +146,7 @@ mid-task partial COMPLETE; receipt accrues to gateway (FR-3).
 > runtimes, TASK-008's receipt flow, TASK-010's EffectiveScope — fork
 > nothing. If moving the InferenceBackend trait to break a dep cycle is
 > needed (§4), do the smallest move and report it. Patch
-> `map-spec/draft-map-discovery-00.md` §4 with the gateway/ params
+> `map-spec/draft-map-discovery-01.md` §4 with the gateway/ params
 > assignment in the same change. No upstream identifiers or prompt
 > content in wire errors. `cargo +stable-x86_64-pc-windows-gnu` from
 > PowerShell; full suite per fix. Deliver: code, tests, spec patch,
@@ -157,7 +157,7 @@ mid-task partial COMPLETE; receipt accrues to gateway (FR-3).
 ```
 cd map-rs && cargo +stable-x86_64-pc-windows-gnu test --workspace
 cargo test -p gateway -- --list | wc -l    # >= 12
-git diff map-spec/draft-map-discovery-00.md
+git diff map-spec/draft-map-discovery-01.md
 ```
 
 ## 19. Known Risks

@@ -1,5 +1,5 @@
 // Package cbor implements exactly the CBOR profile MAP signs and hashes:
-// RFC 8949 §4.2.1 core deterministic encoding (draft-map-core-00 §4.2).
+// RFC 8949 §4.2.1 core deterministic encoding (draft-map-core-01 §4.2).
 // It is hand-rolled on purpose (TASK-015 §FR-1): the encoding profile IS
 // the thing under test, so no general-purpose CBOR library is used.
 //

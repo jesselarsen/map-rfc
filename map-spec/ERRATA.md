@@ -5,6 +5,11 @@ architect session ruled on every queued item (rulings below, spec patched
 in the same change). Implementation work arising from the rulings is
 packaged as TASK-017 and TASK-018 (see `tasks/README.md`).
 
+**As of the rev-01 cut (2026-07-13) every RESOLVED item below is folded into
+the normative text of the `-01` drafts; the errata annotations were removed
+from the specs and the classified delta recorded in `CHANGELOG.md`. This file
+is retained as the historical rationale for each ruling.**
+
 Format: `RESOLVED <ruling-date> (was PENDING-ARCHITECT <date> <package>) —
 <issue> — <ruling> — <where implemented>`.
 

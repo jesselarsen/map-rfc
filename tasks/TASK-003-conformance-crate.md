@@ -206,6 +206,6 @@ python3 ../map-spec/test-vectors/gen_vectors.py  # optional cross-check if deps 
 - A discrepancy write-up (R1/R2) triggers the spec-feedback loop: the
   architect patches spec/vectors, TASK-004 regenerates.
 - On green: this satisfies ops §6.2's minimum negative suite for impl #1;
-  note it in `map-spec/draft-map-ops-00.md` §8 and `memory.md` §5/§7.
+  note it in `map-spec/draft-map-ops-01.md` §8 and `memory.md` §5/§7.
 - TASK-004 will extend `gen_vectors.py`; this crate's `vectors.rs` must
   then be extended in lockstep (one new const block per new TV).

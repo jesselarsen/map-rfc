@@ -1,4 +1,4 @@
-//! MAP conformance suite (draft-map-ops-00 §6). A green run of this crate IS
+//! MAP conformance suite (draft-map-ops-01 §6). A green run of this crate IS
 //! the conformance statement for reference implementation #1: it reproduces the
 //! normative vectors TV-001/TV-002 byte-for-byte and rejects the ops §6.2
 //! catalog of malformed/hostile inputs with the correct error class.

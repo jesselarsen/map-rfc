@@ -1,4 +1,4 @@
-//! MAP Message Types registry, initial contents (draft-map-core-00 §5).
+//! MAP Message Types registry, initial contents (draft-map-core-01 §5).
 //! Code points are immutable once assigned (ops §3.3).
 
 // 0x0001–0x00FF — Core

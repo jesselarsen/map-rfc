@@ -3,7 +3,7 @@ name = "map-core"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
-description = "MAP core bounded context: deterministic CBOR, COSE_Sign1 envelope, HELLO negotiation, replay cache, errors (draft-map-core-00)"
+description = "MAP core bounded context: deterministic CBOR, COSE_Sign1 envelope, HELLO negotiation, replay cache, errors (draft-map-core-01)"
 
 [dependencies]
 map-identity = { path = "../map-identity" }

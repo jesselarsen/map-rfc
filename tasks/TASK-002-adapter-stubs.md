@@ -7,7 +7,7 @@ Depends on: TASK-001 (build green) · Blocks: nothing (future session-layer work
 
 ## 1. Problem Statement
 
-`draft-map-ops-00.md` §8 plans two adapters around the core crates: a local
+`draft-map-ops-01.md` §8 plans two adapters around the core crates: a local
 inference provider bridging MAP tasks to an Ollama HTTP endpoint, and a
 federation gateway that re-advertises external capabilities under the
 provenance rules of ops §5. Neither may pull in network dependencies yet

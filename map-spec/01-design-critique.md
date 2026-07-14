@@ -30,7 +30,7 @@ routing layer is steered primarily by an attacker-controlled input.
 Reputation is only meaningful when derived from evidence signed by
 *counterparties*. **Disposition:** descriptors in MAP carry no trust fields
 at all; trust is computed locally by each consumer from dual-signed
-`ExecutionReceipt`s (draft-map-trust-00). This also resolves the "who
+`ExecutionReceipt`s (draft-map-trust-01). This also resolves the "who
 computes the rolling average" ambiguity in design2 §3.3, where the node
 updates its own reputation after each task.
 
@@ -49,7 +49,7 @@ consensus and auth bugs (e.g., Protobuf-based signature bypasses).
 **Disposition:** MAP signs deterministic CBOR (RFC 8949 §4.2.1) via
 COSE_Sign1 (RFC 9052), and mandates *verify-the-received-bytes*: signatures
 are computed over the exact transmitted `protected`/`payload` byte strings,
-never over a re-serialization (draft-map-core-00 §4). Protobuf/gRPC remain
+never over a re-serialization (draft-map-core-01 §4). Protobuf/gRPC remain
 available as a non-normative application binding for bulk streams.
 
 ### C3. Volatile state in the DHT + advertisement storm — does not scale (CRITICAL)
@@ -71,7 +71,7 @@ guarantees routing on fiction. Meanwhile the preprint's own numbers conflict
 content-addressed, DHT provider records with ≥1 h TTL, republished hourly)
 from a *volatile plane* (direct `STATUS_QUERY` to shortlisted candidates at
 decision time, plus optionally scoped, rate-limited gossip presence beacons).
-Hot capability keys are sharded (draft-map-discovery-00 §6). Latency is never
+Hot capability keys are sharded (draft-map-discovery-01 §6). Latency is never
 advertised at all — see C6.
 
 ### C4. No replay protection (HIGH)
@@ -84,7 +84,7 @@ without a defined skew window and a uniqueness cache.
 receivers enforce a ±120 s skew window and a (sender, msg-id) uniqueness
 cache; session-bound messages additionally carry monotonic sequence numbers
 and are bound to the transport channel via COSE `external_aad` (channel
-binding), which also defeats cross-session relay (draft-map-core-00 §7).
+binding), which also defeats cross-session relay (draft-map-core-01 §7).
 
 ### C5. Normative magic-weight routing formula (HIGH)
 `score(p) = 0.35·trust + 0.25·(1/latency) + …` with min-max normalization
@@ -99,8 +99,8 @@ milliseconds from dollars from reputation — dimensionally meaningless.
 **Disposition:** MAP standardizes the *inputs* (verifiable evidence, quotes,
 self-measured RTT, status reports) and the *constraint semantics* of queries
 (hard filters MUST be honored). Ranking is explicitly local policy; a
-reference policy is given as informative guidance only (draft-map-tasks-00
-§5, draft-map-trust-00 §7).
+reference policy is given as informative guidance only (draft-map-tasks-01
+§5, draft-map-trust-01 §7).
 
 ### C6. "Latency" as a global advertisement field (MEDIUM)
 `latency_ms` in an advertisement is meaningless: latency is a property of the
@@ -146,7 +146,7 @@ and slashing are all named but not defined.
 (quote → agreement → proof → receipt) with a settlement-method registry
 (Lightning, card-processor intents, stablecoins, ACH, Interledger, local
 ledger) and leaves settlement/custody to the chosen method, where mature
-systems already exist (draft-map-pay-00). Disputes are defined as an
+systems already exist (draft-map-pay-01). Disputes are defined as an
 evidence-exchange protocol over Merkle-rooted transcripts; adjudication is
 mesh policy, not core protocol.
 
@@ -173,8 +173,8 @@ Design3 correctly identifies that hashing free-text capability strings
 Its `capabilities.json` idea is right but under-specified (no governance, no
 versioning, no extension path).
 **Disposition:** a governed capability ontology of hierarchical URIs with an
-IANA-style registry and Expert Review policy (draft-map-discovery-00 §4,
-draft-map-ops-00 §3).
+IANA-style registry and Expert Review policy (draft-map-discovery-01 §4,
+draft-map-ops-01 §3).
 
 ### C13. Identity format inconsistencies (LOW, but corrosive)
 Across the documents a node ID is variously SHA-256(pubkey) hex (design2),
@@ -184,7 +184,7 @@ incompatible identifier spaces for the same key. The preprint also invents a
 **Disposition:** one identifier: `AgentID = multicodec(ed25519-pub) || key`,
 multibase-encoded — byte-compatible with both libp2p Ed25519 PeerIDs
 (identity multihash) and `did:key`, so existing resolvers and libp2p work
-unchanged (draft-map-identity-00 §3).
+unchanged (draft-map-identity-01 §3).
 
 ### C14. Requirements-language weakening and editorial defects (LOW)
 "RFC 2119, *adapted for open-source implementation maturity*" (preprint §2)
@@ -208,7 +208,7 @@ graduated-tier bootstrap ideas are the right direction but unquantified.
 **Disposition:** an explicit, layered admission-cost framework (join tickets
 via PoW/VDF, optional stake, social vouching), plus the structural defense
 that trust in MAP is *per-observer and evidence-based*, so a Sybil army has
-no shared reputation to exploit (draft-map-trust-00 §5, with an honest
+no shared reputation to exploit (draft-map-trust-01 §5, with an honest
 statement of residual risk — no decentralized system fully solves Sybil).
 
 ### Additional findings, briefly

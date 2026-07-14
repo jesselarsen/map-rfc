@@ -1,4 +1,4 @@
-//! Anti-replay state (draft-map-core-00 §7): per-sender msg-id uniqueness
+//! Anti-replay state (draft-map-core-01 §7): per-sender msg-id uniqueness
 //! cache with a ±skew timestamp window (§7.1) and strict per-direction
 //! session sequence tracking (§7.2). Channel binding (§7.3) lives in
 //! [`crate::hello::channel_binding`] and is enforced by [`crate::envelope`]

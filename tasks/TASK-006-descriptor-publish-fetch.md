@@ -57,7 +57,7 @@ Pinned deps only; no network; zero warnings; `MeshIndex` is std
 collections. Message shapes: where discovery §2–§5 does not pin exact
 content-map field numbers for CAP_QUERY/CAP_RESPONSE/STATUS_QUERY, the
 numbers in FR-4/FR-5 ARE the assignment (architect-approved); the
-implementer MUST also patch `map-spec/draft-map-discovery-00.md` §3/§5
+implementer MUST also patch `map-spec/draft-map-discovery-01.md` §3/§5
 to record them (spec-feedback same-change rule) and note it in the
 report.
 
@@ -171,7 +171,7 @@ Security: forged index entry; descriptor replayed after newer seq seen.
 > `crates/map-mesh` implementing §5–§14. Do not add dependencies; do not
 > make map-session or map-discovery depend on each other. The content-map
 > field numbers in FR-4/FR-5 are the approved registry assignments — also
-> patch `map-spec/draft-map-discovery-00.md` §3/§5 to record them in the
+> patch `map-spec/draft-map-discovery-01.md` §3/§5 to record them in the
 > same change. Injected clocks only in tests. Build with
 > `cargo +stable-x86_64-pc-windows-gnu` from PowerShell. Full workspace
 > suite after every fix. Deliver: code, tests per §16, spec patch, report
@@ -184,7 +184,7 @@ cd map-rs
 cargo +stable-x86_64-pc-windows-gnu test --workspace       # green
 cargo test -p map-conformance                              # TV-003 unchanged
 cargo tree -p map-mesh | grep -E "map-(tasks|trust|pay)"   # no hits
-git diff map-spec/draft-map-discovery-00.md                # field numbers recorded
+git diff map-spec/draft-map-discovery-01.md                # field numbers recorded
 ```
 
 ## 19. Known Risks

@@ -71,9 +71,9 @@ self-testing, idempotent, regression asserts).
 
 ## 4–8. Architecture / Design / Interfaces / Data / Algorithms
 
-Spec-side: edits land in draft-map-tasks-00.md (§2.2, §6, §8.4, §9),
-draft-map-core-00.md (§5 ranges note, §15 registries), draft-map-ops-00
-(§3 registry rows), draft-map-pay-00.md (cross-refs only). Rust-side:
+Spec-side: edits land in draft-map-tasks-01.md (§2.2, §6, §8.4, §9),
+draft-map-core-01.md (§5 ranges note, §15 registries), draft-map-ops-01
+(§3 registry rows), draft-map-pay-01.md (cross-refs only). Rust-side:
 msg_type.rs gains RESERVE/LEASE/LEASE_RELEASE consts + names (mirror
 rule, decision 11); conformance vectors2/extended pattern continues. No
 runtime reservation implementation in this task (codecs + vectors only;
@@ -135,7 +135,7 @@ name() covers new consts.
 ## 18. Validation Checklist (reviewer)
 
 ```
-grep -n "0x020F\|0x0210\|0x0211" map-spec/draft-map-core-00.md map-rs/crates/map-core/src/msg_type.rs
+grep -n "0x020F\|0x0210\|0x0211" map-spec/draft-map-core-01.md map-rs/crates/map-core/src/msg_type.rs
 grep -n "ext-bid\|ext-kvx\|ext-git" map-spec/draft-map-*.md
 cd map-spec/test-vectors && python3 gen_vectors.py && python3 gen_vectors.py && git diff --quiet map-test-vectors.md && echo idempotent
 cd ../../map-rs && cargo +stable-x86_64-pc-windows-gnu test --workspace

@@ -33,7 +33,7 @@ Naming: the protocol is **MAP**; "Hermes" is reserved for an orchestrator
 The two engineering-policy documents from the original project
 (`designing-data-intensive-applications.md`,
 `implementing-domain-driven-design.md`) are **binding** if present; their
-protocol-specific distillation lives in `map-spec/draft-map-ops-00.md` §2
+protocol-specific distillation lives in `map-spec/draft-map-ops-01.md` §2
 (bounded-context/ownership table + 7 rules). Changes violating that table
 are rejected in review — that rule is itself in ops §2.
 
@@ -69,7 +69,18 @@ are rejected in review — that rule is itself in ops §2.
     in `map-rs/crates/map-core/src/msg_type.rs`. Code points are immutable
     once assigned (ops §3.3); 0x0206 is deliberately unassigned.
 
-## 4. Current state — specification family (COMPLETE as rev-00)
+## 4. Current state — specification family (**rev-01 cut 2026-07-13**)
+
+All eight drafts are now `draft-map-*-01.md` (renamed from `-00`; every
+in-repo reference — specs, map-rs/map-go comments, gen_vectors.py, formal/,
+tasks, CLAUDE.md — swept to `-01`). The 2026-07-12 architect rulings are
+folded into clean normative text (errata scaffolding removed from the
+specs); the classified delta is in `map-spec/CHANGELOG.md` (ops §4 requires a
+per-revision changelog: editorial / additive / breaking — no breaking items).
+`ERRATA.md` retained as historical rationale. Frozen vector bytes unchanged;
+both impls + the 16/16 interop matrix pass at rev-01. **When citing spec
+sections use the short form (core §X, tasks §2.1) — version-agnostic; the
+`draft-map-*-01` full name only appears in cross-references + frontmatter.**
 
 All eleven documents written, cross-referenced, BCP-14 language:
 critique, arch (goals/threats TH1–TH15/zones/scalability), identity,

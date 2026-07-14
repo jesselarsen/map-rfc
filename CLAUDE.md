@@ -32,30 +32,30 @@ duplicate that content here; consult it directly.
     current family. This is the record of *why* the spec looks the way it
     does — check it before proposing something that resembles a rejected
     approach.
-  - `draft-map-arch-00.md` — goals/non-goals, system & trust model, threat
+  - `draft-map-arch-01.md` — goals/non-goals, system & trust model, threat
     catalog TH1–TH15, zones & privacy model, scalability analysis,
     conformance classes. (Informational)
-  - `draft-map-identity-00.md` — AgentID (≡ did:key ≡ libp2p PeerID), key
+  - `draft-map-identity-01.md` — AgentID (≡ did:key ≡ libp2p PeerID), key
     hierarchy, delegation certificates, rotation/revocation, ephemeral & org
     identities, WebAuthn. (Standards)
-  - `draft-map-core-00.md` — signed envelope (COSE_Sign1 over deterministic
+  - `draft-map-core-01.md` — signed envelope (COSE_Sign1 over deterministic
     CBOR), negotiation & downgrade resistance, channel binding, replay
     protection, flow control, error taxonomy, state machine, transport
     bindings, extension framework. (Standards)
-  - `draft-map-discovery-00.md` — descriptors, governed capability ontology,
+  - `draft-map-discovery-01.md` — descriptors, governed capability ontology,
     two-plane discovery (stable DHT / volatile status), hot-key sharding, NAT
     profile, query privacy. (Standards)
-  - `draft-map-tasks-00.md` — offer/quote/assign, streaming with credit flow
+  - `draft-map-tasks-01.md` — offer/quote/assign, streaming with credit flow
     control, tool grants, Merkle transcripts + countersigned checkpoints,
     resumption by replay, delegation, memory retrieval, task state machines.
     (Standards)
-  - `draft-map-trust-00.md` — dual-signed ExecutionReceipts, selective
+  - `draft-map-trust-01.md` — dual-signed ExecutionReceipts, selective
     evidence disclosure, admission costs, graduated bootstrap, local trust
     computation, challenges, gaming analysis. (Standards)
-  - `draft-map-pay-00.md` — payment negotiation & evidence, settlement-method
+  - `draft-map-pay-01.md` — payment negotiation & evidence, settlement-method
     registry, metered streaming settlement, escrow abstraction, disputes.
     (Standards)
-  - `draft-map-ops-00.md` — engineering policy (context/ownership map),
+  - `draft-map-ops-01.md` — engineering policy (context/ownership map),
     registries & change control, federation gateways, conformance &
     formal-analysis program, reference implementation, migration (incl.
     HEP-0.1 → MAP), compliance notes. (BCP)
@@ -102,9 +102,9 @@ new work. TASK-001..016 cover the entire memory.md §8 roadmap;
 ## Working conventions
 
 - **Naming**: draft files follow `draft-map-<area>-<revision>.md`
-  (e.g. `draft-map-core-00.md`). New areas get a new `<area>` slug; revisions
+  (e.g. `draft-map-core-01.md`). New areas get a new `<area>` slug; revisions
   of an existing document bump the two-digit `<revision>` suffix per the
-  versioning/deprecation process defined in `draft-map-ops-00.md`.
+  versioning/deprecation process defined in `draft-map-ops-01.md`.
 - **Requirements language**: BCP 14 (RFC 2119 / RFC 8174), unweakened — use
   MUST / SHOULD / MAY precisely, and don't introduce softer synonyms.
 - **RFC structure**: each Standards-track document follows Internet-Draft
@@ -115,7 +115,7 @@ new work. TASK-001..016 cover the entire memory.md §8 roadmap;
   in the existing drafts. Match the section style of the document you're
   editing rather than inventing a new structure.
 - **One named source of truth per fact** (engineering policy in
-  `draft-map-ops-00.md` §2): don't restate a normative definition in more than
+  `draft-map-ops-01.md` §2): don't restate a normative definition in more than
   one document — cross-reference the owning document instead.
 - **No self-reported trust, ever**: trust/reputation content must derive from
   dual-signed receipts and local projections, never self-asserted scores.
@@ -126,8 +126,8 @@ new work. TASK-001..016 cover the entire memory.md §8 roadmap;
   the canonical wire format.
 - Changes that touch a cross-cutting decision (the "five decisions to know"
   in the README, or anything in the engineering policy table in
-  `draft-map-ops-00.md`) should be checked against every document that
+  `draft-map-ops-01.md`) should be checked against every document that
   depends on it, not just the one being edited.
 - No document leaves draft status without two independent interoperating
-  implementations (per `draft-map-ops-00.md` §6.1) — don't mark a draft as
+  implementations (per `draft-map-ops-01.md` §6.1) — don't mark a draft as
   final/stable unilaterally.

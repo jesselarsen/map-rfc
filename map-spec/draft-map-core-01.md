@@ -1,6 +1,6 @@
 ---
 title: "MAP Core: Message Envelope, Sessions, Negotiation, and Error Handling"
-docname: draft-map-core-00
+docname: draft-map-core-01
 category: std
 ---
 
@@ -53,7 +53,7 @@ Design invariants (rationale in 01-design-critique.md C2, C4):
 
 ## 2. Cryptographic Suites
 
-A suite fixes every primitive used by core. Registry: draft-map-ops-00 §3.
+A suite fixes every primitive used by core. Registry: draft-map-ops-01 §3.
 
 | ID | Signature | KEM/DH | AEAD | Hash | KDF |
 |----|-----------|--------|------|------|-----|
@@ -73,7 +73,7 @@ addressing.
 
 ```cddl
 AgentID     = bstr .size (34..66)   ; multicodec-prefixed public key
-                                    ; (draft-map-identity-00 §3)
+                                    ; (draft-map-identity-01 §3)
 MsgID       = bstr .size 16         ; cryptographically random per message
 SessionID   = bstr .size 16
 TaskID      = bstr .size 32         ; requester-chosen; see tasks §3
@@ -172,7 +172,7 @@ respond with ERROR (in-session) and MUST rate-limit error responses.
 TOOL_CALL 0x0207; never to be reused — ops §3.3).
 
 Registration policy for new code points: Specification Required
-(draft-map-ops-00 §3).
+(draft-map-ops-01 §3).
 
 ### 5.1 Extension Keys (initial registry)
 
@@ -222,8 +222,7 @@ HelloAck = {
 Note the field-shape asymmetry under identical field numbers: Hello
 fields 1/2 are *lists* (offered sets) while HelloAck fields 1/2 are
 *singletons* (the chosen values) — implementers regularly miss this;
-TV-001/TV-003 are the byte-level guard. (Caution added 2026-07-12 from
-the map-go ambiguity report.)
+TV-001/TV-003 are the byte-level guard.
 
 If no version or suite is mutual, the responder sends ERROR 1001 with the
 supported sets and closes. Both peers MUST verify each envelope's signer
@@ -257,7 +256,7 @@ any decoding or signature work (cheapest check first; DoS posture §6.5).
 (new optional fields, new msg-types); implementations MUST accept unknown
 optional Body keys and unknown msg-types within a session by replying ERROR
 3000 without closing. Major revisions may break anything and never
-interoperate implicitly. Deprecation process: draft-map-ops-00 §3.4.
+interoperate implicitly. Deprecation process: draft-map-ops-01 §3.4.
 
 ### 6.5 Denial-of-service posture at handshake
 
@@ -361,7 +360,7 @@ Code space (registry; Specification Required):
   violation, 2005 not authorized for message type, 2006 countersignature
   refused (the receiver declines to attest the sender's claimed
   facts — e.g. receipt usage/timestamps outside countersignature
-  tolerance, trust §3; added 2026-07-12).
+  tolerance, trust §3).
 - **3xxx capability**: 3000 unsupported message/capability, 3001 model
   unavailable, 3002 context too large, 3003 ontology term unknown.
 - **4xxx resource**: 4000 overloaded, 4001 queue full, 4002 insufficient
@@ -376,8 +375,8 @@ Code space (registry; Specification Required):
   referenced bytes — price-switch defense, pay §3.1), 6007 task
   binding mismatch (PayQuote.9 ≠ the OFFER's TaskID, pay §3),
   6008 invalid payment proof (forged or mismatched settlement proof,
-  pay §5). 6005–6008 added 2026-07-12; 6002 remains the generic
-  settlement failure for causes not covered by a specific code.
+  pay §5). 6002 remains the generic settlement failure for causes not
+  covered by a specific code.
 
 Retryability semantics: `retryable = true` means the identical request MAY
 succeed later at the same peer; false means the requester MUST change

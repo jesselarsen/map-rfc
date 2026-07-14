@@ -8,7 +8,7 @@ import (
 )
 
 // Strict decoder: accepts ONLY the deterministic profile of
-// draft-map-core-00 §4.2 and rejects every deviation (the malleability
+// draft-map-core-01 §4.2 and rejects every deviation (the malleability
 // defense; the NV-003 class of vectors is its acceptance test).
 // Rejected deviations: non-minimal integer/length heads, indefinite
 // lengths, unsorted or duplicate map keys (bytewise on encoded form),

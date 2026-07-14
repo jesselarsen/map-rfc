@@ -1,6 +1,6 @@
 ---
 title: "MAP Identity: Agent Identifiers, Key Hierarchy, Delegation, and Lifecycle"
-docname: draft-map-identity-00
+docname: draft-map-identity-01
 category: std
 ---
 
@@ -81,8 +81,7 @@ key 33. B2: On TLS transports, the certificate/raw public key MUST satisfy
 the same rule. B3: `kid` names the *signing* key; the **accountable**
 identity is the chain root's issuer when a chain is present, and `kid`
 itself otherwise. Verifiers resolve and report the accountable identity;
-receipts and trust records accrue to it. (B1/B3 rewritten 2026-07-12 with
-the §4 kid ruling; see ERRATA.)
+receipts and trust records accrue to it.
 
 ## 4. Delegation certificates
 
@@ -110,9 +109,8 @@ the accountable identity (§3.2 B3). `max-depth` (key 7) bounds further
 delegation below the declaring certificate: a chain is invalid (2003)
 when any certificate has more certificates between itself and the leaf
 than its declared max-depth — a cert with max-depth 0 must itself be the
-leaf cert. (kid sentence corrected and max-depth counting pinned
-2026-07-12, ARCHITECT RULING; wire behavior was already frozen by
-TV-012 — see ERRATA.) Semantics deliberately parallel UCAN (informative
+leaf cert. The byte-level behavior of these rules is fixed by TV-012 and
+NV-009. Semantics deliberately parallel UCAN (informative
 reference) so existing tooling and audit intuition transfer. Tool-grant
 tokens in tasks §7 are DelegationCerts with task-pinning caveats — one
 mechanism, two uses.
@@ -127,12 +125,6 @@ valid only for envelopes whose Body references that task; the referencing
 check is performed by the consumer); `2` = **audience** (value: a 34-byte
 AgentID — the chain is valid only when the validating party's own AgentID
 equals it).
-
-[RESOLVED 2026-07-12 (was PENDING-ARCHITECT 2026-07-08): the former
-clause "the chain root MUST equal the envelope `kid`" was corrected in
-§4 and §3.2 above — `kid` equals the chain leaf's subject; the root is
-the accountable identity. Byte-level behavior unchanged (frozen by
-TV-012). Full record in `map-spec/ERRATA.md`.]
 
 ## 5. Descriptor binding and proof of possession
 

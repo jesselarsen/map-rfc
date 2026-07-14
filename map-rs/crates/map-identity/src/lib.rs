@@ -1,4 +1,4 @@
-//! MAP identity bounded context (draft-map-identity-00).
+//! MAP identity bounded context (draft-map-identity-01).
 //!
 //! Aggregate root: the key lineage, identified by [`AgentId`].
 //! Policy (ops §2/§8): identifiers are value types — raw byte strings never
@@ -11,7 +11,7 @@
 use ed25519_dalek::{Signature, Signer, SigningKey, VerifyingKey};
 use std::fmt;
 
-/// multicodec `ed25519-pub` (0xED as varint) — draft-map-identity-00 §3.1.
+/// multicodec `ed25519-pub` (0xED as varint) — draft-map-identity-01 §3.1.
 pub const ED25519_PUB_CODEC: [u8; 2] = [0xED, 0x01];
 /// AgentID length for suite 1/2: 2-byte codec prefix + 32-byte key.
 pub const ED25519_AGENT_ID_LEN: usize = 34;

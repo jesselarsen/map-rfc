@@ -3,7 +3,7 @@ name = "map-pay"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
-description = "MAP pay bounded context: decimal Amount (tag 4), Asset, invoice idempotency (draft-map-pay-00)"
+description = "MAP pay bounded context: decimal Amount (tag 4), Asset, invoice idempotency (draft-map-pay-01)"
 
 [dependencies]
 map-identity = { path = "../map-identity" }

@@ -202,7 +202,7 @@ tampered must yield 1004 (size first).
 ## 17. Coding Task Prompt (hand to the coding LLM verbatim)
 
 > In `map-go`, implement TASK-019 §FR-1..7 exactly. Read FIRST:
-> draft-map-core-00 §4, §6, §7, §9, §10 and this package. Do NOT read any
+> draft-map-core-01 §4, §6, §7, §9, §10 and this package. Do NOT read any
 > `map-rs` source — every wire rule you need is in the FRs; where the
 > drafts and the FRs differ, the FRs win and you report the difference
 > (they encode reference-implementation behavior the drafts underspecify:

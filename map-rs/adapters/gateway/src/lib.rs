@@ -1,4 +1,4 @@
-//! MAP federation gateway adapter (draft-map-ops-00 §5).
+//! MAP federation gateway adapter (draft-map-ops-01 §5).
 //!
 //! A gateway re-advertises capabilities it learned upstream. The provenance
 //! rules G-1..G-4 keep that honest:

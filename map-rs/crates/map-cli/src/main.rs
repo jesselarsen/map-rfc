@@ -2,7 +2,7 @@
 //!
 //! Two subcommands, both pure and reproducible:
 //! * `keygen` — derive/generate an Ed25519 identity and print its seed,
-//!   pubkey, AgentID (hex + multibase), and did:key (draft-map-identity-00 §3).
+//!   pubkey, AgentID (hex + multibase), and did:key (draft-map-identity-01 §3).
 //! * `projection-rebuild-demo` — synthesize dual-signed receipts, fold a
 //!   `TrustProjection` incrementally, then rebuild it from the store and assert
 //!   the DDIA "derived state is rebuildable" property (ops §8, trust §7).

@@ -1,4 +1,4 @@
-//! Error taxonomy (draft-map-core-00 §9): numeric code space with
+//! Error taxonomy (draft-map-core-01 §9): numeric code space with
 //! retryability semantics that make orchestrator fallback deterministic
 //! (tasks §14).
 

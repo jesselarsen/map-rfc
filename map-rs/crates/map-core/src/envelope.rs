@@ -1,4 +1,4 @@
-//! The MAP envelope (draft-map-core-00 §4): COSE_Sign1 over deterministic
+//! The MAP envelope (draft-map-core-01 §4): COSE_Sign1 over deterministic
 //! CBOR, with invariant I1 — signatures are verified over the *received*
 //! `protected`/`payload` byte strings, never a re-serialization.
 

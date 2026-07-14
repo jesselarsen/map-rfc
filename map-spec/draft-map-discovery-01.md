@@ -1,6 +1,6 @@
 ---
 title: "MAP Discovery: Agent Descriptors, Capability Ontology, and Two-Plane Discovery"
-docname: draft-map-discovery-00
+docname: draft-map-discovery-01
 category: std
 ---
 
@@ -39,7 +39,7 @@ data (critique C3). Therefore:
   STATUS_QUERY to a shortlist derived from the stable plane.
 - R3: Latency is measured by the querier, never advertised (critique C6).
 - R4: Trust/reputation fields MUST NOT appear anywhere in this document's
-  structures (critique C1); trust lives in draft-map-trust-00.
+  structures (critique C1); trust lives in draft-map-trust-01.
 
 ## 2. AgentDescriptor
 
@@ -217,9 +217,8 @@ K'(cap, s)   = multihash(suite-hash, "map:idx:1:" || CapURI || ":" || s)
 
 In the key preimage, `s` is rendered as its unpadded base-10 ASCII
 decimal ("0".."255" — e.g. shard 141 contributes the three bytes
-`31 34 31`), not as a raw byte or hex. (Pinned 2026-07-12 from the
-map-go ambiguity report; the derived-constants test vector K′ already
-froze this form.)
+`31 34 31`), not as a raw byte or hex; the derived-constants test vector
+K′ fixes this form.
 
 Providers publish only to their own shard `K'(cap, shard(agent))`.
 Queriers sample `r` uniformly random shards (RECOMMENDED r = 3, doubling

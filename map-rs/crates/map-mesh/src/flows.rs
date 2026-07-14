@@ -2,7 +2,7 @@
 //! (0x0101/0x0102) over a live session.
 //!
 //! Content-map field numbers (registry assignments recorded in
-//! draft-map-discovery-00 §3/§7 as part of this change):
+//! draft-map-discovery-01 §3/§7 as part of this change):
 //!   CAP_QUERY    {1: CapURI, ?2: shard, ?3: limit}
 //!   CAP_RESPONSE {1: [* descriptor-envelope bstr], ?2: more(bool)}
 //!   STATUS_QUERY {?1: [+ CapURI], ?2: bstr .size 8 echo}   (§3 array form)

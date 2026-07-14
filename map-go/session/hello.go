@@ -1,4 +1,4 @@
-// Package session implements the MAP session layer (draft-map-core-00 §6/§7):
+// Package session implements the MAP session layer (draft-map-core-01 §6/§7):
 // HELLO/HELLO_ACK negotiation, transcript hash + channel binding, anti-replay
 // and sequence tracking, length-prefixed framing, and the established-session
 // send/receive pipeline. It is the wire twin of the Rust map-session crate.

@@ -1,4 +1,4 @@
-//! MAP task runtimes (draft-map-tasks-00 §2–§4, memory.md §8 step 3): the
+//! MAP task runtimes (draft-map-tasks-01 §2–§4, memory.md §8 step 3): the
 //! provider and requester state machines that execute a task over a session —
 //! OFFER → QUOTE → ASSIGN → ACCEPT → CHUNK stream under flow credit → COMPLETE
 //! with a verified transcript root — proven with an echo capability.

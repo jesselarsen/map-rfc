@@ -1,4 +1,4 @@
-//! Task-negotiation and streaming message codecs (draft-map-tasks-00 §2/§2.1/
+//! Task-negotiation and streaming message codecs (draft-map-tasks-01 §2/§2.1/
 //! §3/§4, core §8.1). Pure `to_value`/`from_value` over the deterministic CBOR
 //! `Value` model — the tasks context owns these wire structures; the runtimes
 //! (map-taskrun) build on them.

@@ -10,7 +10,7 @@ import (
 	"github.com/jesselarsen/map-rfc/map-go/cbor"
 )
 
-// Transcript commitment, draft-map-tasks-00 §8.1:
+// Transcript commitment, draft-map-tasks-01 §8.1:
 //
 //	leaf(c)      = H(0x00 || enc([chunk-seq, kind, content]))
 //	parent(l, r) = H(0x01 || l || r)

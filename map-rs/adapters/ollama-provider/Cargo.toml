@@ -3,7 +3,7 @@ name = "ollama-provider"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
-description = "MAP local-inference provider adapter: InferenceBackend seam + transcript glue (draft-map-ops-00 §8)"
+description = "MAP local-inference provider adapter: InferenceBackend seam + transcript glue (draft-map-ops-01 §8)"
 
 [dependencies]
 map-core = { path = "../../crates/map-core" }

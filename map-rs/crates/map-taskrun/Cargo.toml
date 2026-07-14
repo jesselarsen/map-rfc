@@ -3,7 +3,7 @@ name = "map-taskrun"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
-description = "MAP task runtimes: pump-driven provider/requester state machines for OFFER→ASSIGN→CHUNK→COMPLETE with credit + transcript verification (draft-map-tasks-00 §2-§4)"
+description = "MAP task runtimes: pump-driven provider/requester state machines for OFFER→ASSIGN→CHUNK→COMPLETE with credit + transcript verification (draft-map-tasks-01 §2-§4)"
 
 [dependencies]
 map-identity = { path = "../map-identity" }

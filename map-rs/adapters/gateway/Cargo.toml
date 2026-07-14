@@ -3,7 +3,7 @@ name = "gateway"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
-description = "MAP federation gateway adapter: provenance labeling and zone tightening (draft-map-ops-00 §5)"
+description = "MAP federation gateway adapter: provenance labeling and zone tightening (draft-map-ops-01 §5)"
 
 [dependencies]
 map-discovery = { path = "../../crates/map-discovery" }

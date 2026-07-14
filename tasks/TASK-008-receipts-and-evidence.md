@@ -156,7 +156,7 @@ Security: §11 (a)(b)(c).
 > In `map-rs/`, extend `crates/map-trust` (lifecycle.rs: FR-1 helpers +
 > tolerance) and `crates/map-taskrun` (receipts.rs, evidence.rs; add
 > map-trust to its deps) per §4–§14. Field numbers and flows per trust
-> §3–§4 (`map-spec/draft-map-trust-00.md`) — verify before coding; STOP
+> §3–§4 (`map-spec/draft-map-trust-01.md`) — verify before coding; STOP
 > and report any under-specification (candidate: the exact ERROR code
 > for tolerance rejection — check `errors.rs` 5xxx range and propose if
 > absent). NEVER let an unverified or single-signed receipt reach

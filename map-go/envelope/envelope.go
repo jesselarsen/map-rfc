@@ -1,5 +1,5 @@
 // Package envelope implements the MAP COSE_Sign1 message envelope
-// (draft-map-core-00 §4): Seal produces deterministic, signed envelopes;
+// (draft-map-core-01 §4): Seal produces deterministic, signed envelopes;
 // Open verifies over the exact received bytes (invariant I1 — never
 // re-encode to verify) with the strict Ed25519 profile.
 package envelope

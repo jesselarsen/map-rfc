@@ -164,7 +164,7 @@ simultaneous sessions A↔B, both complete echo tasks.
 > exact libp2p pin you use in memory.md §5). Public API is blocking;
 > async confined to map-net internals. PeerID must equal AgentID
 > (identity §3.2) — assert at construction. Implement the §FR-4
-> exporter ruling and patch `map-spec/draft-map-core-00.md` §10 in the
+> exporter ruling and patch `map-spec/draft-map-core-01.md` §10 in the
 > same change (if your libp2p version exposes Noise handshake-hash
 > material, prefer it and record which). Network tests behind a
 > `net-tests` feature + `#[ignore]`. Re-run the TASK-005 anti-relay
@@ -180,7 +180,7 @@ simultaneous sessions A↔B, both complete echo tasks.
 cd map-rs && cargo +stable-x86_64-pc-windows-gnu test --workspace
 cargo +stable-x86_64-pc-windows-gnu test -p map-net --features net-tests -- --ignored
 cargo tree -i libp2p | head          # only map-net, map-cli paths
-git diff map-spec/draft-map-core-00.md   # §10 binding paragraph
+git diff map-spec/draft-map-core-01.md   # §10 binding paragraph
 ```
 
 ## 19. Known Risks

@@ -1,4 +1,4 @@
-//! MAP pay bounded context (draft-map-pay-00).
+//! MAP pay bounded context (draft-map-pay-01).
 //!
 //! Data semantics (pay §1): the settlement rail is the source of truth for
 //! money movement; this crate holds the *statements about* it. Amounts are
