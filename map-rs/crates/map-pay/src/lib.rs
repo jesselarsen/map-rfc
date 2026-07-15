@@ -10,6 +10,7 @@ use map_core::cbor::{CborError, Value};
 use std::collections::HashSet;
 use std::fmt;
 
+pub mod billing;
 pub mod codec;
 pub mod credit_ledger;
 

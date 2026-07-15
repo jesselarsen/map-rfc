@@ -62,6 +62,9 @@ pub mod codes {
     pub const TASK_BINDING_MISMATCH: u16 = 6007;
     /// Forged or mismatched settlement proof / ledger entry (pay §5).
     pub const INVALID_PAYMENT_PROOF: u16 = 6008;
+    /// A metered invoice's UsageWatermark fails a pay §4.1 check: presence,
+    /// monotonicity, meter consistency, or billing arithmetic. Added 2026-07-14.
+    pub const INVOICE_WATERMARK_VIOLATION: u16 = 6009;
 }
 
 pub fn family(code: u16) -> &'static str {

@@ -246,6 +246,11 @@ func Produce() map[string][]byte {
 		{K: cbor.Uint(3), V: cbor.Array{cbor.Uint(1780000100000), cbor.Uint(1780000500000)}},
 	})
 
+	// TV-016 metered PAY_INVOICE (pay §4/§4.1): first incremental invoice, so
+	// amount (key 3) == watermark cumulative-billed (key 4). Model-1 rates
+	// 3000/5000 µUSD ⇒ 1523×3000 + 812×5000 = 8_629_000 µUSD.
+	out["TV-016"] = mustSeal(KeyB, 0x0402, msgid(25), payInvoiceContent(cumBilled(8_629_000)))
+
 	// ---- Negative vectors ----
 
 	// NV-001: envelope byte 60 (payload byte 13) XOR 0xFF, original signature.
@@ -303,6 +308,65 @@ func Produce() map[string][]byte {
 	}
 	out["NV-009"] = nv009
 
+	// NV-010: TV-016 with the watermark cumulative-billed off by one
+	// (8_629_001 vs the 8_629_000 the rates bill); amount (key 3) stays the
+	// correct 8_629_000, so exactly one mantissa digit differs. MUST reject
+	// 6009 (pay §4.1 arithmetic).
+	out["NV-010"] = mustSeal(KeyB, 0x0402, msgid(26), payInvoiceContentBilled(cumBilled(8_629_000), cumBilled(8_629_001)))
+
+	return out
+}
+
+// microUSD is ["iso4217:USD", 4([-6, mantissa])].
+func microUSD(mantissa int64) cbor.Value {
+	return cbor.Array{cbor.Text("iso4217:USD"),
+		cbor.Tag{Num: 4, Content: cbor.Array{cbor.Int(-6), cbor.Uint(uint64(mantissa))}}}
+}
+
+// cumBilled is the cumulative-billed [Asset, Amount] at a µUSD mantissa.
+func cumBilled(mantissa int64) cbor.Value { return microUSD(mantissa) }
+
+// watermarkContent is the TV-016 UsageWatermark (pay §4.1): task = the TV-006
+// TaskID, through-chunk-seq 8, cumulative Usage {1523,812,431,42000}.
+func watermarkContent(cumulativeBilled cbor.Value) cbor.Value {
+	return cbor.Map{
+		{K: cbor.Uint(1), V: cbor.Bytes(TaskID)},
+		{K: cbor.Uint(2), V: cbor.Uint(8)},
+		{K: cbor.Uint(3), V: cbor.Map{
+			{K: cbor.Uint(1), V: cbor.Uint(1523)},
+			{K: cbor.Uint(2), V: cbor.Uint(812)},
+			{K: cbor.Uint(3), V: cbor.Uint(431)},
+			{K: cbor.Uint(4), V: cbor.Uint(42000)},
+		}},
+		{K: cbor.Uint(4), V: cumulativeBilled},
+	}
+}
+
+// payInvoiceContent is a metered PAY_INVOICE whose amount and watermark
+// cumulative-billed agree (the valid first-invoice shape).
+func payInvoiceContent(amount cbor.Value) cbor.Value {
+	return payInvoiceContentBilled(amount, amount)
+}
+
+// payInvoiceContentBilled lets amount (key 3) and the watermark's
+// cumulative-billed (key 4) differ — used by NV-010 to break the arithmetic.
+func payInvoiceContentBilled(amount, cumulativeBilled cbor.Value) cbor.Value {
+	return cbor.Map{
+		{K: cbor.Uint(1), V: cbor.Bytes(msgidBytes(0x30))},
+		{K: cbor.Uint(2), V: cbor.Bytes(msgidBytes(0x10))},
+		{K: cbor.Uint(3), V: amount},
+		{K: cbor.Uint(4), V: watermarkContent(cumulativeBilled)},
+		{K: cbor.Uint(5), V: cbor.Bytes{}},
+		{K: cbor.Uint(6), V: cbor.Uint(TS)},
+	}
+}
+
+// msgidBytes is a 16-byte id filled with b (invoice/quote ids in TV-016).
+func msgidBytes(b byte) []byte {
+	out := make([]byte, 16)
+	for i := range out {
+		out[i] = b
+	}
 	return out
 }
 

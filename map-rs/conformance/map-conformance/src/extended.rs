@@ -21,7 +21,9 @@ use crate::vectors2::*;
 use crate::from_hex;
 use map_core::delegation::DelegError;
 use map_core::{open_delegated, validate_cert};
-use map_pay::codec::{PayAgree, PayQuote};
+use map_pay::billing::{billed, verify_watermark, AgreedTerms};
+use map_pay::codec::{AssetAmount, PayAgree, PayInvoice, PayQuote, UNIT_TOKEN_IN, UNIT_TOKEN_OUT};
+use map_pay::{Amount, Asset};
 use map_tasks::msg::{Assign, Lease, Reserve};
 use sha2::{Digest, Sha256};
 use map_core::cbor::{encode, CborError};
@@ -200,6 +202,50 @@ pub fn case_nv009_depth_exceeded() -> Result<(), String> {
         Ok(_) => Err("NV-009 chain accepted (must not)".into()),
         Err(EnvelopeError::Delegation(DelegError::DepthExceeded)) => Ok(()),
         Err(e) => Err(format!("NV-009 expected DepthExceeded, got {e:?}")),
+    }
+}
+
+/// The model-1 rate table TV-016/NV-010 are billed under (pay §4.1): 3000
+/// µUSD/token-in, 5000 µUSD/token-out. Not on the wire — the agreed quote's.
+fn watermark_rates() -> Vec<(u64, AssetAmount)> {
+    let micro = |m| AssetAmount { asset: Asset::new("iso4217:USD").unwrap(), amount: Amount::new(-6, m) };
+    vec![(UNIT_TOKEN_IN, micro(3000)), (UNIT_TOKEN_OUT, micro(5000))]
+}
+
+/// TV-016 — a metered PAY_INVOICE: the codec round-trips it byte-exact
+/// (produce guard), the model-1 arithmetic reproduces cumulative-billed, and
+/// `verify_watermark` accepts (pay §4/§4.1).
+pub fn case_tv016_metered_invoice() -> Result<(), String> {
+    let opened = expect_open(TV016_ENV_HEX, &key_b(), msg_type::PAY_INVOICE)?;
+    let inv = PayInvoice::from_value(&opened.body.content).map_err(|e| format!("PayInvoice: {e:?}"))?;
+    // produce guard: re-encode the parsed invoice and compare to the wire content.
+    let re = encode(&inv.to_value()).map_err(|e| format!("encode: {e}"))?;
+    let orig = encode(&opened.body.content).map_err(|e| format!("encode content: {e}"))?;
+    if re != orig {
+        return Err("TV-016 PayInvoice did not round-trip byte-for-byte".into());
+    }
+    let w = inv.watermark.as_ref().ok_or("TV-016 missing UsageWatermark (key 4)")?;
+    // arithmetic: rate × usage == the claimed cumulative-billed (= 8_629_000).
+    let computed = billed(1, &watermark_rates(), &w.usage).map_err(|e| format!("billed: {e:?}"))?;
+    if computed != w.cumulative_billed {
+        return Err("TV-016 billing arithmetic != cumulative-billed".into());
+    }
+    let agreed = AgreedTerms { task: w.task, pricing_model: 1, rate_table: watermark_rates(), terms: 3, authorized_cap: None };
+    verify_watermark(&agreed, None, &inv).map_err(|c| format!("TV-016 verify_watermark rejected with {c}"))
+}
+
+/// NV-010 — the TV-016 invoice with cumulative-billed off by one. It opens and
+/// its signature verifies, but pay §4.1 arithmetic MUST reject with 6009.
+pub fn case_nv010_watermark_billing() -> Result<(), String> {
+    let opened = expect_open(NV010_HEX, &key_b(), msg_type::PAY_INVOICE)
+        .map_err(|e| format!("NV-010 must open (valid envelope): {e}"))?;
+    let inv = PayInvoice::from_value(&opened.body.content).map_err(|e| format!("PayInvoice: {e:?}"))?;
+    let w = inv.watermark.as_ref().ok_or("NV-010 missing UsageWatermark")?;
+    let agreed = AgreedTerms { task: w.task, pricing_model: 1, rate_table: watermark_rates(), terms: 3, authorized_cap: None };
+    match verify_watermark(&agreed, None, &inv) {
+        Ok(()) => Err("NV-010 watermark accepted (must reject 6009)".into()),
+        Err(map_core::errors::codes::INVOICE_WATERMARK_VIOLATION) => Ok(()),
+        Err(c) => Err(format!("NV-010 expected 6009, got {c}")),
     }
 }
 

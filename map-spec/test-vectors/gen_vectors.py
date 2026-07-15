@@ -250,6 +250,22 @@ tv014 = sealed(ka, 0x020F, msgid(19), reserve)
 lease = {1: RSV_ID, 2: 0, 3: [1780000100000, 1780000500000]}
 tv015 = sealed(kb, 0x0210, msgid(20), lease)
 
+# TV-016 PAY_INVOICE (0x0402), signed by B. pay §4/§4.1 metered (terms 3): the
+#   FIRST incremental invoice, so key-3 amount == the watermark's cumulative-
+#   billed. Watermark {1 TaskID (=TV-006), 2 through-chunk-seq, 3 cumulative
+#   Usage, 4 cumulative-billed}. Model-1 rates (in the agreed PAY_QUOTE, not the
+#   invoice): rate[1]=4([-6,3000]) µUSD/token-in, rate[2]=4([-6,5000]) /token-out
+#   ⇒ 1523×3000 + 812×5000 = 4_569_000 + 4_060_000 = 8_629_000 µUSD. A verifier
+#   recomputes this from the watermark's Usage and the agreed rates.
+WM_USAGE = {1: 1523, 2: 812, 3: 431, 4: 42000}
+CUM_BILLED = ["iso4217:USD", cbor2.CBORTag(4, [-6, 8629000])]
+watermark = {1: task_id, 2: 8, 3: WM_USAGE, 4: CUM_BILLED}
+pay_invoice = {1: bytes([0x30]) * 16, 2: bytes([0x10]) * 16, 3: CUM_BILLED,
+               4: watermark, 5: b"", 6: TS}
+tv016 = sealed(kb, 0x0402, msgid(25), pay_invoice)
+# In-script arithmetic self-check (pay §4.1), mirroring NV-001's sig check.
+assert 1523 * 3000 + 812 * 5000 == 8629000, "TV-016 billing arithmetic"
+
 # =====================================================================
 # Derived constants (core §6.2 / §7.3, discovery §6, tasks §8.1)
 # =====================================================================
@@ -342,6 +358,20 @@ nv9_child_body = {1: aid_a_dk, 2: aid_a_sk, 3: TS, 4: DELEG_EXPIRY, 5: [CAP]}
 nv9_child = sealed(ka_dk, 0x0502, msgid(23), nv9_child_body)
 nv009 = sealed_delegated(ka_sk, 0x0200, msgid(24), deleg_offer,
                          [nv9_child["envelope"], nv9_parent["envelope"]])["envelope"]
+
+# NV-010 metered PAY_INVOICE whose watermark cumulative-billed is off by one
+#   -> MUST reject (pay §4.1 arithmetic check; wire 6009). Identical to TV-016
+#   except the watermark's cumulative-billed mantissa is 8629001 (the rate×usage
+#   product is 8629000): opens + verifies structurally + signed by B, but the
+#   billing identity fails. The invoice `amount` (key 3) stays the CORRECT
+#   8629000, so exactly ONE mantissa digit differs from TV-016 (plus msg-id and
+#   signature), isolating the arithmetic check as NV-001 isolates the signature.
+wm_bad = {1: task_id, 2: 8, 3: WM_USAGE,
+          4: ["iso4217:USD", cbor2.CBORTag(4, [-6, 8629001])]}
+pay_invoice_bad = {1: bytes([0x30]) * 16, 2: bytes([0x10]) * 16, 3: CUM_BILLED,
+                   4: wm_bad, 5: b"", 6: TS}
+nv010 = sealed(kb, 0x0402, msgid(26), pay_invoice_bad)["envelope"]
+assert 1523 * 3000 + 812 * 5000 != 8629001, "NV-010 must be arithmetically wrong"
 
 # =====================================================================
 # Emit markdown. Existing sections (through Verification procedure) are kept
@@ -597,6 +627,31 @@ signature (Ed25519 by Key B, hex):
 
 Complete envelope 18([protected, {{}}, payload, signature]) (hex, {len(tv015['envelope'])} bytes):
   {tv015['envelope'].hex()}
+
+## TV-016 — metered PAY_INVOICE with UsageWatermark (0x0402), signed by Key B
+
+Field numbers per pay §4 / §4.1. msg-id = h'{msgid(25).hex()}', timestamp {TS}.
+The FIRST incremental invoice of a terms-3 (metered) task, so the invoice amount
+(key 3) equals the watermark's cumulative-billed (key 4). Model-1 rates in the
+agreed PAY_QUOTE (NOT carried in the invoice): rate[1] = 4([-6, 3000]) µUSD per
+token-in, rate[2] = 4([-6, 5000]) µUSD per token-out. A verifier recomputes
+cumulative-billed from the watermark's Usage: 1523×3000 + 812×5000 =
+4569000 + 4060000 = **8629000** µUSD.
+
+Content (diagnostic):
+  {{1: h'{(bytes([0x30])*16).hex()}', 2: h'{(bytes([0x10])*16).hex()}', 3: ["iso4217:USD", 4([-6, 8629000])], 4: {{1: h'{task_id.hex()}', 2: 8, 3: {{1: 1523, 2: 812, 3: 431, 4: 42000}}, 4: ["iso4217:USD", 4([-6, 8629000])]}}, 5: h'', 6: {TS}}}
+
+payload (bstr contents, hex):
+  {tv016['payload'].hex()}
+
+Sig_structure = ["Signature1", protected, h'', payload], encoded (hex):
+  {tv016['sig_struct'].hex()}
+
+signature (Ed25519 by Key B, hex):
+  {tv016['sig'].hex()}
+
+Complete envelope 18([protected, {{}}, payload, signature]) (hex, {len(tv016['envelope'])} bytes):
+  {tv016['envelope'].hex()}
 """
 
 negatives = f"""
@@ -674,6 +729,17 @@ Per the 2026-07-12 ARCHITECT RULING, a cert with max-depth d admits at most d
 certificates between itself and the leaf; the parent (chain index 1) has one.
 envelope (hex, {len(nv009)} bytes):
   {nv009.hex()}
+
+### NV-010 — metered invoice with off-by-one billing → INVOICE_WATERMARK_VIOLATION (6009)
+Identical to TV-016 except the watermark's cumulative-billed mantissa is 8629001,
+while the model-1 rate table applied to the watermark's Usage bills exactly
+8629000 (1523×3000 + 812×5000). The envelope opens and its signature verifies
+(well-formed, signed by Key B), but the pay §4.1 arithmetic check MUST reject it
+with 6009. The invoice `amount` (key 3) is left at the correct 8629000, so this
+differs from TV-016 in exactly one mantissa digit (plus msg-id and signature),
+isolating the arithmetic check the way NV-001 isolates the signature check.
+envelope (hex, {len(nv010)} bytes):
+  {nv010.hex()}
 """
 
 derived = f"""
@@ -710,3 +776,4 @@ print("TV-011", len(tv011["envelope"]), "| TV-012", len(tv012["envelope"]),
 print("TV-013", len(tv013["envelope"]), "| TV-014", len(tv014["envelope"]),
       "| TV-015", len(tv015["envelope"]), "| NV-008", len(nv008), "(pay-agree + reservations)")
 print("NV-009", len(nv009), "(delegation max-depth exceeded)")
+print("TV-016", len(tv016["envelope"]), "| NV-010", len(nv010), "(metered watermark billing)")

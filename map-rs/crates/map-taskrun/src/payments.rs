@@ -146,7 +146,7 @@ impl ProviderPayment {
         let q = self.quote.as_ref().expect("quote set before invoice");
         let amount = q.total.clone().expect("flat quote carries a total");
         self.pending_invoice = Some((invoice_id, amount.clone()));
-        let inv = PayInvoice { invoice_id, quote_id: q.quote_id, amount, method_payload: Vec::new(), timestamp_ms: now_ms };
+        let inv = PayInvoice { invoice_id, quote_id: q.quote_id, amount, watermark: None, method_payload: Vec::new(), timestamp_ms: now_ms };
         self.state = ProviderPayState::Invoiced;
         vec![(msg_type::PAY_INVOICE, inv.to_value())]
     }

@@ -33,6 +33,82 @@ impl AssetAmount {
     }
 }
 
+/// Rate-table unit codes (pay §3). Each prices a SINGLE counted unit, so a
+/// billed amount is always an exact `uint counter × Amount` product.
+pub const UNIT_FLAT: u64 = 0;
+pub const UNIT_TOKEN_IN: u64 = 1;
+pub const UNIT_TOKEN_OUT: u64 = 2;
+pub const UNIT_MS: u64 = 3;
+pub const UNIT_INVOCATION: u64 = 4;
+
+/// Metered usage counters (the `Usage` map: Complete key 4 / ReceiptCore key 8
+/// / kind-3 chunk / UsageWatermark key 3 — one vocabulary across the family).
+/// Mirrored here rather than depended on from map-tasks (map-pay depends only
+/// on map-core; TASK-021 §FR-1 pre-authorizes this local copy).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+pub struct Usage {
+    pub tokens_in: u64,  // 1
+    pub tokens_out: u64, // 2
+    pub ttft_ms: u64,    // 3
+    pub wall_ms: u64,    // 4
+}
+
+impl Usage {
+    pub fn to_value(&self) -> Value {
+        Value::Map(vec![
+            (Value::Uint(1), Value::Uint(self.tokens_in)),
+            (Value::Uint(2), Value::Uint(self.tokens_out)),
+            (Value::Uint(3), Value::Uint(self.ttft_ms)),
+            (Value::Uint(4), Value::Uint(self.wall_ms)),
+        ])
+    }
+    pub fn from_value(v: &Value) -> Result<Usage, PayError> {
+        Ok(Usage {
+            tokens_in: uint(v, 1)?,
+            tokens_out: uint(v, 2)?,
+            ttft_ms: uint(v, 3)?,
+            wall_ms: uint(v, 4)?,
+        })
+    }
+}
+
+/// UsageWatermark (PayInvoice key 4, pay §4.1) — carried by metered (terms 3)
+/// invoices only. All four keys are REQUIRED. `usage` and `cumulative_billed`
+/// are CUMULATIVE since task start; `through_seq` is the highest chunk-seq
+/// (inclusive) this invoice covers.
+#[derive(Clone, Debug, PartialEq)]
+pub struct UsageWatermark {
+    pub task: [u8; 32],                 // 1
+    pub through_seq: u64,               // 2
+    pub usage: Usage,                   // 3
+    pub cumulative_billed: AssetAmount, // 4
+}
+
+impl UsageWatermark {
+    pub fn to_value(&self) -> Value {
+        Value::Map(vec![
+            (Value::Uint(1), Value::Bytes(self.task.to_vec())),
+            (Value::Uint(2), Value::Uint(self.through_seq)),
+            (Value::Uint(3), self.usage.to_value()),
+            (Value::Uint(4), self.cumulative_billed.to_value()),
+        ])
+    }
+    pub fn from_value(v: &Value) -> Result<UsageWatermark, PayError> {
+        let task = v
+            .map_get(1)
+            .ok_or(PayError::MissingField(1))?
+            .as_bytes()
+            .and_then(|b| <[u8; 32]>::try_from(b).ok())
+            .ok_or(PayError::BadField(1))?;
+        Ok(UsageWatermark {
+            task,
+            through_seq: uint(v, 2)?,
+            usage: Usage::from_value(v.map_get(3).ok_or(PayError::MissingField(3))?)?,
+            cumulative_billed: aa_at(v, 4)?,
+        })
+    }
+}
+
 /// The payment-reference digest (pay §3.1): multihash-sha256 (`0x12 0x20 ||
 /// sha256`) over a message's bytes.
 ///
@@ -309,26 +385,34 @@ pub struct PayInvoice {
     pub invoice_id: [u8; 16],
     pub quote_id: [u8; 16],
     pub amount: AssetAmount,
-    // key 4 (usage watermark) omitted — postpaid flat only (see ERRATA.md).
+    /// UsageWatermark (key 4). REQUIRED under terms 3 (metered), MUST be absent
+    /// otherwise (pay §4.1). Postpaid-flat invoices carry `None` and their
+    /// encoded bytes are unchanged from earlier revisions.
+    pub watermark: Option<UsageWatermark>,
     pub method_payload: Vec<u8>,
     pub timestamp_ms: u64,
 }
 
 impl PayInvoice {
     pub fn to_value(&self) -> Value {
-        Value::Map(vec![
+        let mut m = vec![
             (Value::Uint(1), Value::Bytes(self.invoice_id.to_vec())),
             (Value::Uint(2), Value::Bytes(self.quote_id.to_vec())),
             (Value::Uint(3), self.amount.to_value()),
-            (Value::Uint(5), Value::Bytes(self.method_payload.clone())),
-            (Value::Uint(6), Value::Uint(self.timestamp_ms)),
-        ])
+        ];
+        if let Some(w) = &self.watermark {
+            m.push((Value::Uint(4), w.to_value()));
+        }
+        m.push((Value::Uint(5), Value::Bytes(self.method_payload.clone())));
+        m.push((Value::Uint(6), Value::Uint(self.timestamp_ms)));
+        Value::Map(m)
     }
     pub fn from_value(v: &Value) -> Result<PayInvoice, PayError> {
         Ok(PayInvoice {
             invoice_id: id16(v, 1)?,
             quote_id: id16(v, 2)?,
             amount: aa_at(v, 3)?,
+            watermark: v.map_get(4).map(UsageWatermark::from_value).transpose()?,
             method_payload: bytes(v, 5)?,
             timestamp_ms: uint(v, 6)?,
         })
@@ -428,11 +512,64 @@ mod tests {
         assert_eq!(PayAgreeRef::from_value(&ar.to_value()).unwrap(), ar);
         let pref = PayRef { model: Some(0), max_total: Some(usd(600)), methods: Some(vec!["pay:credit-ledger".into()]), agree_ref: Some(ar) };
         assert_eq!(PayRef::from_value(&pref.to_value()).unwrap(), pref);
-        let inv = PayInvoice { invoice_id: [2; 16], quote_id: [1; 16], amount: usd(500), method_payload: vec![], timestamp_ms: 1 };
+        let inv = PayInvoice { invoice_id: [2; 16], quote_id: [1; 16], amount: usd(500), watermark: None, method_payload: vec![], timestamp_ms: 1 };
         assert_eq!(PayInvoice::from_value(&inv.to_value()).unwrap(), inv);
         let proof = PayProof { invoice_id: [2; 16], method: "pay:credit-ledger".into(), proof_payload: vec![1, 2, 3] };
         assert_eq!(PayProof::from_value(&proof.to_value()).unwrap(), proof);
         let rcpt = PayReceipt { invoice_id: [2; 16], amount: usd(500), timestamp_ms: 2, proof_digest: Some(pay_ref_digest(b"p")) };
         assert_eq!(PayReceipt::from_value(&rcpt.to_value()).unwrap(), rcpt);
+    }
+
+    fn micro(mantissa: i64) -> AssetAmount {
+        AssetAmount { asset: Asset::new("iso4217:USD").unwrap(), amount: Amount::new(-6, mantissa) }
+    }
+
+    #[test]
+    fn watermark_roundtrips_all_keys(  ) {
+        // pay §4.1: all four keys required; cumulative usage + cumulative-billed.
+        let w = UsageWatermark {
+            task: [0xAB; 32],
+            through_seq: 8,
+            usage: Usage { tokens_in: 1523, tokens_out: 812, ttft_ms: 431, wall_ms: 42000 },
+            cumulative_billed: micro(8_629_000),
+        };
+        assert_eq!(UsageWatermark::from_value(&w.to_value()).unwrap(), w);
+    }
+
+    #[test]
+    fn watermark_missing_key_rejected() {
+        // Drop key 3 (usage) → decode error (all four keys REQUIRED, pay §4.1).
+        let v = Value::Map(vec![
+            (Value::Uint(1), Value::Bytes([0xAB; 32].to_vec())),
+            (Value::Uint(2), Value::Uint(8)),
+            (Value::Uint(4), micro(1).to_value()),
+        ]);
+        assert!(UsageWatermark::from_value(&v).is_err());
+    }
+
+    #[test]
+    fn postpaid_invoice_bytes_unchanged_by_optional_watermark() {
+        // Regression: a watermark-less invoice encodes to exactly {1,2,3,5,6},
+        // byte-identical to the pre-watermark revision (postpaid path).
+        let inv = PayInvoice { invoice_id: [2; 16], quote_id: [1; 16], amount: usd(500), watermark: None, method_payload: vec![], timestamp_ms: 1 };
+        let expect = Value::Map(vec![
+            (Value::Uint(1), Value::Bytes([2; 16].to_vec())),
+            (Value::Uint(2), Value::Bytes([1; 16].to_vec())),
+            (Value::Uint(3), usd(500).to_value()),
+            (Value::Uint(5), Value::Bytes(vec![])),
+            (Value::Uint(6), Value::Uint(1)),
+        ]);
+        assert_eq!(map_core::cbor::encode(&inv.to_value()).unwrap(), map_core::cbor::encode(&expect).unwrap());
+    }
+
+    #[test]
+    fn metered_invoice_carries_watermark_between_3_and_5() {
+        let w = UsageWatermark {
+            task: [0xAB; 32], through_seq: 8,
+            usage: Usage { tokens_in: 1523, tokens_out: 812, ttft_ms: 431, wall_ms: 42000 },
+            cumulative_billed: micro(8_629_000),
+        };
+        let inv = PayInvoice { invoice_id: [2; 16], quote_id: [1; 16], amount: micro(8_629_000), watermark: Some(w), method_payload: vec![], timestamp_ms: 1 };
+        assert_eq!(PayInvoice::from_value(&inv.to_value()).unwrap(), inv);
     }
 }

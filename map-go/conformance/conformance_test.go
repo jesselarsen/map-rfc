@@ -35,7 +35,8 @@ func TestProduceParity(t *testing.T) {
 		"TV-001", "TV-002", "TV-003", "TV-004", "TV-005", "TV-006", "TV-007",
 		"TV-008", "TV-009", "TV-010", "TV-010b", "TV-011", "TV-012", "TV-013",
 		"TV-014", "TV-015",
-		"NV-001", "NV-002", "NV-003", "NV-004", "NV-005", "NV-006", "NV-007", "NV-008", "NV-009",
+		"TV-016",
+		"NV-001", "NV-002", "NV-003", "NV-004", "NV-005", "NV-006", "NV-007", "NV-008", "NV-009", "NV-010",
 	}
 	failed := false
 	for _, id := range sections {
@@ -210,6 +211,97 @@ func TestReject(t *testing.T) {
 	from, until := uint64(win[0].(cbor.Uint)), uint64(win[1].(cbor.Uint))
 	if from >= TS && until <= DelegExpiry {
 		t.Errorf("NV-008: window [%d,%d] unexpectedly inside the reservation", from, until)
+	}
+
+	// NV-010 metered invoice with off-by-one billing: opens + verifies as an
+	// envelope; the pay §4.1 arithmetic check (below) is what rejects it.
+	o10, err := envelope.Open(get("NV-010"), nil)
+	if err != nil {
+		t.Fatalf("NV-010 must open (arithmetic reject, not wire): %v", err)
+	}
+	if watermarkBillsCorrectly(t, o10.Body.Content) {
+		t.Errorf("NV-010: off-by-one watermark unexpectedly passed the billing check")
+	}
+}
+
+// billedModel1 is the pay §4.1 model-1 billing arithmetic, written from the
+// spec (NOT ported from map-rs — independence rule): tokens_in × rate_in +
+// tokens_out × rate_out, exact integer product on µUSD mantissas. The rates are
+// the agreed quote's (3000/5000 µUSD), not carried in the invoice.
+func billedModel1(tokensIn, tokensOut uint64) int64 {
+	const rateIn, rateOut = 3000, 5000
+	return int64(tokensIn)*rateIn + int64(tokensOut)*rateOut
+}
+
+// watermarkBillsCorrectly reports whether a PAY_INVOICE's watermark
+// cumulative-billed (key 4 of key 4) equals rate × usage (pay §4.1 check 5).
+func watermarkBillsCorrectly(t *testing.T, invoice cbor.Value) bool {
+	t.Helper()
+	w, ok := contentValue(invoice, 4).(cbor.Map)
+	if !ok {
+		t.Fatalf("invoice missing UsageWatermark (key 4)")
+	}
+	usage, ok := mapGet(w, 3).(cbor.Map)
+	if !ok {
+		t.Fatalf("watermark missing Usage (key 3)")
+	}
+	tokensIn := uint64(mapGet(usage, 1).(cbor.Uint))
+	tokensOut := uint64(mapGet(usage, 2).(cbor.Uint))
+	claimed := decimalMantissa(t, mapGet(w, 4))
+	return billedModel1(tokensIn, tokensOut) == claimed
+}
+
+// mapGet returns the value for a uint key in a cbor.Map, or nil.
+func mapGet(m cbor.Map, key uint64) cbor.Value {
+	for _, p := range m {
+		if k, ok := p.K.(cbor.Uint); ok && uint64(k) == key {
+			return p.V
+		}
+	}
+	return nil
+}
+
+// decimalMantissa extracts the mantissa from an [Asset, 4([exp, mantissa])] pair.
+func decimalMantissa(t *testing.T, v cbor.Value) int64 {
+	t.Helper()
+	arr, ok := v.(cbor.Array)
+	if !ok || len(arr) != 2 {
+		t.Fatalf("not an [Asset, Amount] pair")
+	}
+	tag, ok := arr[1].(cbor.Tag)
+	if !ok || tag.Num != 4 {
+		t.Fatalf("amount is not a tag-4 decimal fraction")
+	}
+	inner, ok := tag.Content.(cbor.Array)
+	if !ok || len(inner) != 2 {
+		t.Fatalf("decimal fraction is not [exp, mantissa]")
+	}
+	m, ok := inner[1].(cbor.Uint)
+	if !ok {
+		t.Fatalf("mantissa is not a uint")
+	}
+	return int64(m)
+}
+
+// TestWatermarkBilling: TV-016's watermark bills exactly (independent Go
+// arithmetic), NV-010's does not — the executable pay §4.1 check-5 parity.
+func TestWatermarkBilling(t *testing.T) {
+	produced := Produce()
+	if got := billedModel1(1523, 812); got != 8_629_000 {
+		t.Fatalf("model-1 arithmetic = %d, want 8_629_000", got)
+	}
+	openContent := func(id string) cbor.Value {
+		o, err := envelope.Open(produced[id], nil)
+		if err != nil {
+			t.Fatalf("%s open: %v", id, err)
+		}
+		return o.Body.Content
+	}
+	if !watermarkBillsCorrectly(t, openContent("TV-016")) {
+		t.Errorf("TV-016 watermark should bill correctly")
+	}
+	if watermarkBillsCorrectly(t, openContent("NV-010")) {
+		t.Errorf("NV-010 watermark should NOT bill correctly (off by one)")
 	}
 }
 

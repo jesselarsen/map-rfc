@@ -779,7 +779,7 @@ mod payments_flow {
         let q = pp.issue_quote(QID, [9; 32], usd(500), TS + 60_000);
         rp.on_quote(&mk(msg_type::PAY_QUOTE, q[0].1.clone()), TS); // cap = 500
         // Provider (mis)invoices 999 > cap → requester refuses, no balance move.
-        let bad = PayInvoice { invoice_id: IID, quote_id: QID, amount: usd(999), method_payload: vec![], timestamp_ms: TS };
+        let bad = PayInvoice { invoice_id: IID, quote_id: QID, amount: usd(999), watermark: None, method_payload: vec![], timestamp_ms: TS };
         let out = rp.on_invoice(&mk(msg_type::PAY_INVOICE, bad.to_value()), &mut op, TS);
         assert_eq!(out[0].0, msg_type::ERROR);
         // ERRATA 2026-07-12: authorized-cap exceeded is its own code 6005.

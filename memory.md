@@ -261,8 +261,19 @@ the guard). **TV-007 is now full produce+consume parity in BOTH impls**: the
 Rust map-tasks `InputSpec` codec models keys 1/2/3 (≥1 required), and the
 Rust conformance TV-007 case round-trips the frozen ASSIGN byte-exact — this
 CLOSES the long-standing ERRATA 2026-07-05 parity hole (Rust was
-consume-only). Rust conformance = 39 cases; map-go = 25 vectors. Next NV is
-NV-010.
+consume-only).
+
+**Counter at TV-016/NV-010 (TASK-021, 2026-07-14).** TV-016 = a metered
+PAY_INVOICE (0x0402, Key B) carrying a UsageWatermark; model-1 rates
+3000/5000 µUSD over usage {1523,812,431,42000} bill 8_629_000 µUSD (the
+first invoice, so amount==cumulative-billed). NV-010 = the same invoice with
+cumulative-billed 8_629_001 (off by one) → INVOICE_WATERMARK_VIOLATION
+(6009); differs from TV-016 by only the msg-id, one mantissa nibble, and the
+signature (isolating the pay §4.1 arithmetic check, NV-001-style). Both 301
+bytes; added additively (frozen TV-001..015 + NV-001..009 untouched). Rust
+conformance = **41 cases**; map-go = **27 vectors** + an independent
+`billedModel1` arithmetic test (written from pay §4.1, not ported). Next NV
+is NV-011; next TV is TV-017.
 
 File: `map-spec/test-vectors/map-test-vectors.md`. Regenerate with
 `python3 gen_vectors.py` (run from its directory; needs
@@ -604,7 +615,14 @@ treat as the frozen interop contract.
     requester pair, six-check verification incl. meter-consistency vs
     received kind-3 chunks, 6001 pause/top-up, checkpoint-anchored CANCEL;
     R1 flags resume-after-6001 signaling as likely PENDING-ARCHITECT).
-    NEXT: execute TASK-021 then TASK-022 (§17 prompts hand-over-verbatim).
+    **TASK-021 DONE 2026-07-14** (map-pay `codec::{Usage, UsageWatermark}` +
+    `billing::{billed, verify_watermark, AgreedTerms, BillingError}` — exact
+    checked arithmetic, no rounding; `PayInvoice.watermark: Option` (postpaid
+    bytes byte-stable, regression-tested); `codes::INVOICE_WATERMARK_VIOLATION
+    = 6009`; TV-016/NV-010 vectors + conformance in BOTH impls, Go arithmetic
+    written from spec. Rust 41 / map-go 27; see §6). NEXT: execute TASK-022
+    (terms-3 runtime, Rust-only; §17 prompt hand-over-verbatim) — R1
+    resume-after-6001 signaling likely needs a PENDING-ARCHITECT ruling.
 
 12. ~~**TASK-014 — formal analysis (P1/P2/P3), ops §6.3.**~~ DONE (2026-07-10).
     New top-level `formal/` (spec-adjacent, not Rust): ProVerif 2.05 models.

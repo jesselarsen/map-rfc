@@ -86,8 +86,12 @@ The formerly-open usage-watermark item is now defined (design rationale in
   mismatches (same meaning, wider referent).
 
 All additive: postpaid (`terms` ≠ 3) messages are byte-for-byte unaffected,
-and key 4 was already reserved-optional. New vectors TV-016/NV-010 arrive
-with TASK-021.
+and key 4 was already reserved-optional. **Vectors TV-016** (a metered
+PAY_INVOICE whose model-1 billing 1523×3000 + 812×5000 = 8,629,000 µUSD is
+recomputable from the watermark) and **NV-010** (the same invoice with
+cumulative-billed off by one → 6009) are frozen (TASK-021); both
+implementations reproduce them byte-exact and check the arithmetic
+independently.
 
 ### Still open (tracked in `ERRATA.md`, deferred to a future revision)
 

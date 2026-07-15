@@ -81,6 +81,8 @@ pub fn cases() -> Vec<(&'static str, fn() -> Result<(), String>)> {
         ("NV-007 widened delegation scope", extended::case_nv007_widened_scope),
         ("NV-008 lease out of window", extended::case_nv008_lease_out_of_window),
         ("NV-009 delegation depth exceeded", extended::case_nv009_depth_exceeded),
+        ("TV-016 metered PAY_INVOICE watermark", extended::case_tv016_metered_invoice),
+        ("NV-010 watermark billing off-by-one", extended::case_nv010_watermark_billing),
     ]
 }
 
@@ -179,6 +181,8 @@ mod tests {
     case_test!(nv007_widened_scope, extended::case_nv007_widened_scope);
     case_test!(nv008_lease_out_of_window, extended::case_nv008_lease_out_of_window);
     case_test!(nv009_depth_exceeded, extended::case_nv009_depth_exceeded);
+    case_test!(tv016_metered_invoice, extended::case_tv016_metered_invoice);
+    case_test!(nv010_watermark_billing, extended::case_nv010_watermark_billing);
 
     #[test]
     fn run_all_is_green_and_complete() {
@@ -188,7 +192,7 @@ mod tests {
             "conformance failures: {:?}",
             report.failed
         );
-        assert_eq!(report.passed.len(), 39);
-        assert_eq!(report.total(), 39);
+        assert_eq!(report.passed.len(), 41);
+        assert_eq!(report.total(), 41);
     }
 }
