@@ -15,6 +15,34 @@ Format: `RESOLVED <ruling-date> (was PENDING-ARCHITECT <date> <package>) —
 
 ---
 
+PENDING-ARCHITECT: 2026-07-14 TASK-022 — metered (terms 3) stream
+pause/resume signaling is under-specified. pay §4/§4.1 specify that the
+provider pauses an exhausted stream with ERROR 6001 (retryable) carrying the
+final unpaid watermark in the detail map, and that on CANCEL the owed amount
+anchors to the last countersigned checkpoint. Two mechanics are NOT pinned:
+(a) the TRIGGER by which the provider learns the requester cannot pay an
+outstanding invoice — postpaid has no "I can't pay" message; the requester
+simply withholds the PAY_PROOF, so the provider only infers exhaustion from
+absence, which a synchronous protocol cannot express without a timeout or an
+explicit signal; and (b) the RESUME envelope after a covering PAY_PROOF —
+pay §4 says "the stream resumes" but names no resume message, leaving open
+whether the provider re-issues the paused invoice, emits a fresh CHUNK, or
+continues silently. TASK-022 implements an INTERIM that only sequences the
+already-specified messages (a provider-internal `pause` that emits the
+spec'd 6001+watermark; a requester `retry_pending` that re-attempts the
+withheld proof after top-up; resume = the provider clearing its paused flag
+on `on_proof`) and adds NO new wire message — so nothing normative is
+invented. Proposal for a future ruling: either (1) add an explicit
+requester→provider "insufficient, need credit" signal (candidate: reuse
+ERROR 6001 in the requester→provider direction, or a new FLOW-style control),
+and a provider→requester RESUME marker (candidate: a kind-2 log CHUNK or a
+re-sent invoice with the same id under the idempotency rule); or (2)
+formally define the pause as an out-of-band/timeout condition and keep the
+wire silent, documenting that resume is "provider continues emitting chunks
+once a covering proof is observed". Not decided here (wire-affecting).
+
+---
+
 RESOLVED 2026-07-12 (was PENDING-ARCHITECT 2026-07-05 TASK-007) — tasks §2
 made Quote field 2 (PayQuoteRef) REQUIRED while every echo-runtime QUOTE
 omits it. RULING: field 2 is OPTIONAL (`? 2 =>`); payment is optional at

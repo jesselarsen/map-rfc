@@ -95,4 +95,12 @@ independently.
 
 ### Still open (tracked in `ERRATA.md`, deferred to a future revision)
 
-- (none — the pay §4 watermark item above was the last one.)
+- **pay §4/§4.1 metered pause/resume signaling** (PENDING-ARCHITECT
+  2026-07-14, surfaced by TASK-022): the provider pauses an exhausted stream
+  with ERROR 6001 + the unpaid watermark, but the *trigger* by which it
+  learns the requester cannot pay, and the *resume* envelope after a covering
+  proof, are not pinned. TASK-022 ships an interim that only sequences the
+  already-specified messages (no new wire message). A future ruling either
+  adds an explicit requester→provider "insufficient" signal + a
+  provider→requester resume marker, or formally defines the pause as a
+  timeout/out-of-band condition.

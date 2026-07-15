@@ -620,9 +620,27 @@ treat as the frozen interop contract.
     checked arithmetic, no rounding; `PayInvoice.watermark: Option` (postpaid
     bytes byte-stable, regression-tested); `codes::INVOICE_WATERMARK_VIOLATION
     = 6009`; TV-016/NV-010 vectors + conformance in BOTH impls, Go arithmetic
-    written from spec. Rust 41 / map-go 27; see §6). NEXT: execute TASK-022
-    (terms-3 runtime, Rust-only; §17 prompt hand-over-verbatim) — R1
-    resume-after-6001 signaling likely needs a PENDING-ARCHITECT ruling.
+    written from spec. Rust 41 / map-go 27; see §6).
+
+    **TASK-022 DONE 2026-07-14** — `map-taskrun::metered`
+    (`Metered{Provider,Requester}Payment`): provider bills kind-3 CHUNK +
+    PAY_INVOICE at watermarks; requester runs the six pay §4.1 checks IN
+    ORDER (check 4 meter-consistency vs its OWN received kind-3 chunks is the
+    new trust boundary — a provider MUST meter before it bills) using
+    `map_pay::billed`, pays via the ledger operator idempotently. 6001 pause
+    carries `{1 => UsageWatermark}` detail; `retry_pending` resumes after
+    top-up; `owed_at_checkpoint(usage)` for CANCEL (checkpoint usage passed
+    IN — no circular dep). 12 tests (happy 2-invoice, inflated-usage 6009,
+    off-by-one 6009, invoice-before-chunk 6009, over-cap 6005 vs exact,
+    task-binding 6007, zero-delta legal, resent idempotent, exhaustion
+    6001→topup→resume, owed≤unpaid). **The pay family is now implemented
+    end-to-end for terms 0 (postpaid) and 3 (metered).** OPEN: the
+    resume-after-6001 WIRE signaling is a NEW PENDING-ARCHITECT item
+    (2026-07-14, ERRATA) — TASK-022 shipped an INTERIM that only sequences
+    already-spec'd messages (provider-internal `pause`, requester
+    `retry_pending`), no new wire message invented. Future (unpackaged):
+    prepaid/escrow reorder (pay §5.2), disputes (pay §6), a Go task runtime +
+    a live-interop metered scenario.
 
 12. ~~**TASK-014 — formal analysis (P1/P2/P3), ops §6.3.**~~ DONE (2026-07-10).
     New top-level `formal/` (spec-adjacent, not Rust): ProVerif 2.05 models.

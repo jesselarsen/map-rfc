@@ -886,3 +886,238 @@ mod payments_flow {
         assert_eq!(op.balance(&kb().agent_id()), 500);
     }
 }
+
+// ===========================================================================
+// TASK-022 — metered-incremental (terms 3) runtime
+// ===========================================================================
+
+mod metered_flow {
+    use super::*;
+    use crate::{MeteredProviderPayment, MeteredProviderState, MeteredRequesterPayment, MeteredRequesterState};
+    use map_core::cbor::decode;
+    use map_identity::Keypair;
+    use map_pay::codec::{AssetAmount, MethodOffer, PayInvoice, PayQuote, Usage, UsageWatermark};
+    use map_pay::credit_ledger::{LedgerOperator, CREDIT_LEDGER_METHOD};
+    use map_pay::{Amount, Asset};
+
+    const QID: [u8; 16] = [0x40; 16];
+    const TASK: [u8; 32] = [0x9; 32];
+
+    fn ka() -> Keypair { Keypair::from_seed([1u8; 32]) } // requester/payer
+    fn kb() -> Keypair { Keypair::from_seed([2u8; 32]) } // provider/payee
+    fn kop() -> Keypair { Keypair::from_seed([4u8; 32]) } // operator
+
+    /// microUSD (exponent -6), the metered rate/amount exponent.
+    fn micro(mantissa: i64) -> AssetAmount {
+        AssetAmount { asset: Asset::new("iso4217:USD").unwrap(), amount: Amount::new(-6, mantissa) }
+    }
+
+    /// Operator settling in microUSD with `credit` on the requester balance.
+    fn operator(credit: i128) -> LedgerOperator {
+        let mut op = LedgerOperator::new(kop(), -6);
+        op.credit(&ka().agent_id(), credit);
+        op
+    }
+
+    /// Terms-3, model-1 quote: 3000/token-in, 5000/token-out microUSD, cap `cap`.
+    fn metered_quote(cap: AssetAmount) -> PayQuote {
+        PayQuote {
+            quote_id: QID,
+            pricing_model: 1,
+            rate_table: vec![(1, micro(3000)), (2, micro(5000))],
+            total: Some(cap),
+            methods: vec![MethodOffer { uri: CREDIT_LEDGER_METHOD.into(), params: vec![] }],
+            expiry_ms: TS + 60_000,
+            terms: Some(3),
+            ext: None,
+            task_binding: Some(TASK),
+        }
+    }
+
+    fn usage(tin: u64, tout: u64, wall: u64) -> Usage {
+        Usage { tokens_in: tin, tokens_out: tout, ttft_ms: 0, wall_ms: wall }
+    }
+
+    /// Establish agreement, returning provider/requester/operator ready to stream.
+    fn agreed(cap: AssetAmount, credit: i128) -> (MeteredProviderPayment, MeteredRequesterPayment, LedgerOperator) {
+        let q = metered_quote(cap);
+        let mut pp = MeteredProviderPayment::new(kb().agent_id(), ka().agent_id(), kop().agent_id(), TASK, q.clone());
+        let mut rp = MeteredRequesterPayment::new(TASK, ka().agent_id(), kb().agent_id());
+        let qinc = mk(msg_type::PAY_QUOTE, q.to_value());
+        pp.bind_quote_envelope(&qinc.raw);
+        let agree = rp.on_quote(&qinc, TS);
+        assert_eq!(agree[0].0, msg_type::PAY_AGREE);
+        assert!(pp.on_agree(&mk(msg_type::PAY_AGREE, agree[0].1.clone())).is_empty());
+        (pp, rp, operator(credit))
+    }
+
+    /// Drive one billing round: bill (CHUNK + INVOICE), meter, verify, pay,
+    /// settle. Returns the requester on_invoice output (PAY_PROOF or ERROR).
+    fn round(pp: &mut MeteredProviderPayment, rp: &mut MeteredRequesterPayment, op: &mut LedgerOperator,
+             u: Usage, seq: u64, id: [u8; 16]) -> Vec<Outgoing> {
+        let billed = pp.bill(u, seq, id, TS);
+        assert_eq!(billed[0].0, msg_type::CHUNK);
+        assert_eq!(billed[1].0, msg_type::PAY_INVOICE);
+        rp.on_chunk(&mk(msg_type::CHUNK, billed[0].1.clone()));
+        let out = rp.on_invoice(&mk(msg_type::PAY_INVOICE, billed[1].1.clone()), op, TS);
+        if !out.is_empty() && out[0].0 == msg_type::PAY_PROOF {
+            let rcpt = pp.on_proof(&mk(msg_type::PAY_PROOF, out[0].1.clone()), TS);
+            assert_eq!(rcpt[0].0, msg_type::PAY_RECEIPT);
+            rp.on_receipt(&mk(msg_type::PAY_RECEIPT, rcpt[0].1.clone()));
+        }
+        out
+    }
+
+    #[test]
+    fn happy_path_two_incremental_invoices_settle_deltas() {
+        let (mut pp, mut rp, mut op) = agreed(micro(10_000_000), 5_000_000);
+        // Round 1: 100 in, 40 out -> 300000 + 200000 = 500000 microUSD.
+        round(&mut pp, &mut rp, &mut op, usage(100, 40, 1000), 4, [1; 16]);
+        assert_eq!(op.balance(&ka().agent_id()), 4_500_000);
+        assert_eq!(op.balance(&kb().agent_id()), 500_000);
+        // Round 2: cumulative 200 in, 80 out -> 1_000_000; delta 500000.
+        round(&mut pp, &mut rp, &mut op, usage(200, 80, 2000), 9, [2; 16]);
+        assert_eq!(op.balance(&ka().agent_id()), 4_000_000);
+        assert_eq!(op.balance(&kb().agent_id()), 1_000_000);
+        assert_eq!(pp.receipts().len(), 2);
+        assert_eq!(rp.receipts().len(), 2);
+    }
+
+    #[test]
+    fn invoice_before_any_chunk_fails_meter_consistency_6009() {
+        // pay 4.1 check 4: bill without the requester having metered the usage.
+        let (mut pp, mut rp, mut op) = agreed(micro(10_000_000), 5_000_000);
+        let billed = pp.bill(usage(100, 40, 1000), 4, [1; 16], TS);
+        let out = rp.on_invoice(&mk(msg_type::PAY_INVOICE, billed[1].1.clone()), &mut op, TS);
+        assert_eq!(map_core::errors::ErrorMsg::from_value(&out[0].1).unwrap().code, 6009);
+        assert_eq!(op.balance(&ka().agent_id()), 5_000_000);
+    }
+
+    #[test]
+    fn inflated_usage_beyond_meter_rejected_6009() {
+        // security: provider bills MORE usage than the kind-3 chunk it emitted.
+        let (mut pp, mut rp, mut op) = agreed(micro(10_000_000), 5_000_000);
+        let billed = pp.bill(usage(100, 40, 1000), 4, [1; 16], TS);
+        rp.on_chunk(&mk(msg_type::CHUNK, billed[0].1.clone()));
+        let w = UsageWatermark { task: TASK, through_seq: 4, usage: usage(200, 80, 1000), cumulative_billed: micro(1_000_000) };
+        let forged = PayInvoice { invoice_id: [1; 16], quote_id: QID, amount: micro(1_000_000), watermark: Some(w), method_payload: vec![], timestamp_ms: TS };
+        let out = rp.on_invoice(&mk(msg_type::PAY_INVOICE, forged.to_value()), &mut op, TS);
+        assert_eq!(map_core::errors::ErrorMsg::from_value(&out[0].1).unwrap().code, 6009);
+    }
+
+    #[test]
+    fn off_by_one_billing_rejected_6009() {
+        // NV-010 shape, live: claimed cumulative 500001, rate x usage = 500000.
+        let (mut pp, mut rp, mut op) = agreed(micro(10_000_000), 5_000_000);
+        let billed = pp.bill(usage(100, 40, 1000), 4, [1; 16], TS);
+        rp.on_chunk(&mk(msg_type::CHUNK, billed[0].1.clone()));
+        let w = UsageWatermark { task: TASK, through_seq: 4, usage: usage(100, 40, 1000), cumulative_billed: micro(500_001) };
+        let bad = PayInvoice { invoice_id: [1; 16], quote_id: QID, amount: micro(500_001), watermark: Some(w), method_payload: vec![], timestamp_ms: TS };
+        let out = rp.on_invoice(&mk(msg_type::PAY_INVOICE, bad.to_value()), &mut op, TS);
+        assert_eq!(map_core::errors::ErrorMsg::from_value(&out[0].1).unwrap().code, 6009);
+    }
+
+    #[test]
+    fn over_cap_rejected_6005_but_exact_cap_accepted() {
+        let (mut pp, mut rp, mut op) = agreed(micro(500_000), 5_000_000);
+        let out = round(&mut pp, &mut rp, &mut op, usage(100, 40, 1000), 4, [1; 16]);
+        assert_eq!(out[0].0, msg_type::PAY_PROOF); // cumulative == cap: accepted
+        let billed = pp.bill(usage(200, 80, 2000), 9, [2; 16], TS);
+        rp.on_chunk(&mk(msg_type::CHUNK, billed[0].1.clone()));
+        let out2 = rp.on_invoice(&mk(msg_type::PAY_INVOICE, billed[1].1.clone()), &mut op, TS);
+        assert_eq!(map_core::errors::ErrorMsg::from_value(&out2[0].1).unwrap().code, 6005);
+    }
+
+    #[test]
+    fn task_binding_mismatch_rejected_6007() {
+        let (mut pp, mut rp, mut op) = agreed(micro(10_000_000), 5_000_000);
+        let billed = pp.bill(usage(100, 40, 1000), 4, [1; 16], TS);
+        rp.on_chunk(&mk(msg_type::CHUNK, billed[0].1.clone()));
+        let w = UsageWatermark { task: [0xCC; 32], through_seq: 4, usage: usage(100, 40, 1000), cumulative_billed: micro(500_000) };
+        let bad = PayInvoice { invoice_id: [1; 16], quote_id: QID, amount: micro(500_000), watermark: Some(w), method_payload: vec![], timestamp_ms: TS };
+        let out = rp.on_invoice(&mk(msg_type::PAY_INVOICE, bad.to_value()), &mut op, TS);
+        assert_eq!(map_core::errors::ErrorMsg::from_value(&out[0].1).unwrap().code, 6007);
+    }
+
+    #[test]
+    fn zero_delta_invoice_is_legal_and_bills_zero() {
+        let (mut pp, mut rp, mut op) = agreed(micro(10_000_000), 5_000_000);
+        round(&mut pp, &mut rp, &mut op, usage(100, 40, 1000), 4, [1; 16]);
+        let before = op.balance(&ka().agent_id());
+        let out = round(&mut pp, &mut rp, &mut op, usage(100, 40, 1000), 5, [2; 16]);
+        assert_eq!(out[0].0, msg_type::PAY_PROOF); // monotone, delta 0
+        assert_eq!(op.balance(&ka().agent_id()), before);
+    }
+
+    #[test]
+    fn resent_invoice_settles_once() {
+        let (mut pp, mut rp, mut op) = agreed(micro(10_000_000), 5_000_000);
+        let b1 = pp.bill(usage(100, 40, 1000), 4, [1; 16], TS);
+        let b2 = pp.bill(usage(100, 40, 1000), 4, [1; 16], TS); // same id
+        assert_eq!(b1, b2, "re-billed invoice must be byte-identical");
+        rp.on_chunk(&mk(msg_type::CHUNK, b1[0].1.clone()));
+        let p1 = rp.on_invoice(&mk(msg_type::PAY_INVOICE, b1[1].1.clone()), &mut op, TS);
+        let p2 = rp.on_invoice(&mk(msg_type::PAY_INVOICE, b1[1].1.clone()), &mut op, TS);
+        assert_eq!(p1, p2);
+        assert_eq!(op.balance(&ka().agent_id()), 4_500_000); // moved once
+        let r1 = pp.on_proof(&mk(msg_type::PAY_PROOF, p1[0].1.clone()), TS);
+        let r2 = pp.on_proof(&mk(msg_type::PAY_PROOF, p1[0].1.clone()), TS);
+        assert_eq!(r1, r2);
+        assert_eq!(pp.receipts().len(), 1);
+    }
+
+    #[test]
+    fn exhaustion_pauses_6001_with_watermark_then_resumes_on_topup() {
+        let (mut pp, mut rp, mut op) = agreed(micro(10_000_000), 500_000); // round 1 only
+        round(&mut pp, &mut rp, &mut op, usage(100, 40, 1000), 4, [1; 16]);
+        assert_eq!(op.balance(&ka().agent_id()), 0);
+        let billed = pp.bill(usage(200, 80, 2000), 9, [2; 16], TS);
+        rp.on_chunk(&mk(msg_type::CHUNK, billed[0].1.clone()));
+        let out = rp.on_invoice(&mk(msg_type::PAY_INVOICE, billed[1].1.clone()), &mut op, TS);
+        assert!(out.is_empty());
+        assert_eq!(rp.state(), MeteredRequesterState::Insufficient);
+        let pause = pp.pause([2; 16]);
+        let em = map_core::errors::ErrorMsg::from_value(&pause[0].1).unwrap();
+        assert_eq!(em.code, 6001);
+        assert!(em.retryable);
+        assert_eq!(pp.state(), MeteredProviderState::Paused);
+        let detail = em.detail.expect("6001 carries detail");
+        let w = UsageWatermark::from_value(detail.map_get(1).expect("detail key 1")).expect("watermark decodes");
+        assert_eq!(w.cumulative_billed, micro(1_000_000));
+        op.credit(&ka().agent_id(), 500_000);
+        let proof = rp.retry_pending(&mut op, TS);
+        assert_eq!(proof[0].0, msg_type::PAY_PROOF);
+        let rcpt = pp.on_proof(&mk(msg_type::PAY_PROOF, proof[0].1.clone()), TS);
+        assert_eq!(rcpt[0].0, msg_type::PAY_RECEIPT);
+        assert_eq!(pp.state(), MeteredProviderState::Streaming); // resumed
+        assert_eq!(op.balance(&kb().agent_id()), 1_000_000);
+    }
+
+    #[test]
+    fn owed_at_checkpoint_bounded_by_unpaid_watermark() {
+        let (mut pp, mut rp, mut op) = agreed(micro(10_000_000), 500_000);
+        round(&mut pp, &mut rp, &mut op, usage(100, 40, 1000), 4, [1; 16]);
+        let billed = pp.bill(usage(200, 80, 2000), 9, [2; 16], TS);
+        rp.on_chunk(&mk(msg_type::CHUNK, billed[0].1.clone()));
+        let _ = rp.on_invoice(&mk(msg_type::PAY_INVOICE, billed[1].1.clone()), &mut op, TS);
+        let pause = pp.pause([2; 16]);
+        let em = map_core::errors::ErrorMsg::from_value(&pause[0].1).unwrap();
+        let detail = em.detail.unwrap();
+        let unpaid = UsageWatermark::from_value(detail.map_get(1).unwrap()).unwrap();
+        // Checkpoint at the round-1 usage (100/40) -> owed 500000 <= unpaid 1000000.
+        let owed = pp.owed_at_checkpoint(&usage(100, 40, 1000));
+        assert_eq!(owed, micro(500_000));
+        assert!(owed.amount.mantissa <= unpaid.cumulative_billed.amount.mantissa);
+    }
+
+    #[test]
+    fn usage_chunk_content_is_deterministic_cbor_usage() {
+        // tasks 3 pin: the kind-3 chunk content decodes to the Usage map.
+        let (mut pp, _rp, _op) = agreed(micro(10_000_000), 5_000_000);
+        let billed = pp.bill(usage(100, 40, 1000), 4, [1; 16], TS);
+        let chunk = map_tasks::msg::ChunkMsg::from_value(&billed[0].1).unwrap();
+        assert_eq!(chunk.kind, map_tasks::ChunkKind::UsageUpdate);
+        let u = Usage::from_value(&decode(&chunk.content).unwrap()).unwrap();
+        assert_eq!(u, usage(100, 40, 1000));
+    }
+}
