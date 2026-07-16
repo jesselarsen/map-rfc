@@ -175,7 +175,9 @@ requester tops up with PAY_PROOFs. If credit is exhausted, the provider
 pauses the stream with ERROR 6001 (retryable) and a final unpaid
 watermark; the requester either pays or CANCELs, owing usage to the last
 **countersigned checkpoint** (tasks §11) — the checkpoint is what makes
-"pay for what was delivered" well-defined for both sides. Invoices are
+"pay for what was delivered" well-defined for both sides. The exact
+pause/resume/cancel mechanics (no new message type; resume is the covering
+PAY_PROOF) are §4.2. Invoices are
 idempotent by invoice-id: re-sending an invoice or a proof MUST NOT
 double-bill or double-settle (receivers dedup; rails are consulted by
 proof, not by count).
@@ -243,12 +245,48 @@ The requester MUST verify, in order, before paying:
    (§3) — else ERROR 6005.
 
 A rejected invoice is not settled and does not advance the accepted
-watermark. When the provider pauses an exhausted stream (ERROR 6001,
-retryable), the **final unpaid watermark** travels in the ERROR's detail
-map (core §9 key 5) as `{1 => UsageWatermark}`; on CANCEL instead of
-top-up, the amount owed anchors to the last countersigned checkpoint
-(tasks §8.2 key 5 usage, billed under the same formula), which both
-sides hold signed.
+watermark.
+
+### 4.2 Pause, resume, and cancel
+
+Metered settlement introduces **no new message type**: pause, resume, and
+cancel are expressed entirely with messages already defined (ERROR,
+PAY_PROOF, FLOW_CREDIT, CANCEL). The exhaustion signal is *proof absence*,
+exactly as in the postpaid flow — a requester that cannot or will not pay
+an invoice simply withholds its PAY_PROOF; there is no "insufficient"
+message.
+
+**Pause** is a provider-local decision, not a wire handshake. A provider
+MAY pause the stream whenever it holds an unpaid outstanding watermark
+(billed minus settled), and it SIGNALS the pause with ERROR **6001**
+(retryable) whose detail map (core §9 key 5) carries the final unpaid
+watermark as `{1 => UsageWatermark}`. RECOMMENDED policy: pause when the
+unpaid amount would exceed the stream's granted flow credit (core §8.1) or
+the provider's own per-stream exposure limit — so that unpaid delivery is
+bounded by exactly the backpressure MAP already provides. While paused, the
+provider MUST NOT emit further billable CHUNKs, MUST NOT re-issue a new
+invoice-id for already-billed usage (the paused invoice stands, idempotent
+by id — the 6001 watermark merely restates the outstanding position so a
+requester that missed the invoice can reconstruct it), and MUST NOT advance
+the watermark.
+
+**Resume** requires no marker: the covering **PAY_PROOF** IS the resume
+trigger. When the provider observes a PAY_PROOF that settles the
+outstanding invoice(s) which caused the pause, it settles (PAY_RECEIPT) and
+continues streaming from the exact watermark — no gap and no double-bill,
+since the watermark is cumulative and monotonic. The next CHUNK the
+requester receives is itself the observable resume. A metered stream also
+remains governed by FLOW_CREDIT throughout: a requester that wishes to stop
+receiving (and thus being billed) MAY simply stop granting credit, starving
+the stream through the existing core §8.1 mechanism.
+
+**Cancel**: on CANCEL (tasks §2, msg-type 0x020C) instead of top-up, the
+amount owed anchors to the last countersigned checkpoint (tasks §8.2 key 5
+usage, billed under the same §4.1 formula), which both sides hold signed —
+never to an unpaid watermark the requester never countersigned. The owed
+amount is therefore always ≤ the final unpaid watermark: a dying or
+malicious stream can claim payment only for delivery the requester has
+already acknowledged at a checkpoint.
 
 PAY_RECEIPT is the payee's signed past-tense fact "this invoice settled";
 it feeds ExecutionReceipt.payment-ref and is the payer's permanent proof

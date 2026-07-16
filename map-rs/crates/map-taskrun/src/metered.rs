@@ -10,13 +10,14 @@
 //! failure. Billing arithmetic is `map_pay::billing::billed` (exact, checked);
 //! this module only sequences and orders the checks.
 //!
-//! INTERIM pause/resume (pay §4.1 leaves the wire signaling under-specified —
-//! see the 2026-07-14 PENDING-ARCHITECT entry in map-spec/ERRATA.md): the
+//! Pause/resume/cancel per pay §4.2 (ARCHITECT RULING 2026-07-14, ERRATA):
+//! no new message type. Exhaustion is *proof absence* (as postpaid) — the
 //! provider's [`MeteredProviderPayment::pause`] emits the spec'd ERROR 6001 +
 //! `{1 => UsageWatermark}` detail; the requester's
 //! [`MeteredRequesterPayment::retry_pending`] re-attempts a withheld proof
-//! after a top-up; resume is the provider clearing its paused flag on the
-//! covering `on_proof`. No new wire message is introduced.
+//! after a top-up; **resume is the covering PAY_PROOF itself** — the provider
+//! clears its paused flag on `on_proof` and streams on. While paused the
+//! provider bills nothing further (`bill` is a no-op).
 
 use crate::Outgoing;
 use map_core::cbor::{decode, encode, Value};
@@ -139,8 +140,15 @@ impl MeteredProviderPayment {
     /// watermark (pay §4.1). Idempotent by `invoice_id`: a re-billed id re-emits
     /// the identical Outgoings and does not re-advance the cumulative basis.
     pub fn bill(&mut self, usage: Usage, through_seq: u64, invoice_id: [u8; 16], now_ms: u64) -> Vec<Outgoing> {
+        // Idempotent re-bill of a known id re-emits identical bytes (allowed
+        // even while paused — it is the SAME invoice, not new billing).
         if let Some(out) = self.emitted.get(&invoice_id) {
             return out.clone();
+        }
+        // pay §4.2: a paused provider MUST NOT emit further billable CHUNKs
+        // (bill nothing new until a covering proof resumes the stream).
+        if self.state == MeteredProviderState::Paused {
+            return Vec::new();
         }
         let cumulative = self.bill_cumulative(&usage);
         let delta = AssetAmount {

@@ -634,13 +634,27 @@ treat as the frozen interop contract.
     off-by-one 6009, invoice-before-chunk 6009, over-cap 6005 vs exact,
     task-binding 6007, zero-delta legal, resent idempotent, exhaustion
     6001→topup→resume, owed≤unpaid). **The pay family is now implemented
-    end-to-end for terms 0 (postpaid) and 3 (metered).** OPEN: the
-    resume-after-6001 WIRE signaling is a NEW PENDING-ARCHITECT item
-    (2026-07-14, ERRATA) — TASK-022 shipped an INTERIM that only sequences
-    already-spec'd messages (provider-internal `pause`, requester
-    `retry_pending`), no new wire message invented. Future (unpackaged):
+    end-to-end for terms 0 (postpaid) and 3 (metered).** The
+    resume-after-6001 signaling was RESOLVED 2026-07-14 (see §7 step 19 /
+    pay §4.2) — the interim is now normative. Future (unpackaged):
     prepaid/escrow reorder (pay §5.2), disputes (pay §6), a Go task runtime +
     a live-interop metered scenario.
+
+19. **ARCHITECT SESSION 2026-07-14 (fourth pass) — metered pause/resume
+    signaling RESOLVED (pay §4.2, ERRATA RESOLVED, CHANGELOG).** Chose the
+    "NO new message type" option: pause is a PROVIDER-LOCAL decision (not a
+    wire handshake), exhaustion = proof absence exactly as postpaid (the
+    requester withholds PAY_PROOF; no "insufficient" message); the provider
+    signals with the already-spec'd ERROR 6001 + `{1 => UsageWatermark}`
+    detail, RECOMMENDED pause policy bounded by the stream's FLOW_CREDIT
+    (core §8.1) grant. **RESUME is the covering PAY_PROOF itself** — no
+    marker; provider settles + continues from the exact monotonic watermark;
+    the next CHUNK is the observable resume. CANCEL owes ≤ the last
+    countersigned checkpoint. This makes the TASK-022 interim normative
+    verbatim; I only tightened `bill()` to no-op while Paused (pay §4.2 MUST)
+    + a test. Whole workspace + map-go green, vectors byte-identical.
+    **No open PENDING-ARCHITECT items remain; only TASK-023 (x402) is an
+    open implementation package.**
 
 18. **ARCHITECT SESSION 2026-07-14 (third pass) — `pay:x402` REGISTERED
     (pay §5.1 row + full method definition; additive, CHANGELOG updated).**

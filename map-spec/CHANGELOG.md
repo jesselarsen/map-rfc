@@ -109,14 +109,17 @@ Implementation packaged as TASK-023 (feature-gated adapter; no vectors —
 settlement proofs are chain-dependent and out of deterministic-vector
 scope, like the other rail methods).
 
+### Resolved after the cut — 2026-07-14 (additive; folded into `-01`)
+
+- **pay §4.2 metered pause/resume/cancel** — the pause/resume signaling gap
+  (PENDING-ARCHITECT surfaced by TASK-022) is closed with a "no new message
+  type" ruling: pause is a provider-local decision signalled by the existing
+  ERROR 6001 + unpaid-watermark detail (exhaustion = proof absence, as
+  postpaid); **resume is the covering PAY_PROOF itself** (no marker); metered
+  streams ride the existing FLOW_CREDIT backpressure; CANCEL owes to the last
+  countersigned checkpoint. Additive (adds a §4.2 subsection, no wire change)
+  and makes the TASK-022 runtime normative verbatim.
+
 ### Still open (tracked in `ERRATA.md`, deferred to a future revision)
 
-- **pay §4/§4.1 metered pause/resume signaling** (PENDING-ARCHITECT
-  2026-07-14, surfaced by TASK-022): the provider pauses an exhausted stream
-  with ERROR 6001 + the unpaid watermark, but the *trigger* by which it
-  learns the requester cannot pay, and the *resume* envelope after a covering
-  proof, are not pinned. TASK-022 ships an interim that only sequences the
-  already-specified messages (no new wire message). A future ruling either
-  adds an explicit requester→provider "insufficient" signal + a
-  provider→requester resume marker, or formally defines the pause as a
-  timeout/out-of-band condition.
+- (none)

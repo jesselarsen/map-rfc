@@ -15,31 +15,29 @@ Format: `RESOLVED <ruling-date> (was PENDING-ARCHITECT <date> <package>) —
 
 ---
 
-PENDING-ARCHITECT: 2026-07-14 TASK-022 — metered (terms 3) stream
-pause/resume signaling is under-specified. pay §4/§4.1 specify that the
-provider pauses an exhausted stream with ERROR 6001 (retryable) carrying the
-final unpaid watermark in the detail map, and that on CANCEL the owed amount
-anchors to the last countersigned checkpoint. Two mechanics are NOT pinned:
-(a) the TRIGGER by which the provider learns the requester cannot pay an
-outstanding invoice — postpaid has no "I can't pay" message; the requester
-simply withholds the PAY_PROOF, so the provider only infers exhaustion from
-absence, which a synchronous protocol cannot express without a timeout or an
-explicit signal; and (b) the RESUME envelope after a covering PAY_PROOF —
-pay §4 says "the stream resumes" but names no resume message, leaving open
-whether the provider re-issues the paused invoice, emits a fresh CHUNK, or
-continues silently. TASK-022 implements an INTERIM that only sequences the
-already-specified messages (a provider-internal `pause` that emits the
-spec'd 6001+watermark; a requester `retry_pending` that re-attempts the
-withheld proof after top-up; resume = the provider clearing its paused flag
-on `on_proof`) and adds NO new wire message — so nothing normative is
-invented. Proposal for a future ruling: either (1) add an explicit
-requester→provider "insufficient, need credit" signal (candidate: reuse
-ERROR 6001 in the requester→provider direction, or a new FLOW-style control),
-and a provider→requester RESUME marker (candidate: a kind-2 log CHUNK or a
-re-sent invoice with the same id under the idempotency rule); or (2)
-formally define the pause as an out-of-band/timeout condition and keep the
-wire silent, documenting that resume is "provider continues emitting chunks
-once a covering proof is observed". Not decided here (wire-affecting).
+RESOLVED 2026-07-14 (was PENDING-ARCHITECT 2026-07-14 TASK-022) — metered
+(terms 3) stream pause/resume signaling was under-specified: (a) the
+trigger by which the provider learns the requester cannot pay, and (b) the
+resume envelope after a covering PAY_PROOF. RULING (chose the "no new wire
+message" option): pause is a **provider-local decision**, not a wire
+handshake — the exhaustion signal is *proof absence*, exactly as postpaid
+(the requester withholds its PAY_PROOF; there is no "insufficient"
+message). The provider MAY pause whenever it holds an unpaid outstanding
+watermark and SIGNALS it with the already-spec'd ERROR 6001 + `{1 =>
+UsageWatermark}` detail; RECOMMENDED pause policy is bounded by the
+stream's FLOW_CREDIT (core §8.1) grant, so unpaid delivery rides the
+backpressure MAP already has. **Resume is the covering PAY_PROOF itself**
+— no marker; the provider settles and continues from the exact (cumulative,
+monotonic) watermark, and the next CHUNK is the observable resume. On
+CANCEL, owed anchors to the last countersigned checkpoint (≤ the unpaid
+watermark). Decisive reasons: zero new wire surface (ERROR/PAY_PROOF/
+FLOW_CREDIT/CANCEL already exist); symmetric with postpaid; reuses the
+existing credit backpressure; and it makes the TASK-022 INTERIM normative
+verbatim (provider `pause` → 6001+watermark; requester `retry_pending` →
+PAY_PROOF; resume = clearing the paused flag on `on_proof`), so no
+implementation rework. Spec patched: new pay §4.2 "Pause, resume, and
+cancel" + a §4 intro pointer. → the TASK-022 metered runtime is already
+conformant; no follow-up package.
 
 ---
 

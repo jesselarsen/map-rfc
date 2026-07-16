@@ -1081,6 +1081,10 @@ mod metered_flow {
         assert_eq!(em.code, 6001);
         assert!(em.retryable);
         assert_eq!(pp.state(), MeteredProviderState::Paused);
+        // pay §4.2: while paused the provider bills nothing new...
+        assert!(pp.bill(usage(300, 120, 3000), 14, [3; 16], TS).is_empty());
+        // ...but a re-bill of the already-billed id is still idempotent.
+        assert!(!pp.bill(usage(200, 80, 2000), 9, [2; 16], TS).is_empty());
         let detail = em.detail.expect("6001 carries detail");
         let w = UsageWatermark::from_value(detail.map_get(1).expect("detail key 1")).expect("watermark decodes");
         assert_eq!(w.cumulative_billed, micro(1_000_000));
