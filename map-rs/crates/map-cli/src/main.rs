@@ -57,6 +57,8 @@ fn main() {
         Some("interop") => interop::run(&args),
         #[cfg(feature = "real-backend")]
         Some("serve-ollama") => cmd_serve_ollama(&args),
+        #[cfg(feature = "real-x402")]
+        Some("x402-demo") => cmd_x402_demo(&args),
         _ => {
             eprint!("{}", usage());
             exit(2);
@@ -383,6 +385,83 @@ fn cmd_serve_ollama(args: &[String]) -> Result<(), CliError> {
         b.agent_id()
     );
     Ok(())
+}
+
+// ---------------------------------------------------------------------------
+// x402-demo (TASK-023 FR-7, feature `real-x402`)
+// ---------------------------------------------------------------------------
+
+/// `x402-demo --facilitator <url> --network <id> --token <0xerc20> --pay-to
+/// <0xaddr> --signer-key <hex32> [--decimals <n>] [--amount <atomic>]`:
+/// build a real EIP-3009 authorization for a synthetic invoice, then run the
+/// facilitator verify+settle and print the tx reference. Live: needs a funded
+/// testnet key and a reachable x402 facilitator.
+#[cfg(feature = "real-x402")]
+fn cmd_x402_demo(args: &[String]) -> Result<(), CliError> {
+    use map_pay::codec::{AssetAmount, PayInvoice};
+    use map_pay::{Amount, Asset};
+    use x402_adapter::real::{RealFacilitator, RealSigner};
+    use x402_adapter::{build_proof, verify_and_settle, EvmSigner, X402Params};
+
+    let need = |k: &str| -> Result<String, CliError> {
+        parse_flag(args, k)
+            .map(str::to_string)
+            .ok_or_else(|| CliError::Usage(format!("x402-demo needs {k}")))
+    };
+    let facilitator = need("--facilitator")?;
+    let network = need("--network")?;
+    let token = need("--token")?;
+    let pay_to = need("--pay-to")?;
+    let key_hex = need("--signer-key")?;
+    let decimals: u32 = parse_flag(args, "--decimals").and_then(|s| s.parse().ok()).unwrap_or(6);
+    let amount: i64 = parse_flag(args, "--amount").and_then(|s| s.parse().ok()).unwrap_or(10_000);
+
+    let key_bytes = hex::decode(key_hex.trim_start_matches("0x"))
+        .ok()
+        .and_then(|v| <[u8; 32]>::try_from(v).ok())
+        .ok_or_else(|| CliError::Usage("--signer-key must be 32-byte hex".into()))?;
+
+    let asset = Asset::new(&format!("erc20:{network}:{token}"))
+        .map_err(|e| CliError::Failure(format!("bad asset: {e}")))?;
+    let invoice = PayInvoice {
+        invoice_id: [0x30; 16],
+        quote_id: [0x10; 16],
+        amount: AssetAmount { asset: asset.clone(), amount: Amount::new(-(decimals as i32), amount) },
+        watermark: None,
+        method_payload: vec![],
+        timestamp_ms: 0,
+    };
+    let params = X402Params {
+        version: 1,
+        scheme: "exact".into(),
+        network,
+        pay_to,
+        facilitator: Some(facilitator.clone()),
+        max_validity_s: Some(600),
+    };
+    // Wallets carry the token's EIP-712 domain; USDC defaults shown.
+    let dom_name = parse_flag(args, "--domain-name").unwrap_or("USD Coin");
+    let dom_version = parse_flag(args, "--domain-version").unwrap_or("2");
+    let signer = RealSigner::new(&key_bytes, dom_name, dom_version)
+        .map_err(|e| CliError::Failure(format!("signer: {e}")))?;
+    let now_s = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0);
+
+    let proof = build_proof(&signer, &params, &asset, &invoice, decimals, now_s)
+        .map_err(|e| CliError::Failure(format!("build proof: {e}")))?;
+    println!("payer address: {}", signer.address());
+    println!("proof bytes: {} (PayProof.3)", proof.len());
+
+    let fac = RealFacilitator::new(&facilitator);
+    match verify_and_settle(&fac, &params, &asset, &invoice, decimals, &proof, now_s) {
+        Ok(s) => {
+            println!("settled: tx_ref = {}", s.tx_ref);
+            Ok(())
+        }
+        Err(code) => Err(CliError::Failure(format!("verify_and_settle rejected with wire code {code}"))),
+    }
 }
 
 #[cfg(test)]

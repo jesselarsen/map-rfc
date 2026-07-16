@@ -680,8 +680,24 @@ treat as the frozen interop contract.
     tree — default build must add ZERO deps, verify via cargo tree);
     map-cli `x402-demo` gated; NO vectors, NO Go work (chain-dependent
     proofs, like all rail methods); do NOT make the payment runtimes
-    method-generic (altitude: wait for a 3rd method). NOT yet executed —
-    §17 prompt hand-over-verbatim.
+    method-generic (altitude: wait for a 3rd method).
+    **TASK-023 DONE 2026-07-14** (`adapters/x402-adapter` — new workspace
+    member): always-on `codec` (X402Params/X402Proof CBOR), `x402_nonce`
+    (SHA-256("MAP-x402-nonce"||invoice-id)), `payload` (hand-rolled x402
+    "exact" PaymentPayload JSON — produced+consumed only in-crate, so no
+    serde on the always-on path), `flow` (build_proof/verify_and_settle over
+    EvmSigner/Facilitator seams + CannedSigner/CannedFacilitator). Payee
+    surface returns wire codes 6008 (structural) / 6002 (settle) via
+    `wire_code`. 16 always-on tests (nonce both ways, tampered/wrong-nonce/
+    value-mismatch/exponent/expired/unknown-version/asset-chain → 6008;
+    re-settle single-use nonce → 6002). `real-x402` gates k256+sha3 (EIP-712
+    EIP-3009 signing; typehash anchored to published `0x7c7c…2267`) + ureq
+    (json feature, TLS kept) + serde_json (facilitator API only); 2 gated
+    tests + a #[ignore]d live one; `map-cli x402-demo` behind the gate.
+    **Default workspace adds ZERO external deps** (cargo tree verified;
+    Cargo.lock records gated deps but they don't compile in default).
+    map-go + frozen vectors untouched. **No open implementation packages
+    remain; no open PENDING-ARCHITECT items.**
 
 12. ~~**TASK-014 — formal analysis (P1/P2/P3), ops §6.3.**~~ DONE (2026-07-10).
     New top-level `formal/` (spec-adjacent, not Rust): ProVerif 2.05 models.

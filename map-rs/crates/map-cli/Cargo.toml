@@ -22,6 +22,12 @@ getrandom.workspace = true
 # The `serve-ollama` demo (TASK-013 FR-5) pulls the real Ollama backend only
 # under this feature, so the default `map-cli` build stays network-dep-free.
 ollama-provider = { path = "../../adapters/ollama-provider", optional = true }
+map-pay = { path = "../map-pay", optional = true }
+# The `x402-demo` (TASK-023 FR-7) pulls the real x402 signer + facilitator
+# (secp256k1/EIP-712/HTTP) only under `real-x402`, keeping the default build
+# free of that crypto/network surface.
+x402-adapter = { path = "../../adapters/x402-adapter", optional = true }
 
 [features]
 real-backend = ["dep:ollama-provider", "ollama-provider/real-backend"]
+real-x402 = ["dep:x402-adapter", "dep:map-pay", "x402-adapter/real-x402"]

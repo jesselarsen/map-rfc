@@ -14,6 +14,7 @@ members = [
     "crates/map-cli",
     "adapters/ollama-provider",
     "adapters/gateway",
+    "adapters/x402-adapter",
     "conformance/map-conformance",
 ]
 
