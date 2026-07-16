@@ -642,6 +642,33 @@ treat as the frozen interop contract.
     prepaid/escrow reorder (pay §5.2), disputes (pay §6), a Go task runtime +
     a live-interop metered scenario.
 
+18. **ARCHITECT SESSION 2026-07-14 (third pass) — `pay:x402` REGISTERED
+    (pay §5.1 row + full method definition; additive, CHANGELOG updated).**
+    x402 (x402.org / Coinbase) enters MAP as a settlement METHOD, not a
+    replacement for the pay negotiation layer: MAP adopts x402's signed
+    EIP-3009 authorization payload + payee-chosen facilitator verify/settle
+    ONLY; x402's HTTP 402/X-PAYMENT loop is NOT used between MAP peers
+    (PAY_QUOTE/AGREE carry stronger binding) — it stays appropriate at ops
+    §5 gateways fronting external x402-priced services. KEY DESIGN RULINGS:
+    (a) invoice-binding nonce MUST = SHA-256("MAP-x402-nonce" || invoice-id)
+    — binds the authorization to exactly one invoice; the chain's single-use
+    nonce then enforces exactly-once settlement under MAP's invoice-id
+    idempotency; (b) /verify alone is NEVER settlement — PAY_RECEIPT only
+    after successful settle; (c) Asset = existing `erc20:<chain>:<addr>`
+    form, Amount exponent = token decimals negated so mantissas ARE atomic
+    units (§3 exact arithmetic unchanged); (d) facilitator is payee-chosen/
+    payee-trusted (payer exposure bounded by the exact-amount, time-boxed,
+    single-use authorization) — priced in like the credit-ledger operator.
+    **TASK-023 authored (READY, P4)**: `adapters/x402-adapter` — always-on
+    CBOR codec (X402Params/X402Proof) + nonce fn + payer/payee flows over
+    EvmSigner/Facilitator trait seams with canned impls; feature `real-x402`
+    HARD-gates ureq + serde_json + k256 (FIRST non-Ed25519 crypto dep in the
+    tree — default build must add ZERO deps, verify via cargo tree);
+    map-cli `x402-demo` gated; NO vectors, NO Go work (chain-dependent
+    proofs, like all rail methods); do NOT make the payment runtimes
+    method-generic (altitude: wait for a 3rd method). NOT yet executed —
+    §17 prompt hand-over-verbatim.
+
 12. ~~**TASK-014 — formal analysis (P1/P2/P3), ops §6.3.**~~ DONE (2026-07-10).
     New top-level `formal/` (spec-adjacent, not Rust): ProVerif 2.05 models.
     `hello-cb.pv` — Q1 (P1 downgrade resistance, core §6.2) **true**; Q2 (P2

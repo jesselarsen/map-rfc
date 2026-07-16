@@ -93,6 +93,22 @@ cumulative-billed off by one → 6009) are frozen (TASK-021); both
 implementations reproduce them byte-exact and check the arithmetic
 independently.
 
+Also additive (2026-07-14, second pass): **`pay:x402` registered** in the
+pay §5.1 settlement-method registry with its defining section — x402
+(x402.org) enters as a settlement *method* (signed EIP-3009 authorization
+payload + payee-chosen facilitator verify/settle), NOT as a replacement for
+the pay negotiation layer (x402's HTTP 402 loop is unused between MAP
+peers; it remains appropriate at ops §5 gateways fronting external
+x402-priced services). MAP-specific hardening: the authorization nonce MUST
+be `SHA-256("MAP-x402-nonce" || invoice-id)` (binds the authorization to
+exactly one invoice; the chain's single-use-nonce rule then gives
+exactly-once settlement), and `/verify` alone is never settlement. Asset =
+the existing `erc20:<chain>:<addr>` form; Amount exponent = token decimals
+negated, so mantissas are atomic units (§3 exact arithmetic unchanged).
+Implementation packaged as TASK-023 (feature-gated adapter; no vectors —
+settlement proofs are chain-dependent and out of deterministic-vector
+scope, like the other rail methods).
+
 ### Still open (tracked in `ERRATA.md`, deferred to a future revision)
 
 - **pay §4/§4.1 metered pause/resume signaling** (PENDING-ARCHITECT

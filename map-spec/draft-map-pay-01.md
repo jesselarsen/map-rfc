@@ -266,6 +266,7 @@ of payment independent of rail-side record retention.
 | `pay:ach` | ACH | trace number; settled = rail-final (days) |
 | `pay:interledger` | Interledger/Web Monetization | STREAM receipt |
 | `pay:credit-ledger` | private mesh ledger | ledger-operator-signed entry |
+| `pay:x402` | x402 (HTTP-native stablecoin; EIP-3009 authorizations, facilitator settle) | signed transfer authorization; settled = facilitator/chain settlement |
 
 Each entry's defining document specifies: params schema, proof schema,
 verification procedure, finality/reversal model, and refund reference
@@ -289,6 +290,66 @@ the entry's invoice-id / payer / payee / [Asset, Amount] MUST equal the invoice
 being settled. Finality: instant and irreversible within the ledger (no
 chargeback path); balances move exactly once per invoice-id (operator dedups).
 Refund reference: a fresh entry in the reverse direction (out of MVP scope).
+
+Method definition — `pay:x402` (added 2026-07-14, ARCHITECT DESIGN; see
+CHANGELOG). Settles via the x402 protocol (x402.org, Apache-2.0): the payer
+signs an exact-amount, time-boxed, single-use on-chain transfer authorization
+(EIP-3009 `transferWithAuthorization` for EVM stablecoins such as USDC) and
+the payee — directly or through a payee-chosen **facilitator** service's
+`/verify` and `/settle` endpoints — executes it on chain. MAP adopts x402's
+*settlement payload and facilitator model only*: x402's own HTTP
+402/`X-PAYMENT` request loop is NOT used between MAP peers (PAY_QUOTE /
+PAY_AGREE / PAY_INVOICE already carry the negotiation with stronger binding);
+it remains appropriate at a gateway (ops §5) that fronts external
+x402-priced HTTP services as MAP capabilities.
+
+Asset/amount mapping: the quote's `Asset` MUST be the `erc20:<chain>:<addr>`
+form (§1) naming the token the scheme settles, and the Amount exponent MUST
+be the token's decimals negated (USDC ⇒ −6), so the mantissa IS the atomic
+unit count — the §3 exact-arithmetic rules apply unchanged.
+
+Params (MethodOffer.2, deterministic-CBOR map):
+
+```cddl
+X402Params = {
+  1 => uint,            ; x402Version (1 in this revision)
+  2 => tstr,            ; scheme ("exact" in this revision)
+  3 => tstr,            ; network id (e.g. "base", "base-sepolia")
+  4 => tstr,            ; payTo: payee on-chain address
+  ? 5 => tstr,          ; facilitator base URL (informative — payee's choice)
+  ? 6 => uint           ; max authorization validity the payee accepts (s)
+}
+```
+
+Proof payload (PayProof.3, deterministic-CBOR map):
+
+```cddl
+X402Proof = {
+  1 => bstr             ; the x402 PaymentPayload, verbatim (the JSON bytes
+                        ;   an X-PAYMENT header would carry, base64-decoded):
+                        ;   scheme/network + the signed EIP-3009 authorization
+}
+```
+
+**Invoice binding (MAP-specific MUST):** the authorization's 32-byte nonce
+MUST be `SHA-256("MAP-x402-nonce" || invoice-id)`; the payee MUST verify it.
+This binds the authorization to exactly one MAP invoice, and the chain's
+single-use-nonce rule then enforces exactly-once settlement across retries
+(layered under MAP's invoice-id idempotency, not replacing it).
+
+Verification (payee): decode the payload; check x402Version/scheme/network/
+`payTo` against the offered params, the token contract against the quote's
+Asset, `value` == the invoice Amount mantissa (atomic units), the nonce rule
+above, and a validity window covering now + expected settle latency; then
+settle (facilitator `/settle` or direct submission). **A successful `/verify`
+alone is NOT settlement** — the payee MUST NOT reply PAY_RECEIPT (or release
+anything priced) before the settlement succeeds/confirms per its params.
+Finality: reversal-resistant once the transfer confirms; the facilitator is
+a payee-chosen, payee-trusted intermediary (the payer's exposure is bounded
+by the exact-amount, time-boxed, single-use authorization) — reversibility
+and facilitator trust are method properties the payee prices in, per this
+section's doctrine. Refund reference: the tx hash of a reverse transfer
+(out of MVP scope).
 
 ### 5.2 Escrow and prepay
 
