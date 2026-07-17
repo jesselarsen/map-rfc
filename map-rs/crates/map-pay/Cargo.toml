@@ -8,4 +8,9 @@ description = "MAP pay bounded context: decimal Amount (tag 4), Asset, invoice i
 [dependencies]
 map-identity = { path = "../map-identity" }
 map-core = { path = "../map-core" }
+# Disputes (pay §6, TASK-026): the verdict engine REUSES the existing
+# verifiers — receipts (map-trust) and the transcript commitment (map-tasks).
+# Both are acyclic (neither depends on map-pay).
+map-tasks = { path = "../map-tasks" }
+map-trust = { path = "../map-trust" }
 sha2.workspace = true

@@ -737,6 +737,43 @@ treat as the frozen interop contract.
     None` (that path wasn't rebuilt during TASK-024 — caught here).
     **Only TASK-026 (disputes) remains open.**
 
+    **TASK-026 DONE 2026-07-17 — the pay family is now implemented
+    END-TO-END (quote→agree→invoice→proof→receipt→metering→prepay→
+    escrow→disputes).** map-pay `dispute.rs`: §6.1 codecs (PayDispute /
+    PayDisputeEvidence / EvidenceItem, fail-closed claim ≤4 + kind ≤9 +
+    statement ≤1024 + non-empty items, content-address dedup); §6.2
+    `authenticate_item` (envelope kinds open with external_aad = the
+    DISCLOSED CB — absent/wrong CB = unavailable evidence; kind 5 =
+    countersigned checkpoint with bytes PINNED by inline ruling as
+    enc(["MAPCheckpointAck", task, seq, root]) + artifact CBOR
+    [checkpoint-map, sig] — ERRATA 2026-07-17; kind 7 via map-trust
+    Receipt::verify; foreign signers discarded); §6.3 `verify_dispute`
+    PURE three-valued engine reusing billed/verify_watermark/
+    verify_escrow_invoice/verify_entry/verify_release_entry/
+    TranscriptBuilder — claims 0/2 rebuttal-shaped, claim 1 root
+    recompute over kind-9 CHUNK items (**kind 9 ADDED to §6.1** — the
+    authored 0–8 registry omitted transcript chunks; second inline
+    ruling), claim 3 vs highest countersigned usage, claim 4 re-runs the
+    6005/6006/6009/6010 verifiers; §6.4 max_items cap. map-taskrun
+    `DisputeState` (open idempotent, respond with chunked `more`
+    evidence from stored `Incoming.raw` + CB, accumulate deduped/
+    bounded, 6003 refuse_pending, outcome_disputed flag for the receipt
+    path). `Session::cb()` getter added (trivial accessor, in-scope).
+    Tests: full 15-cell verdict matrix, hostile-bytes fuzz-shaped,
+    shuffle/dup determinism, statement-never-evidence, cap-bounded; the
+    §6.2 tests use a GENUINE loopback-session CB — incl. P2 session
+    separation at the evidence layer (note: fully deterministic harness
+    sessions derive IDENTICAL CBs — same seeds/clock/msg-ids → same
+    transcript; the test varies the clock, exactly the distinguisher
+    core §7.3 defines). Vectors TV-019 (dispute, anchored to TV-013 by
+    envelope digest) / TV-020 (evidence carrying the frozen TV-010b
+    envelope VERBATIM — I1 exercised by the vector itself) / NV-012
+    (claim 9 → reject): md diff 59 ins / 0 del. Rust conformance 44→47;
+    map-go 30→33 + `disputeClaimRecognized` written from spec. map-pay
+    gains map-tasks + map-trust deps (acyclic, verified). Whole
+    workspace + map-go green, zero warnings. **NO open implementation
+    packages; NO open PENDING-ARCHITECT items.**
+
 21. **ARCHITECT SESSION 2026-07-16 (second pass) — ops §5.1 paid-API
     gateway (x402 composition) DEFINED; TASK-025 packaged (OPEN, blocked
     by 024).** New ops §5.1: a gateway fronting an external x402-priced

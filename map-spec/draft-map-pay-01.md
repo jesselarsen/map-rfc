@@ -614,6 +614,9 @@ EvidenceItem = {
                                       ;  8 method artifact (ledger entry,
                                       ;     release-auth, x402 payload,
                                       ;     gateway upstream evidence …)
+                                      ;  9 CHUNK envelope (tasks §3) —
+                                      ;     delivered-transcript evidence
+                                      ;     for claim 1
   2 => bstr,                          ; the artifact VERBATIM: for envelope
                                       ;  kinds, the received envelope bytes
                                       ;  (core I1 — never re-serialized)

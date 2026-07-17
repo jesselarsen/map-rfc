@@ -35,8 +35,8 @@ func TestProduceParity(t *testing.T) {
 		"TV-001", "TV-002", "TV-003", "TV-004", "TV-005", "TV-006", "TV-007",
 		"TV-008", "TV-009", "TV-010", "TV-010b", "TV-011", "TV-012", "TV-013",
 		"TV-014", "TV-015",
-		"TV-016", "TV-017", "TV-018",
-		"NV-001", "NV-002", "NV-003", "NV-004", "NV-005", "NV-006", "NV-007", "NV-008", "NV-009", "NV-010", "NV-011",
+		"TV-016", "TV-017", "TV-018", "TV-019", "TV-020",
+		"NV-001", "NV-002", "NV-003", "NV-004", "NV-005", "NV-006", "NV-007", "NV-008", "NV-009", "NV-010", "NV-011", "NV-012",
 	}
 	failed := false
 	for _, id := range sections {
@@ -71,7 +71,7 @@ func TestConsume(t *testing.T) {
 		"TV-006": 0x0200, "TV-007": 0x0202, "TV-008": 0x0205, "TV-009": 0x020D,
 		"TV-010": 0x0400, "TV-010b": 0x0400, "TV-011": 0x0502, "TV-013": 0x0401,
 		"TV-014": 0x020F, "TV-015": 0x0210, "TV-016": 0x0402, "TV-017": 0x0402,
-		"TV-018": 0x0404,
+		"TV-018": 0x0404, "TV-019": 0x0405, "TV-020": 0x0406,
 	}
 	for id, mt := range wantType {
 		env, err := vf.Envelope(id)
@@ -248,6 +248,15 @@ func receiptKindRecognized(content cbor.Value) bool {
 	return ok && uint64(k) <= 3
 }
 
+// disputeClaimRecognized is the pay §6.1 claim-code registry check, written
+// from the spec (independence rule): key 3 present and 0..4; anything else
+// MUST be rejected fail-closed.
+func disputeClaimRecognized(content cbor.Value) bool {
+	v := contentValue(content, 3)
+	k, ok := v.(cbor.Uint)
+	return ok && uint64(k) <= 4
+}
+
 // TestReceiptKinds: TV-018's kind (1, held) is recognized; NV-011's (9) is
 // not — the executable pay §5.2.1 fail-closed parity (TASK-024).
 func TestReceiptKinds(t *testing.T) {
@@ -272,6 +281,28 @@ func TestReceiptKinds(t *testing.T) {
 	}
 	if receiptKindRecognized(openContent("NV-011")) {
 		t.Errorf("NV-011 kind 9 should be rejected fail-closed")
+	}
+	// Disputes (pay §6.1, TASK-026): TV-019 carries a recognized claim (3);
+	// NV-012 carries 9 and must be rejected fail-closed; TV-020's single
+	// evidence item is the frozen TV-010b envelope VERBATIM (I1).
+	if got := contentUint(t, openContent("TV-019"), 3); got != 3 {
+		t.Errorf("TV-019 claim = %d, want 3", got)
+	}
+	if disputeClaimRecognized(openContent("NV-012")) {
+		t.Errorf("NV-012 claim 9 should be rejected fail-closed")
+	}
+	items, ok := contentValue(openContent("TV-020"), 2).(cbor.Array)
+	if !ok || len(items) != 1 {
+		t.Fatalf("TV-020: want exactly one evidence item")
+	}
+	itemBytes := contentBytes(t, items[0], 2)
+	vf2 := loadVF(t)
+	frozen, err := vf2.Envelope("TV-010b")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(itemBytes, frozen) {
+		t.Errorf("TV-020 item bytes != frozen TV-010b envelope (I1 verbatim-carry)")
 	}
 	// TV-017: hold invoice — phase key 7 = 1, no watermark (key 4 absent).
 	c17 := openContent("TV-017")

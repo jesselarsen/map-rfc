@@ -1383,3 +1383,167 @@ mod escrow_flow {
         assert_eq!(code(&out1), 6010);
     }
 }
+
+/// TASK-026 §FR-6 — dispute runtime hooks + the §6.2 CB rule with GENUINE
+/// session-derived channel bindings (not fixtures).
+mod dispute_flow {
+    use super::*;
+    use crate::DisputeState;
+    use map_core::hello::Hello;
+    use map_identity::Keypair;
+    use map_pay::codec::{pay_ref_digest, AssetAmount, MethodOffer, PayAgree, PayAgreeRef, PayQuote};
+    use map_pay::dispute::{
+        authenticate_item, verify_dispute, DisputeConfig, EvidenceItem, Parties, PayDispute,
+        Verdict, EV_QUOTE,
+    };
+    use map_pay::{Amount, Asset};
+    use map_session::{CountingMsgIds, FixedClock, InMemoryDuplex, Session, SessionConfig};
+
+    const QID: [u8; 16] = [0x50; 16];
+    const TASK: [u8; 32] = [0xE; 32];
+
+    fn hello() -> Hello {
+        Hello {
+            versions: vec![map_core::PROTOCOL_VERSION_1_0],
+            suites: vec![1],
+            extensions: vec![],
+            max_message_size: 262_144,
+            max_tasks: None,
+            zones: vec![],
+        }
+    }
+    fn usd(m: i64) -> AssetAmount {
+        AssetAmount { asset: Asset::new("iso4217:USD").unwrap(), amount: Amount::new(-2, m) }
+    }
+    fn quote() -> PayQuote {
+        PayQuote {
+            quote_id: QID,
+            pricing_model: 1,
+            rate_table: vec![(1, usd(3)), (2, usd(5))],
+            total: Some(usd(500)),
+            methods: vec![MethodOffer { uri: "pay:credit-ledger".into(), params: vec![] }],
+            expiry_ms: TS + 60_000,
+            terms: Some(0),
+            ext: None,
+            task_binding: Some(TASK),
+        }
+    }
+
+    /// Run one loopback session: B sends the PAY_QUOTE in-session; A receives
+    /// it. Returns (received frame bytes, A-side CB, B-side CB).
+    fn quoted_over_live_session(seed_a: u8, seed_b: u8, ts: u64) -> (Vec<u8>, [u8; 32], [u8; 32]) {
+        let a_id = Keypair::from_seed([seed_a; 32]).agent_id();
+        let b_id = Keypair::from_seed([seed_b; 32]).agent_id();
+        let (ta, tb) = InMemoryDuplex::pair(&a_id, &b_id);
+        std::thread::scope(|s| {
+            let a_for_b = a_id.clone();
+            let hb = s.spawn(move || {
+                let cfg = SessionConfig::new(Keypair::from_seed([seed_b; 32]), a_for_b, hello());
+                let mut sess = Session::respond(cfg, tb, FixedClock { ms: ts }, CountingMsgIds::new()).unwrap();
+                sess.send(msg_type::PAY_QUOTE, quote().to_value()).unwrap();
+                sess.cb()
+            });
+            let cfg = SessionConfig::new(Keypair::from_seed([seed_a; 32]), b_id.clone(), hello());
+            let mut sess = Session::initiate(cfg, ta, FixedClock { ms: ts }, CountingMsgIds::new()).unwrap();
+            let inc = sess.recv().unwrap();
+            assert_eq!(inc.msg_type, msg_type::PAY_QUOTE);
+            (inc.raw.clone(), sess.cb(), hb.join().unwrap())
+        })
+    }
+
+    // The pay 6.2 rule with a REAL exporter-derived CB: the received
+    // in-session frame verifies only under the session CB — and NOT under
+    // another live session's CB (P2 session separation at the evidence layer).
+    #[test]
+    fn real_session_cb_gates_evidence_and_separates_sessions() {
+        let (frame1, cb_a1, cb_b1) = quoted_over_live_session(1, 2, TS);
+        assert_eq!(cb_a1, cb_b1, "both ends derive the same CB");
+        let parties = Parties {
+            payer: Keypair::from_seed([1; 32]).agent_id(),
+            payee: Keypair::from_seed([2; 32]).agent_id(),
+            operator: None,
+        };
+        // Correct CB: the item authenticates.
+        let good = EvidenceItem { kind: EV_QUOTE, bytes: frame1.clone(), cb: Some(cb_a1) };
+        assert!(authenticate_item(&good, &parties).is_ok());
+        // Absent CB: unavailable evidence, never verified.
+        let stripped = EvidenceItem { kind: EV_QUOTE, bytes: frame1.clone(), cb: None };
+        assert!(authenticate_item(&stripped, &parties).is_err());
+        // A SECOND live session between the same peers (distinguishable: its
+        // handshake happened at a different instant, so TH differs) derives a
+        // different CB that must NOT verify the first session's frame.
+        let (_frame2, cb_a2, _) = quoted_over_live_session(1, 2, TS + 1);
+        assert_ne!(cb_a1, cb_a2, "distinguishable sessions, distinguishable CBs");
+        let cross = EvidenceItem { kind: EV_QUOTE, bytes: frame1, cb: Some(cb_a2) };
+        assert!(authenticate_item(&cross, &parties).is_err());
+    }
+
+    // FR-4: open, respond-with-evidence (chunked, deduped), accumulate,
+    // verdict over the exchanged sets; 6003 while paused; idempotent re-open.
+    #[test]
+    fn dispute_exchange_and_verdict_over_runtime_state() {
+        let (payer_kp, payee_kp) = (Keypair::from_seed([1; 32]), Keypair::from_seed([2; 32]));
+        let seal_item = |kp: &Keypair, kind: u64, mt: u16, content: map_core::cbor::Value, id: u8| {
+            let body = map_core::envelope::Body {
+                version: 0x0100, msg_type: mt, msg_id: map_core::MsgId([id; 16]),
+                timestamp_ms: TS, recipient: None, ttl_ms: None, session_id: None, seq: None, content,
+            };
+            EvidenceItem { kind, bytes: map_core::envelope::seal(kp, &body, b"").unwrap(), cb: None }
+        };
+        let q_item = seal_item(&payee_kp, 0, msg_type::PAY_QUOTE, quote().to_value(), 0x10);
+        let agree = PayAgree {
+            quote_id: QID, quote_digest: pay_ref_digest(&q_item.bytes),
+            method: "pay:credit-ledger".into(), authorized_cap: None,
+        };
+        let a_item = seal_item(&payer_kp, 1, msg_type::PAY_AGREE, agree.to_value(), 0x11);
+        let dispute = PayDispute {
+            dispute_id: [0xD; 16], invoice_id: [0x60; 16], claim: 0,
+            agree_ref: PayAgreeRef { quote_id: QID, digest: pay_ref_digest(&a_item.bytes) },
+            task: Some(TASK), statement: None, timestamp_ms: TS,
+        };
+
+        // The payer runtime opens the dispute (idempotent), holding a settled
+        // receipt as its evidence.
+        let mut payer_ds = DisputeState::new();
+        let receipt = map_pay::codec::PayReceipt {
+            invoice_id: [0x60; 16], amount: usd(500), timestamp_ms: TS, proof_digest: None, kind: None,
+        };
+        let r_item = seal_item(&payee_kp, 4, msg_type::PAY_RECEIPT, receipt.to_value(), 0x20);
+        payer_ds.add_own_evidence(q_item.clone());
+        payer_ds.add_own_evidence(a_item.clone());
+        payer_ds.add_own_evidence(r_item.clone());
+        payer_ds.add_own_evidence(r_item.clone()); // duplicate: deduped
+        payer_ds.max_items_per_msg = 2; // force chunking + the more flag
+        let opened = payer_ds.open_dispute(dispute.clone());
+        assert_eq!(opened[0].0, msg_type::PAY_DISPUTE);
+        assert_eq!(payer_ds.open_dispute(dispute.clone()), opened, "idempotent re-open");
+        // While paused pending the dispute, billing traffic is answered 6003.
+        let refuse = payer_ds.refuse_pending();
+        assert_eq!(map_core::errors::ErrorMsg::from_value(&refuse[0].1).unwrap().code, 6003);
+
+        // The payee runtime receives the dispute, responds with its own
+        // (empty) evidence, then accumulates the payer chunks.
+        let mut payee_ds = DisputeState::new();
+        let inc = mk(msg_type::PAY_DISPUTE, opened[0].1.clone());
+        assert!(payee_ds.on_dispute(&inc).is_empty()); // nothing to disclose
+        for (mt, content) in payer_ds.evidence_messages(dispute.dispute_id) {
+            assert_eq!(mt, msg_type::PAY_DISPUTE_EVIDENCE);
+            payee_ds.on_evidence(&mk(mt, content));
+        }
+        assert_eq!(payee_ds.peer_evidence(&dispute.dispute_id).len(), 3, "deduped across chunks");
+        assert!(payee_ds.outcome_disputed(), "receipt path can stamp outcome 4");
+
+        // Any third party (or the payee) now runs the PURE verdict engine over
+        // the exchanged sets: payment shown, no delivery artifact from the
+        // payee — claim 0 stands unrebutted.
+        let parties = Parties { payer: payer_kp.agent_id(), payee: payee_kp.agent_id(), operator: None };
+        let verdict = verify_dispute(
+            &dispute,
+            payee_ds.peer_evidence(&dispute.dispute_id),
+            payee_ds.own_evidence(),
+            &parties,
+            &DisputeConfig::default(),
+        );
+        assert_eq!(verdict, Verdict::Supported);
+    }
+}

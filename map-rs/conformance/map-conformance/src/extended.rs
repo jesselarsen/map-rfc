@@ -23,9 +23,10 @@ use map_core::delegation::DelegError;
 use map_core::{open_delegated, validate_cert};
 use map_pay::billing::{billed, verify_watermark, AgreedTerms};
 use map_pay::codec::{
-    AssetAmount, PayAgree, PayInvoice, PayQuote, PayReceipt, KIND_HELD, PHASE_HOLD, TERMS_ESCROW,
-    UNIT_TOKEN_IN, UNIT_TOKEN_OUT,
+    pay_ref_digest, AssetAmount, PayAgree, PayInvoice, PayQuote, PayReceipt, KIND_HELD, PHASE_HOLD,
+    TERMS_ESCROW, UNIT_TOKEN_IN, UNIT_TOKEN_OUT,
 };
+use map_pay::dispute::{authenticate_item, Parties, PayDispute, PayDisputeEvidence};
 use map_pay::escrow::{verify_escrow_invoice, EscrowContext};
 use map_pay::{Amount, Asset};
 use map_tasks::msg::{Assign, Lease, Reserve};
@@ -312,6 +313,73 @@ pub fn case_nv011_unknown_receipt_kind() -> Result<(), String> {
         Ok(_) => Err("NV-011 unknown receipt kind accepted (must reject)".into()),
         Err(map_pay::PayError::BadField(5)) => Ok(()),
         Err(e) => Err(format!("NV-011 expected BadField(5), got {e:?}")),
+    }
+}
+
+/// TV-019 — a PAY_DISPUTE (claim 3): round-trips byte-exact; the anchor ref
+/// digest equals the TV-013 envelope multihash (pay §6.1, I1); the claim and
+/// task binding decode as pinned (TASK-026).
+pub fn case_tv019_pay_dispute() -> Result<(), String> {
+    let opened = expect_open(TV019_ENV_HEX, &key_a(), msg_type::PAY_DISPUTE)?;
+    let d = PayDispute::from_value(&opened.body.content).map_err(|e| format!("PayDispute: {e:?}"))?;
+    let re = encode(&d.to_value()).map_err(|e| format!("encode: {e}"))?;
+    let orig = encode(&opened.body.content).map_err(|e| format!("encode content: {e}"))?;
+    if re != orig {
+        return Err("TV-019 PayDispute did not round-trip byte-for-byte".into());
+    }
+    if d.claim != 3 {
+        return Err("TV-019 claim != 3 (overbilling)".into());
+    }
+    let tv013 = from_hex(TV013_ENV_HEX)?;
+    if d.agree_ref.digest != pay_ref_digest(&tv013) {
+        return Err("TV-019 agree-ref digest != multihash(TV-013 envelope) (I1)".into());
+    }
+    if d.statement.is_some() {
+        return Err("TV-019 must carry no statement".into());
+    }
+    Ok(())
+}
+
+/// TV-020 — a PAY_DISPUTE_EVIDENCE whose single kind-0 item carries the
+/// frozen TV-010b envelope VERBATIM (I1 verbatim-carry), out-of-session
+/// (no CB) — and it authenticates + parses back to the bound quote.
+pub fn case_tv020_dispute_evidence() -> Result<(), String> {
+    let opened = expect_open(TV020_ENV_HEX, &key_a(), msg_type::PAY_DISPUTE_EVIDENCE)?;
+    let ev = PayDisputeEvidence::from_value(&opened.body.content).map_err(|e| format!("PayDisputeEvidence: {e:?}"))?;
+    let re = encode(&ev.to_value()).map_err(|e| format!("encode: {e}"))?;
+    let orig = encode(&opened.body.content).map_err(|e| format!("encode content: {e}"))?;
+    if re != orig {
+        return Err("TV-020 did not round-trip byte-for-byte".into());
+    }
+    let [item] = ev.items.as_slice() else {
+        return Err("TV-020 must carry exactly one item".into());
+    };
+    if item.kind != 0 || item.cb.is_some() {
+        return Err("TV-020 item must be kind 0 (quote envelope), no CB".into());
+    }
+    if item.bytes != from_hex(TV010B_ENV_HEX)? {
+        return Err("TV-020 item bytes != the frozen TV-010b envelope (I1 verbatim-carry)".into());
+    }
+    // §6.2/§6.3: the out-of-session item authenticates and parses as the quote.
+    let parties = Parties { payer: key_a().agent_id(), payee: key_b().agent_id(), operator: None };
+    let auth = authenticate_item(item, &parties).map_err(|e| format!("TV-020 item did not authenticate: {e:?}"))?;
+    let q = PayQuote::from_value(auth.content.as_ref().ok_or("no content")?)
+        .map_err(|e| format!("PayQuote: {e:?}"))?;
+    if q.quote_id != [0x10u8; 16] {
+        return Err("TV-020 carried quote has the wrong quote-id".into());
+    }
+    Ok(())
+}
+
+/// NV-012 — the TV-019 dispute with claim = 9. It opens and verifies, but
+/// pay §6.1 admits only claims 0..4 — the codec MUST reject fail-closed.
+pub fn case_nv012_unknown_claim() -> Result<(), String> {
+    let opened = expect_open(NV012_HEX, &key_a(), msg_type::PAY_DISPUTE)
+        .map_err(|e| format!("NV-012 must open (valid envelope): {e}"))?;
+    match PayDispute::from_value(&opened.body.content) {
+        Ok(_) => Err("NV-012 unknown claim accepted (must reject)".into()),
+        Err(map_pay::PayError::BadField(3)) => Ok(()),
+        Err(e) => Err(format!("NV-012 expected BadField(3), got {e:?}")),
     }
 }
 

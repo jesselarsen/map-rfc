@@ -457,6 +457,14 @@ impl<T: Transport, C: Clock, M: MsgIdSource> Session<T, C, M> {
     pub fn session_id(&self) -> &[u8; 16] {
         &self.session_id
     }
+    /// The session channel binding (core §7.3) — the `external_aad` every
+    /// in-session envelope was signed under. Disclosed post-hoc as evidence
+    /// (pay §6.2): it is an HKDF output, not key material; a third party
+    /// needs it to verify in-session envelope artifacts, and same-CB items
+    /// prove same-session provenance. Added TASK-026 (trivial accessor).
+    pub fn cb(&self) -> [u8; 32] {
+        self.cb
+    }
     /// The peer's accountable identity (delegation root if it delegated, else
     /// its leaf). Receipts and trust accrue here (identity §4 / trust §5).
     pub fn accountable_peer(&self) -> &AgentId {

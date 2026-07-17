@@ -15,6 +15,26 @@ Format: `RESOLVED <ruling-date> (was PENDING-ARCHITECT <date> <package>) —
 
 ---
 
+RESOLVED 2026-07-17 (inline, TASK-026 implementation session acting with
+the architect role) — two small gaps surfaced implementing pay §6:
+(a) the §6.1 evidence-kind registry (0–8) had no kind for delivered
+transcript CHUNKs, which §6.3 claim 1 (output-mismatch) requires the
+payer to present for the root recompute. RULING: kind **9 = CHUNK
+envelope (tasks §3)** added to §6.1 (additive registry entry; §8 already
+delegates the registry). (b) tasks §8.2 specifies the checkpoint
+countersignature as "the requester's own signature over (TaskID,
+chunk-seq, root)" but no implementation or byte layout existed. RULING:
+signing input pinned decision-9 style as
+`enc(["MAPCheckpointAck", TaskID, chunk-seq, root])` (root as the raw
+32 bytes), and the §6.1 kind-5 evidence artifact is CBOR
+`[checkpoint-content-map, countersig]` with the tasks §8.2 Checkpoint
+field numbers. — Implemented in `map-pay::dispute`
+(`checkpoint_ack_signing_input`, `CountersignedCheckpoint`); a future
+tasks-runtime CHECKPOINT/CHECKPOINT_ACK implementation MUST reuse these
+bytes.
+
+---
+
 RESOLVED 2026-07-14 (was PENDING-ARCHITECT 2026-07-14 TASK-022) — metered
 (terms 3) stream pause/resume signaling was under-specified: (a) the
 trigger by which the provider learns the requester cannot pay, and (b) the

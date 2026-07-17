@@ -206,6 +206,21 @@ existing message encodings. Vectors: **TV-019** (PAY_DISPUTE),
 **TV-020** (PAY_DISPUTE_EVIDENCE), **NV-012** (unknown claim code →
 reject) to be added additively; frozen bytes untouched.
 
+### Implementation-session addendum — 2026-07-17 (additive; TASK-026)
+
+Two small §6 gaps closed inline (rulings in `ERRATA.md`, 2026-07-17):
+**pay §6.1** evidence-kind registry gains **9 = CHUNK envelope** (the
+delivered-transcript evidence claim 1's root recompute requires — the
+0–8 registry had no chunk kind); and the tasks §8.2 checkpoint
+countersignature bytes are pinned decision-9 style as
+`enc(["MAPCheckpointAck", TaskID, chunk-seq, root])` with the kind-5
+evidence artifact as CBOR `[checkpoint-content-map, countersig]` (no
+byte layout previously existed anywhere). Vectors **TV-019**
+(PAY_DISPUTE, claim 3, PayAgreeRef anchored to TV-013 by envelope
+digest), **TV-020** (PAY_DISPUTE_EVIDENCE carrying the frozen TV-010b
+envelope VERBATIM — the vector itself exercises I1 verbatim-carry), and
+**NV-012** (claim 9 → fail-closed reject) frozen additively.
+
 ### Still open (tracked in `ERRATA.md`, deferred to a future revision)
 
 - (none)

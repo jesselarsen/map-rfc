@@ -86,6 +86,9 @@ pub fn cases() -> Vec<(&'static str, fn() -> Result<(), String>)> {
         ("TV-017 escrow hold PAY_INVOICE", extended::case_tv017_escrow_hold_invoice),
         ("TV-018 held PAY_RECEIPT", extended::case_tv018_held_receipt),
         ("NV-011 unknown receipt kind", extended::case_nv011_unknown_receipt_kind),
+        ("TV-019 PAY_DISPUTE", extended::case_tv019_pay_dispute),
+        ("TV-020 PAY_DISPUTE_EVIDENCE verbatim-carry", extended::case_tv020_dispute_evidence),
+        ("NV-012 unknown dispute claim", extended::case_nv012_unknown_claim),
     ]
 }
 
@@ -189,6 +192,9 @@ mod tests {
     case_test!(tv017_escrow_hold_invoice, extended::case_tv017_escrow_hold_invoice);
     case_test!(tv018_held_receipt, extended::case_tv018_held_receipt);
     case_test!(nv011_unknown_receipt_kind, extended::case_nv011_unknown_receipt_kind);
+    case_test!(tv019_pay_dispute, extended::case_tv019_pay_dispute);
+    case_test!(tv020_dispute_evidence, extended::case_tv020_dispute_evidence);
+    case_test!(nv012_unknown_claim, extended::case_nv012_unknown_claim);
 
     #[test]
     fn run_all_is_green_and_complete() {
@@ -198,7 +204,7 @@ mod tests {
             "conformance failures: {:?}",
             report.failed
         );
-        assert_eq!(report.passed.len(), 44);
-        assert_eq!(report.total(), 44);
+        assert_eq!(report.passed.len(), 47);
+        assert_eq!(report.total(), 47);
     }
 }

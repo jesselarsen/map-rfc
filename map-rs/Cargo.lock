@@ -1855,6 +1855,8 @@ version = "0.1.0"
 dependencies = [
  "map-core",
  "map-identity",
+ "map-tasks",
+ "map-trust",
  "sha2",
 ]
 

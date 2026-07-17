@@ -222,12 +222,13 @@ func Produce() map[string][]byte {
 
 	// TV-013 PAY_AGREE (pay §3.1): key 2 = Multihash of the received
 	// TV-010b envelope bytes (I1).
-	out["TV-013"] = mustSeal(KeyA, 0x0401, msgid(18), cbor.Map{
+	tv013 := mustSeal(KeyA, 0x0401, msgid(18), cbor.Map{
 		{K: cbor.Uint(1), V: cbor.Bytes(msgid(0x10))},
 		{K: cbor.Uint(2), V: cbor.Bytes(discovery.MultihashSHA256(tv010b))},
 		{K: cbor.Uint(3), V: cbor.Text("pay:credit-ledger")},
 		{K: cbor.Uint(4), V: usdAmount()},
 	})
+	out["TV-013"] = tv013
 
 	// TV-014 RESERVE (tasks §6): window [TS, DelegExpiry], zone-1 constraint.
 	rsvID := msgid(0x20)
@@ -336,6 +337,35 @@ func Produce() map[string][]byte {
 	// 6009 (pay §4.1 arithmetic).
 	out["NV-010"] = mustSeal(KeyB, 0x0402, msgid(26), payInvoiceContentBilled(cumBilled(8_629_000), cumBilled(8_629_001)))
 
+	// TV-019 PAY_DISPUTE (pay §6.1): claim 3 (overbilling) over the TV-016
+	// invoice, anchored to TV-013 by envelope-digest PayAgreeRef (I1), bound
+	// to the TV-006 TaskID. No statement (never evidence).
+	disputeContent := func(claim uint64) cbor.Value {
+		return cbor.Map{
+			{K: cbor.Uint(1), V: cbor.Bytes(msgid(0x32))},
+			{K: cbor.Uint(2), V: cbor.Bytes(msgid(0x30))},
+			{K: cbor.Uint(3), V: cbor.Uint(claim)},
+			{K: cbor.Uint(4), V: cbor.Map{
+				{K: cbor.Uint(1), V: cbor.Bytes(msgid(0x10))},
+				{K: cbor.Uint(2), V: cbor.Bytes(discovery.MultihashSHA256(tv013))},
+			}},
+			{K: cbor.Uint(5), V: cbor.Bytes(TaskID)},
+			{K: cbor.Uint(7), V: cbor.Uint(TS)},
+		}
+	}
+	out["TV-019"] = mustSeal(KeyA, 0x0405, msgid(30), disputeContent(3))
+
+	// TV-020 PAY_DISPUTE_EVIDENCE (pay §6.1): ONE kind-0 item carrying the
+	// frozen TV-010b envelope VERBATIM (I1 verbatim-carry); CB absent
+	// (out-of-session, pay §6.2).
+	out["TV-020"] = mustSeal(KeyA, 0x0406, msgid(31), cbor.Map{
+		{K: cbor.Uint(1), V: cbor.Bytes(msgid(0x32))},
+		{K: cbor.Uint(2), V: cbor.Array{cbor.Map{
+			{K: cbor.Uint(1), V: cbor.Uint(0)},
+			{K: cbor.Uint(2), V: cbor.Bytes(tv010b)},
+		}}},
+	})
+
 	// NV-011: TV-018 with kind = 9 — pay §5.2.1 registers only kinds 0..3;
 	// receivers MUST reject unrecognized kinds fail-closed (6010 class).
 	out["NV-011"] = mustSeal(KeyB, 0x0404, msgid(29), cbor.Map{
@@ -344,6 +374,10 @@ func Produce() map[string][]byte {
 		{K: cbor.Uint(3), V: cbor.Uint(TS)},
 		{K: cbor.Uint(5), V: cbor.Uint(9)},
 	})
+
+	// NV-012: TV-019 with claim = 9 — pay §6.1 registers only claims 0..4;
+	// receivers MUST reject unknown codes fail-closed.
+	out["NV-012"] = mustSeal(KeyA, 0x0405, msgid(33), disputeContent(9))
 
 	return out
 }

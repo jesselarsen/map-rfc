@@ -282,6 +282,25 @@ tv017 = sealed(kb, 0x0402, msgid(27), hold_invoice)
 held_receipt = {1: bytes([0x31]) * 16, 2: HOLD_TOTAL, 3: TS, 5: 1}
 tv018 = sealed(kb, 0x0404, msgid(28), held_receipt)
 
+# TV-019 PAY_DISPUTE (0x0405), signed by A. pay §6.1: the payer opens a
+#   claim-3 (overbilling) dispute over the TV-016 invoice, anchored to the
+#   TV-013 PAY_AGREE by its envelope digest (PayAgreeRef, I1) and bound to
+#   the TV-006 TaskID. Statement (key 6) deliberately absent — it is never
+#   evidence.
+DISPUTE_ID = bytes([0x32]) * 16
+pay_dispute = {1: DISPUTE_ID, 2: bytes([0x30]) * 16, 3: 3,
+               4: {1: bytes([0x10]) * 16,
+                   2: multihash_sha256(tv013["envelope"])},
+               5: task_id, 7: TS}
+tv019 = sealed(ka, 0x0405, msgid(30), pay_dispute)
+
+# TV-020 PAY_DISPUTE_EVIDENCE (0x0406), signed by A. pay §6.1: ONE kind-0
+#   (PAY_QUOTE envelope) item whose bytes are the frozen TV-010b envelope
+#   VERBATIM — the vector itself exercises the I1 verbatim-carry rule with
+#   bytes the suite already pins. CB (key 3) absent: out-of-session (§6.2).
+dispute_evidence = {1: DISPUTE_ID, 2: [{1: 0, 2: tv010b["envelope"]}]}
+tv020 = sealed(ka, 0x0406, msgid(31), dispute_evidence)
+
 # =====================================================================
 # Derived constants (core §6.2 / §7.3, discovery §6, tasks §8.1)
 # =====================================================================
@@ -395,6 +414,13 @@ assert 1523 * 3000 + 812 * 5000 != 8629001, "NV-010 must be arithmetically wrong
 #   admits 0..3 in this revision — receivers MUST reject unknown kinds.
 bad_kind_receipt = {1: bytes([0x31]) * 16, 2: HOLD_TOTAL, 3: TS, 5: 9}
 nv011 = sealed(kb, 0x0404, msgid(29), bad_kind_receipt)["envelope"]
+
+# NV-012 PAY_DISPUTE with an UNKNOWN claim code -> MUST reject (pay §6.1
+#   fail-closed; codec class). Identical content to TV-019 except key 3 = 9
+#   (plus msg-id and signature): opens + verifies, but the claim registry
+#   admits only 0..4 in this revision.
+pay_dispute_bad = dict(pay_dispute); pay_dispute_bad[3] = 9
+nv012 = sealed(ka, 0x0405, msgid(33), pay_dispute_bad)["envelope"]
 
 # =====================================================================
 # Emit markdown. Existing sections (through Verification procedure) are kept
@@ -722,6 +748,55 @@ signature (Ed25519 by Key B, hex):
 
 Complete envelope 18([protected, {{}}, payload, signature]) (hex, {len(tv018['envelope'])} bytes):
   {tv018['envelope'].hex()}
+
+## TV-019 — PAY_DISPUTE (0x0405, claim 3 overbilling), signed by Key A
+
+Field numbers per pay §6.1. msg-id = h'{msgid(30).hex()}', timestamp {TS}.
+The payer opens a claim-3 (overbilling) dispute over the TV-016 invoice,
+anchored to the governing agreement by PayAgreeRef — key 4 = {{quote-id,
+multihash of the received TV-013 PAY_AGREE envelope bytes}} (I1) — and bound
+to the TV-006 TaskID (key 5). Key 6 (free-text statement) is deliberately
+absent: it is never evidence and never influences a verdict.
+
+Content (diagnostic):
+  {{1: h'{DISPUTE_ID.hex()}', 2: h'{(bytes([0x30])*16).hex()}', 3: 3, 4: {{1: h'{(bytes([0x10])*16).hex()}', 2: h'{multihash_sha256(tv013['envelope']).hex()}'}}, 5: h'{task_id.hex()}', 7: {TS}}}
+
+payload (bstr contents, hex):
+  {tv019['payload'].hex()}
+
+Sig_structure = ["Signature1", protected, h'', payload], encoded (hex):
+  {tv019['sig_struct'].hex()}
+
+signature (Ed25519 by Key A, hex):
+  {tv019['sig'].hex()}
+
+Complete envelope 18([protected, {{}}, payload, signature]) (hex, {len(tv019['envelope'])} bytes):
+  {tv019['envelope'].hex()}
+
+## TV-020 — PAY_DISPUTE_EVIDENCE (0x0406), signed by Key A
+
+Field numbers per pay §6.1. msg-id = h'{msgid(31).hex()}', timestamp absent
+from content (the envelope carries the timestamp). One EvidenceItem of kind 0
+(PAY_QUOTE envelope) whose key-2 bytes are the frozen **TV-010b envelope
+VERBATIM** — this vector exercises the I1 verbatim-carry rule with bytes the
+suite already pins byte-exactly. Key 3 (CB) absent: the artifact was signed
+out-of-session (empty external_aad, pay §6.2); a third party verifies it from
+these bytes alone.
+
+Content (diagnostic):
+  {{1: h'{DISPUTE_ID.hex()}', 2: [{{1: 0, 2: h'<the {len(tv010b['envelope'])}-byte TV-010b envelope>'}}]}}
+
+payload (bstr contents, hex):
+  {tv020['payload'].hex()}
+
+Sig_structure = ["Signature1", protected, h'', payload], encoded (hex):
+  {tv020['sig_struct'].hex()}
+
+signature (Ed25519 by Key A, hex):
+  {tv020['sig'].hex()}
+
+Complete envelope 18([protected, {{}}, payload, signature]) (hex, {len(tv020['envelope'])} bytes):
+  {tv020['envelope'].hex()}
 """
 
 negatives = f"""
@@ -819,6 +894,16 @@ requires receivers to reject unrecognized kinds fail-closed — the executable
 counterpart of TV-018, isolating the kind-registry check.
 envelope (hex, {len(nv011)} bytes):
   {nv011.hex()}
+
+### NV-012 — dispute with an unknown claim code → reject (pay §6.1 fail-closed)
+Identical content to TV-019 except the claim (key 3) is 9 (plus msg-id and
+signature). The envelope opens and its signature verifies (well-formed, signed
+by Key A), but pay §6.1 registers only claims 0..4 in this revision and
+requires receivers to reject unknown codes fail-closed — the executable
+counterpart of TV-019, isolating the claim-registry check exactly as NV-011
+isolates the receipt-kind registry.
+envelope (hex, {len(nv012)} bytes):
+  {nv012.hex()}
 """
 
 derived = f"""
@@ -857,3 +942,4 @@ print("TV-013", len(tv013["envelope"]), "| TV-014", len(tv014["envelope"]),
 print("NV-009", len(nv009), "(delegation max-depth exceeded)")
 print("TV-016", len(tv016["envelope"]), "| NV-010", len(nv010), "(metered watermark billing)")
 print("TV-017", len(tv017["envelope"]), "| TV-018", len(tv018["envelope"]), "| NV-011", len(nv011), "(escrow phase/kind)")
+print("TV-019", len(tv019["envelope"]), "| TV-020", len(tv020["envelope"]), "| NV-012", len(nv012), "(disputes)")
