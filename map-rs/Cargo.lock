@@ -820,11 +820,13 @@ dependencies = [
  "map-core",
  "map-discovery",
  "map-identity",
+ "map-pay",
  "map-session",
  "map-taskrun",
  "map-tasks",
  "map-trust",
  "ollama-provider",
+ "x402-adapter",
 ]
 
 [[package]]
@@ -1764,6 +1766,7 @@ checksum = "112b39cec0b298b6c1999fee3e31427f74f676e4cb9879ed1a121b43661a4154"
 name = "map-cli"
 version = "0.1.0"
 dependencies = [
+ "gateway",
  "getrandom 0.2.17",
  "hex",
  "map-core",

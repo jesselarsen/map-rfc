@@ -59,6 +59,8 @@ fn main() {
         Some("serve-ollama") => cmd_serve_ollama(&args),
         #[cfg(feature = "real-x402")]
         Some("x402-demo") => cmd_x402_demo(&args),
+        #[cfg(feature = "real-x402")]
+        Some("x402-gateway-demo") => cmd_x402_gateway_demo(&args),
         _ => {
             eprint!("{}", usage());
             exit(2);
@@ -430,6 +432,7 @@ fn cmd_x402_demo(args: &[String]) -> Result<(), CliError> {
         watermark: None,
         method_payload: vec![],
         timestamp_ms: 0,
+        phase: None,
     };
     let params = X402Params {
         version: 1,
@@ -461,6 +464,84 @@ fn cmd_x402_demo(args: &[String]) -> Result<(), CliError> {
             Ok(())
         }
         Err(code) => Err(CliError::Failure(format!("verify_and_settle rejected with wire code {code}"))),
+    }
+}
+
+// ---------------------------------------------------------------------------
+// x402-gateway-demo (TASK-025 FR-5, feature `real-x402`)
+// ---------------------------------------------------------------------------
+
+/// `x402-gateway-demo --upstream <url> --network <id> --asset <0xtoken>
+/// --signer-key <hex32> --max-spend <atomic> [--input <text>]`: front a live
+/// x402-priced HTTP endpoint as a paid gateway (ops §5.1): admit → settled
+/// gate (forced open — the MAP leg is out of scope for the demo) → the 402
+/// payer loop with a real EIP-3009 authorization → print the output and the
+/// G-5 evidence chunk. Live: needs a funded testnet key and a reachable
+/// x402-priced endpoint.
+#[cfg(feature = "real-x402")]
+fn cmd_x402_gateway_demo(args: &[String]) -> Result<(), CliError> {
+    use gateway::{PaidGatewayProvider, PaidServeError};
+    use x402_adapter::http402::{RealUpstream, SpendPolicy};
+    use x402_adapter::real::RealSigner;
+
+    let need = |k: &str| -> Result<String, CliError> {
+        parse_flag(args, k)
+            .map(str::to_string)
+            .ok_or_else(|| CliError::Usage(format!("x402-gateway-demo needs {k}")))
+    };
+    let upstream_url = need("--upstream")?;
+    let network = need("--network")?;
+    let asset = need("--asset")?;
+    let key_hex = need("--signer-key")?;
+    let max_spend: u128 = need("--max-spend")?
+        .parse()
+        .map_err(|_| CliError::Usage("--max-spend must be atomic units (u128)".into()))?;
+    let input = parse_flag(args, "--input").unwrap_or("hello from MAP").to_string();
+
+    let key_bytes = hex::decode(key_hex.trim_start_matches("0x"))
+        .ok()
+        .and_then(|v| <[u8; 32]>::try_from(v).ok())
+        .ok_or_else(|| CliError::Usage("--signer-key must be 32-byte hex".into()))?;
+    let dom_name = parse_flag(args, "--domain-name").unwrap_or("USD Coin");
+    let dom_version = parse_flag(args, "--domain-version").unwrap_or("2");
+    let signer = RealSigner::new(&key_bytes, dom_name, dom_version)
+        .map_err(|e| CliError::Failure(format!("signer: {e}")))?;
+
+    let g = PaidGatewayProvider::new(
+        RealUpstream,
+        signer,
+        Keypair::generate().agent_id(),
+        "gateway/demo.example.org",
+        "map:cap:gateway/demo.example.org",
+        2,
+        false,
+        None,
+        upstream_url,
+        SpendPolicy { max_atomic_per_task: max_spend, networks: vec![network], assets: vec![asset] },
+        [0xD5; 32], // demo TaskID: the (task, attempt) nonce basis
+        None,
+    )
+    .map_err(|e| CliError::Failure(format!("gateway: {e}")))?;
+    // Demo-only: force the MAP-leg gate open (a real deployment feeds this
+    // from PrepaidProviderPayment::execution_permitted, ops §5.1 G-6).
+    g.set_settled(true);
+    let now_ms = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis() as u64)
+        .unwrap_or(0);
+
+    match g.serve(input.as_bytes(), now_ms) {
+        Ok(chunks) => {
+            for (kind, bytes) in &chunks {
+                println!("chunk kind {:?}: {}", kind, String::from_utf8_lossy(bytes));
+            }
+            Ok(())
+        }
+        Err(PaidServeError::UpstreamPaid(e, (_, evidence))) => Err(CliError::Failure(format!(
+            "upstream failed AFTER payment: {e} — evidence: {}",
+            String::from_utf8_lossy(&evidence)
+        ))),
+        Err(e) => Err(CliError::Failure(format!("gateway refused/failed (nothing spent): {e:?}"))),
     }
 }
 

@@ -706,6 +706,37 @@ treat as the frozen interop contract.
     map-go green, zero warnings; gofmt/vet clean. No deviations filed.
     **TASK-025 and TASK-026 are now UNBLOCKED (parallel-safe).**
 
+    **TASK-025 DONE 2026-07-17.** Adapters only, no crates/ changes.
+    x402-adapter `http402.rs` (always-on): `HttpUpstream` trait,
+    `parse_payment_requirements` (fail-closed brace-matching 402-body
+    parser), `SpendPolicy` (first exact-scheme entry on allowed
+    network+asset, case-insensitive asset), `upstream_nonce(task,
+    attempt)` = SHA-256("MAP-x402-upstream-nonce" || task ||
+    be32(attempt)) — domain-separated from `x402_nonce` and tested on
+    identical inputs; `pay_402_loop` (G-7 ceiling checked BEFORE
+    signing → new `X402Error::PriceCapExceeded`; exactly one payment
+    per (task, attempt); every post-payment failure returns
+    `LoopFailure{evidence: Some}` — attributable loss); `CannedUpstream`
+    (Free / PayThenOk / OverCap / Greedy / FailAfterPay, call+payment
+    counters, nonce-single-settle) + gated `RealUpstream` (ureq);
+    hand-rolled base64. gateway `paid.rs`: `PaidGatewayProvider<U,S>`
+    EMBEDS a `GatewayProvider<MockBackend>` purely for `admit` reuse
+    (no logic duplication); `serve` = admit → `set_settled` gate (fed
+    by TASK-024 `execution_permitted`) → loop → chunks; G-5: evidence
+    only as a kind-4 (ToolIo) chunk, no cross-leg proof API; the
+    Executor impl degrades paid-then-failed to the evidence chunk
+    ALONE (never empty). 11 gateway paid tests (incl. E2E
+    prepaid-MAP-leg gating the rail leg with balance assertions on
+    both ledgers; retry-same-attempt settles once / `next_attempt`
+    pays anew; no-identifier-leak) + 4 http402 test fns. `map-cli
+    x402-gateway-demo` behind `real-x402` (gateway crate is now an
+    optional map-cli dep under that feature); gateway README added
+    (two-leg model + G-5/6/7 rule mapping). Default `cargo tree`
+    unchanged; workspace default + gated builds green, zero warnings.
+    Note: TASK-023's gated demo `PayInvoice` literal gained `phase:
+    None` (that path wasn't rebuilt during TASK-024 — caught here).
+    **Only TASK-026 (disputes) remains open.**
+
 21. **ARCHITECT SESSION 2026-07-16 (second pass) — ops §5.1 paid-API
     gateway (x402 composition) DEFINED; TASK-025 packaged (OPEN, blocked
     by 024).** New ops §5.1: a gateway fronting an external x402-priced

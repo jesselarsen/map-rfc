@@ -26,9 +26,11 @@ use map_discovery::Descriptor;
 use map_identity::AgentId;
 
 pub mod descriptor;
+pub mod paid;
 pub mod provider;
 
 pub use descriptor::{build_gateway_descriptor, build_labeled_gateway_descriptor, gateway_capability};
+pub use paid::{PaidGatewayProvider, PaidServeError};
 pub use provider::{GatewayError, GatewayProvider, GatewayReject};
 
 /// The provenance ext-field key a `GatewayAdvert` stands in for (G-1). When the

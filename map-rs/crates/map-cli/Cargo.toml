@@ -27,7 +27,10 @@ map-pay = { path = "../map-pay", optional = true }
 # (secp256k1/EIP-712/HTTP) only under `real-x402`, keeping the default build
 # free of that crypto/network surface.
 x402-adapter = { path = "../../adapters/x402-adapter", optional = true }
+# The `x402-gateway-demo` (TASK-025 FR-5) additionally pulls the gateway
+# composition (PaidGatewayProvider) under the same feature.
+gateway = { path = "../../adapters/gateway", optional = true }
 
 [features]
 real-backend = ["dep:ollama-provider", "ollama-provider/real-backend"]
-real-x402 = ["dep:x402-adapter", "dep:map-pay", "x402-adapter/real-x402"]
+real-x402 = ["dep:x402-adapter", "dep:map-pay", "dep:gateway", "x402-adapter/real-x402"]

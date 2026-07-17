@@ -14,6 +14,7 @@
 
 pub mod codec;
 pub mod flow;
+pub mod http402;
 pub mod payload;
 
 #[cfg(feature = "real-x402")]
@@ -26,6 +27,11 @@ pub use codec::{X402Params, X402Proof};
 pub use flow::{
     build_proof, verify_and_settle, CannedFacilitator, CannedSigner, EvmSigner, ExpectedPayment,
     Facilitator, Settlement,
+};
+pub use http402::{
+    pay_402_loop, parse_payment_requirements, upstream_nonce, CannedMode, CannedUpstream,
+    HttpUpstream, LoopFailure, PaidResponse, PaymentEvidence, PaymentRequirements, SpendPolicy,
+    UpstreamError, UpstreamResponse,
 };
 pub use payload::{TransferAuthorization, X402Payload};
 
@@ -72,6 +78,9 @@ pub enum X402Error {
     Signing(String),
     /// The facilitator declined to verify or settle.
     Facilitator(String),
+    /// An upstream 402 demanded more than the gateway's per-task ceiling
+    /// (ops §5.1 G-7): refused fail-closed BEFORE signing. Added TASK-025.
+    PriceCapExceeded,
 }
 
 impl std::fmt::Display for X402Error {
@@ -85,6 +94,7 @@ impl std::fmt::Display for X402Error {
             X402Error::Expired => write!(f, "x402 authorization validity window does not cover now"),
             X402Error::Signing(m) => write!(f, "x402 signing: {m}"),
             X402Error::Facilitator(m) => write!(f, "x402 facilitator: {m}"),
+            X402Error::PriceCapExceeded => write!(f, "x402 upstream demand exceeds the per-task spend ceiling"),
         }
     }
 }

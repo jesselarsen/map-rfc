@@ -128,7 +128,7 @@ fn value_start<'a>(s: &'a str, key: &str) -> Result<&'a str, X402Error> {
     Ok(s[i + pat.len()..].trim_start())
 }
 
-fn str_field(s: &str, key: &str) -> Result<String, X402Error> {
+pub(crate) fn str_field(s: &str, key: &str) -> Result<String, X402Error> {
     let rest = value_start(s, key)?
         .strip_prefix('"')
         .ok_or_else(|| X402Error::Codec(format!("field {key} not a string")))?;
@@ -136,7 +136,7 @@ fn str_field(s: &str, key: &str) -> Result<String, X402Error> {
     Ok(rest[..end].to_string())
 }
 
-fn uint_field(s: &str, key: &str) -> Result<u64, X402Error> {
+pub(crate) fn uint_field(s: &str, key: &str) -> Result<u64, X402Error> {
     let rest = value_start(s, key)?;
     let digits: String = rest.chars().take_while(|c| c.is_ascii_digit()).collect();
     digits.parse().map_err(|_| X402Error::Codec(format!("field {key} not a uint")))

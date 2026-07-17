@@ -16,7 +16,12 @@ map-taskrun = { path = "../../crates/map-taskrun" }
 # (ollama-provider → map-taskrun, gateway → both). A future cleanup could move
 # InferenceBackend to a shared crate (TASK-016 §4) — reported, not done here.
 ollama-provider = { path = "../ollama-provider" }
+# The x402 payer loop for the upstream leg (TASK-025; always-on seams only —
+# the default build stays zero-external-dep, real HTTP rides x402-adapter's
+# own `real-x402` feature).
+x402-adapter = { path = "../x402-adapter" }
 
 [dev-dependencies]
 map-session = { path = "../../crates/map-session" }
 map-trust = { path = "../../crates/map-trust" }
+map-pay = { path = "../../crates/map-pay" }
