@@ -135,6 +135,51 @@ Cross-mesh identity, receipts, and payments need no translation — they
 are already self-certifying — so federation cost is limited to discovery
 bridging and policy reconciliation.
 
+### 5.1 Paid-API gateways (the x402 composition)
+
+A gateway MAY front an external HTTP service that prices its requests
+with x402 (pay §5.1: HTTP 402 + `X-PAYMENT` header; the loop is
+appropriate exactly here, at the gateway boundary — never between MAP
+peers). Such a gateway participates in **two independent payment legs**:
+
+- **Downstream (MAP leg)**: the gateway is an ordinary MAP payee. It
+  quotes, agrees, invoices, and settles under pay §2–§5 with any method
+  and terms it chooses; its price is local policy (a margin over its
+  upstream cost is typical and is nobody else's business — C5).
+- **Upstream (rail leg)**: the gateway is an x402 HTTP payer, spending
+  its own funds from its own wallet against the external service's 402
+  challenge.
+
+Rules (extending G-1..G-4 to money):
+
+- **G-5 — payment legs never launder.** The gateway settles each leg in
+  its own name and MUST NOT re-present one leg's artifacts as the
+  other's: an upstream x402 settlement is not a MAP PayProof, and a MAP
+  PayProof is never forwarded upstream. Upstream payment evidence
+  (settlement response, tx ref) MAY be embedded in the gateway's signed
+  transcript as gateway-attested evidence — provenance G-1 applies: it
+  is the gateway's statement, not the upstream's.
+- **G-6 — spend order.** The gateway MUST admit the task (G-3/scope) and
+  SHOULD hold its downstream settlement (RECOMMENDED: terms 1 prepaid,
+  pay §5.2.2 — the execution gate is exactly the credit-risk boundary)
+  before initiating any upstream payment. A gateway MUST NOT spend
+  upstream on a task it has rejected or will reject.
+- **G-7 — bounded upstream spend.** The gateway MUST enforce a per-task
+  ceiling on upstream payment; a 402 challenge demanding more is refused
+  fail-closed (the task fails; no payment is made). Upstream price
+  changes never propagate implicitly into an already-agreed MAP quote —
+  the quote is binding (pay §3); the margin absorbs or the gateway eats
+  the loss and reprices future quotes.
+- Retry safety: upstream authorizations SHOULD be derived
+  deterministically per (task, attempt) so an HTTP retry cannot
+  double-pay (the same single-use authorization re-presents; the rail's
+  nonce rule dedups) — the same construction as the pay §5.1 invoice
+  nonce, under a distinct domain string.
+
+Compliance (§9) attaches to the gateway as rail participant on the
+upstream leg and as method operator counterparty on the downstream leg;
+neither is compliance-free.
+
 ## 6. Conformance and interoperability testing
 
 ### 6.1 Structure

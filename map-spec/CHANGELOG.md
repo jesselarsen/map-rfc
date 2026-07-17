@@ -155,6 +155,22 @@ Vectors: **TV-017** (terms-2 hold PAY_INVOICE with phase key 7) and
 **TV-018** (PAY_RECEIPT kind 1 held) to be added additively; **NV-011**
 (PAY_RECEIPT with unrecognized kind → 6010). Frozen bytes untouched.
 
+### Post-cut addition — 2026-07-16 (second pass; additive, no wire change)
+
+**ops §5.1 paid-API gateways (the x402 composition) defined**
+(implementation packaged as TASK-025). A gateway fronting an external
+x402-priced HTTP service runs **two independent payment legs** —
+downstream ordinary MAP payee, upstream x402 HTTP payer in its own name —
+under three new gateway rules: **G-5** payment legs never launder (no
+cross-leg proof re-presentation; upstream evidence enters only as
+gateway-attested transcript content), **G-6** spend order (admit, then
+downstream settlement — RECOMMENDED terms 1 prepaid per pay §5.2.2 —
+before any upstream spend), **G-7** bounded upstream spend (per-task
+ceiling, fail-closed refusal). Deterministic per-(task, attempt)
+authorization derivation RECOMMENDED for upstream retry safety. Purely an
+ops-layer composition of existing mechanisms; no message, field, or code
+point changes.
+
 ### Still open (tracked in `ERRATA.md`, deferred to a future revision)
 
 - (none)

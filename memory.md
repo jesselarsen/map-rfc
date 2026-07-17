@@ -681,6 +681,25 @@ treat as the frozen interop contract.
     should be designed AFTER 024: its receipts/auths are the evidence
     set.
 
+21. **ARCHITECT SESSION 2026-07-16 (second pass) — ops §5.1 paid-API
+    gateway (x402 composition) DEFINED; TASK-025 packaged (OPEN, blocked
+    by 024).** New ops §5.1: a gateway fronting an external x402-priced
+    HTTP service runs TWO independent payment legs (downstream ordinary
+    MAP payee, any method/terms; upstream x402 HTTP 402/X-PAYMENT payer
+    in its own name). New gateway rules: **G-5** payment legs never
+    launder (no cross-leg proof re-presentation; upstream settlement
+    evidence enters only as a gateway-attested kind-4 transcript chunk),
+    **G-6** spend order (admit → downstream settled — RECOMMENDED terms 1
+    prepaid, the TASK-024 `execution_permitted` gate — before ANY
+    upstream spend), **G-7** bounded upstream spend (per-task ceiling,
+    fail-closed before signing). Upstream retry safety: authorization
+    nonce = SHA-256("MAP-x402-upstream-nonce" || TaskID || be32(attempt))
+    — domain-separated from the pay §5.1 invoice nonce. No wire changes,
+    no vectors, no Go work. TASK-025 targets adapters only
+    (x402-adapter `http402.rs` payer loop + gateway `paid.rs`
+    `PaidGatewayProvider`; `real-x402` reused; default build zero new
+    deps). **Implementation order: 024 then 025.**
+
 18. **ARCHITECT SESSION 2026-07-14 (third pass) — `pay:x402` REGISTERED
     (pay §5.1 row + full method definition; additive, CHANGELOG updated).**
     x402 (x402.org / Coinbase) enters MAP as a settlement METHOD, not a
