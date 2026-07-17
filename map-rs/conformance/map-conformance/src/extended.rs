@@ -22,7 +22,11 @@ use crate::from_hex;
 use map_core::delegation::DelegError;
 use map_core::{open_delegated, validate_cert};
 use map_pay::billing::{billed, verify_watermark, AgreedTerms};
-use map_pay::codec::{AssetAmount, PayAgree, PayInvoice, PayQuote, UNIT_TOKEN_IN, UNIT_TOKEN_OUT};
+use map_pay::codec::{
+    AssetAmount, PayAgree, PayInvoice, PayQuote, PayReceipt, KIND_HELD, PHASE_HOLD, TERMS_ESCROW,
+    UNIT_TOKEN_IN, UNIT_TOKEN_OUT,
+};
+use map_pay::escrow::{verify_escrow_invoice, EscrowContext};
 use map_pay::{Amount, Asset};
 use map_tasks::msg::{Assign, Lease, Reserve};
 use sha2::{Digest, Sha256};
@@ -230,7 +234,7 @@ pub fn case_tv016_metered_invoice() -> Result<(), String> {
     if computed != w.cumulative_billed {
         return Err("TV-016 billing arithmetic != cumulative-billed".into());
     }
-    let agreed = AgreedTerms { task: w.task, pricing_model: 1, rate_table: watermark_rates(), terms: 3, authorized_cap: None };
+    let agreed = AgreedTerms { task: w.task, pricing_model: 1, rate_table: watermark_rates(), terms: 3, authorized_cap: None, quoted_total: None };
     verify_watermark(&agreed, None, &inv).map_err(|c| format!("TV-016 verify_watermark rejected with {c}"))
 }
 
@@ -241,11 +245,73 @@ pub fn case_nv010_watermark_billing() -> Result<(), String> {
         .map_err(|e| format!("NV-010 must open (valid envelope): {e}"))?;
     let inv = PayInvoice::from_value(&opened.body.content).map_err(|e| format!("PayInvoice: {e:?}"))?;
     let w = inv.watermark.as_ref().ok_or("NV-010 missing UsageWatermark")?;
-    let agreed = AgreedTerms { task: w.task, pricing_model: 1, rate_table: watermark_rates(), terms: 3, authorized_cap: None };
+    let agreed = AgreedTerms { task: w.task, pricing_model: 1, rate_table: watermark_rates(), terms: 3, authorized_cap: None, quoted_total: None };
     match verify_watermark(&agreed, None, &inv) {
         Ok(()) => Err("NV-010 watermark accepted (must reject 6009)".into()),
         Err(map_core::errors::codes::INVOICE_WATERMARK_VIOLATION) => Ok(()),
         Err(c) => Err(format!("NV-010 expected 6009, got {c}")),
+    }
+}
+
+/// TV-017 — an escrow hold PAY_INVOICE (terms 2, phase 1): the codec
+/// round-trips it byte-exact, and `verify_escrow_invoice` accepts it under a
+/// terms-2 agreement whose quoted total matches (pay §5.2.1/§5.2.3, TASK-024).
+pub fn case_tv017_escrow_hold_invoice() -> Result<(), String> {
+    let opened = expect_open(TV017_ENV_HEX, &key_b(), msg_type::PAY_INVOICE)?;
+    let inv = PayInvoice::from_value(&opened.body.content).map_err(|e| format!("PayInvoice: {e:?}"))?;
+    let re = encode(&inv.to_value()).map_err(|e| format!("encode: {e}"))?;
+    let orig = encode(&opened.body.content).map_err(|e| format!("encode content: {e}"))?;
+    if re != orig {
+        return Err("TV-017 PayInvoice did not round-trip byte-for-byte".into());
+    }
+    if inv.phase != Some(PHASE_HOLD) {
+        return Err("TV-017 phase (key 7) != 1 (hold)".into());
+    }
+    if inv.watermark.is_some() {
+        return Err("TV-017 must not carry a watermark (presence iff terms 3)".into());
+    }
+    let total = AssetAmount { asset: Asset::new("iso4217:USD").unwrap(), amount: Amount::new(-2, 500) };
+    if inv.amount != total {
+        return Err("TV-017 amount != the quoted total [-2, 500]".into());
+    }
+    let agreed = AgreedTerms {
+        task: [0; 32],
+        pricing_model: 1,
+        rate_table: watermark_rates(),
+        terms: TERMS_ESCROW,
+        authorized_cap: None,
+        quoted_total: Some(total),
+    };
+    verify_escrow_invoice(&agreed, &EscrowContext::default(), &inv)
+        .map_err(|c| format!("TV-017 verify_escrow_invoice rejected with {c}"))
+}
+
+/// TV-018 — a held PAY_RECEIPT (kind 1): round-trips byte-exact with the kind
+/// key decoded (pay §5.2.1, TASK-024).
+pub fn case_tv018_held_receipt() -> Result<(), String> {
+    let opened = expect_open(TV018_ENV_HEX, &key_b(), msg_type::PAY_RECEIPT)?;
+    let r = PayReceipt::from_value(&opened.body.content).map_err(|e| format!("PayReceipt: {e:?}"))?;
+    let re = encode(&r.to_value()).map_err(|e| format!("encode: {e}"))?;
+    let orig = encode(&opened.body.content).map_err(|e| format!("encode content: {e}"))?;
+    if re != orig {
+        return Err("TV-018 PayReceipt did not round-trip byte-for-byte".into());
+    }
+    if r.kind != Some(KIND_HELD) {
+        return Err("TV-018 kind (key 5) != 1 (held)".into());
+    }
+    Ok(())
+}
+
+/// NV-011 — the TV-018 receipt with kind = 9. It opens and its signature
+/// verifies, but pay §5.2.1 admits only kinds 0..3 — the codec MUST reject
+/// the unrecognized kind fail-closed (6010 class).
+pub fn case_nv011_unknown_receipt_kind() -> Result<(), String> {
+    let opened = expect_open(NV011_HEX, &key_b(), msg_type::PAY_RECEIPT)
+        .map_err(|e| format!("NV-011 must open (valid envelope): {e}"))?;
+    match PayReceipt::from_value(&opened.body.content) {
+        Ok(_) => Err("NV-011 unknown receipt kind accepted (must reject)".into()),
+        Err(map_pay::PayError::BadField(5)) => Ok(()),
+        Err(e) => Err(format!("NV-011 expected BadField(5), got {e:?}")),
     }
 }
 

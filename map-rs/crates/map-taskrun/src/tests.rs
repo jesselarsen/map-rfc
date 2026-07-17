@@ -779,7 +779,7 @@ mod payments_flow {
         let q = pp.issue_quote(QID, [9; 32], usd(500), TS + 60_000);
         rp.on_quote(&mk(msg_type::PAY_QUOTE, q[0].1.clone()), TS); // cap = 500
         // Provider (mis)invoices 999 > cap → requester refuses, no balance move.
-        let bad = PayInvoice { invoice_id: IID, quote_id: QID, amount: usd(999), watermark: None, method_payload: vec![], timestamp_ms: TS };
+        let bad = PayInvoice { invoice_id: IID, quote_id: QID, amount: usd(999), watermark: None, method_payload: vec![], timestamp_ms: TS, phase: None };
         let out = rp.on_invoice(&mk(msg_type::PAY_INVOICE, bad.to_value()), &mut op, TS);
         assert_eq!(out[0].0, msg_type::ERROR);
         // ERRATA 2026-07-12: authorized-cap exceeded is its own code 6005.
@@ -1000,7 +1000,7 @@ mod metered_flow {
         let billed = pp.bill(usage(100, 40, 1000), 4, [1; 16], TS);
         rp.on_chunk(&mk(msg_type::CHUNK, billed[0].1.clone()));
         let w = UsageWatermark { task: TASK, through_seq: 4, usage: usage(200, 80, 1000), cumulative_billed: micro(1_000_000) };
-        let forged = PayInvoice { invoice_id: [1; 16], quote_id: QID, amount: micro(1_000_000), watermark: Some(w), method_payload: vec![], timestamp_ms: TS };
+        let forged = PayInvoice { invoice_id: [1; 16], quote_id: QID, amount: micro(1_000_000), watermark: Some(w), method_payload: vec![], timestamp_ms: TS, phase: None };
         let out = rp.on_invoice(&mk(msg_type::PAY_INVOICE, forged.to_value()), &mut op, TS);
         assert_eq!(map_core::errors::ErrorMsg::from_value(&out[0].1).unwrap().code, 6009);
     }
@@ -1012,7 +1012,7 @@ mod metered_flow {
         let billed = pp.bill(usage(100, 40, 1000), 4, [1; 16], TS);
         rp.on_chunk(&mk(msg_type::CHUNK, billed[0].1.clone()));
         let w = UsageWatermark { task: TASK, through_seq: 4, usage: usage(100, 40, 1000), cumulative_billed: micro(500_001) };
-        let bad = PayInvoice { invoice_id: [1; 16], quote_id: QID, amount: micro(500_001), watermark: Some(w), method_payload: vec![], timestamp_ms: TS };
+        let bad = PayInvoice { invoice_id: [1; 16], quote_id: QID, amount: micro(500_001), watermark: Some(w), method_payload: vec![], timestamp_ms: TS, phase: None };
         let out = rp.on_invoice(&mk(msg_type::PAY_INVOICE, bad.to_value()), &mut op, TS);
         assert_eq!(map_core::errors::ErrorMsg::from_value(&out[0].1).unwrap().code, 6009);
     }
@@ -1034,7 +1034,7 @@ mod metered_flow {
         let billed = pp.bill(usage(100, 40, 1000), 4, [1; 16], TS);
         rp.on_chunk(&mk(msg_type::CHUNK, billed[0].1.clone()));
         let w = UsageWatermark { task: [0xCC; 32], through_seq: 4, usage: usage(100, 40, 1000), cumulative_billed: micro(500_000) };
-        let bad = PayInvoice { invoice_id: [1; 16], quote_id: QID, amount: micro(500_000), watermark: Some(w), method_payload: vec![], timestamp_ms: TS };
+        let bad = PayInvoice { invoice_id: [1; 16], quote_id: QID, amount: micro(500_000), watermark: Some(w), method_payload: vec![], timestamp_ms: TS, phase: None };
         let out = rp.on_invoice(&mk(msg_type::PAY_INVOICE, bad.to_value()), &mut op, TS);
         assert_eq!(map_core::errors::ErrorMsg::from_value(&out[0].1).unwrap().code, 6007);
     }
@@ -1123,5 +1123,263 @@ mod metered_flow {
         assert_eq!(chunk.kind, map_tasks::ChunkKind::UsageUpdate);
         let u = Usage::from_value(&decode(&chunk.content).unwrap()).unwrap();
         assert_eq!(u, usage(100, 40, 1000));
+    }
+}
+
+/// TASK-024 §FR-7 — prepaid (terms 1) and escrow (terms 2) flows (pay §5.2).
+mod escrow_flow {
+    use super::*;
+    use crate::{
+        EscrowProviderPayment, EscrowProviderState, EscrowRequesterPayment, EscrowRequesterState,
+        PrepaidProviderPayment, PrepaidRequesterPayment,
+    };
+    use map_identity::Keypair;
+    use map_pay::codec::{
+        AssetAmount, MethodOffer, PayInvoice, PayQuote, PayReceipt, Usage, KIND_HELD, KIND_RELEASED,
+        PHASE_RELEASE, TERMS_ESCROW, TERMS_PREPAID,
+    };
+    use map_pay::credit_ledger::{LedgerOperator, CREDIT_LEDGER_METHOD};
+    use map_pay::{Amount, Asset};
+
+    const QID: [u8; 16] = [0x50; 16];
+    const TASK: [u8; 32] = [0xE; 32];
+    const EXPIRY: u64 = TS + 600_000; // hold expiry, past any test "now"
+
+    fn ka() -> Keypair { Keypair::from_seed([1u8; 32]) } // requester/payer
+    fn kb() -> Keypair { Keypair::from_seed([2u8; 32]) } // provider/payee
+    fn kop() -> Keypair { Keypair::from_seed([4u8; 32]) } // operator
+
+    fn usd(mantissa: i64) -> AssetAmount {
+        AssetAmount { asset: Asset::new("iso4217:USD").unwrap(), amount: Amount::new(-2, mantissa) }
+    }
+    fn operator(credit: i128) -> LedgerOperator {
+        let mut op = LedgerOperator::new(kop(), -2);
+        op.credit(&ka().agent_id(), credit);
+        op
+    }
+    /// Terms-1/2 quote: model 1 rate table (3/5 cents per token) + flat total.
+    fn quote(terms: u64, total: Option<AssetAmount>) -> PayQuote {
+        PayQuote {
+            quote_id: QID,
+            pricing_model: 1,
+            rate_table: vec![(1, usd(3)), (2, usd(5))],
+            total,
+            methods: vec![MethodOffer { uri: CREDIT_LEDGER_METHOD.into(), params: vec![] }],
+            expiry_ms: TS + 60_000,
+            terms: Some(terms),
+            ext: None,
+            task_binding: Some(TASK),
+        }
+    }
+    fn code(out: &[Outgoing]) -> u16 {
+        assert_eq!(out[0].0, msg_type::ERROR, "expected ERROR, got {:#06x}", out[0].0);
+        map_core::errors::ErrorMsg::from_value(&out[0].1).unwrap().code
+    }
+
+    fn prepaid_agreed(credit: i128) -> (PrepaidProviderPayment, PrepaidRequesterPayment, LedgerOperator) {
+        let q = quote(TERMS_PREPAID, Some(usd(500)));
+        let mut pp = PrepaidProviderPayment::new(kb().agent_id(), ka().agent_id(), kop().agent_id(), q.clone());
+        let mut rp = PrepaidRequesterPayment::new(TASK, ka().agent_id(), kb().agent_id());
+        let qinc = mk(msg_type::PAY_QUOTE, q.to_value());
+        pp.bind_quote_envelope(&qinc.raw);
+        let agree = rp.on_quote(&qinc, TS);
+        assert_eq!(agree[0].0, msg_type::PAY_AGREE);
+        assert!(pp.on_agree(&mk(msg_type::PAY_AGREE, agree[0].1.clone())).is_empty());
+        (pp, rp, operator(credit))
+    }
+
+    fn escrow_agreed(credit: i128) -> (EscrowProviderPayment, EscrowRequesterPayment, LedgerOperator) {
+        let q = quote(TERMS_ESCROW, Some(usd(500)));
+        let mut pp = EscrowProviderPayment::new(kb().agent_id(), ka().agent_id(), kop().agent_id(), q.clone(), EXPIRY);
+        let mut rp = EscrowRequesterPayment::new(TASK, ka(), kb().agent_id());
+        let qinc = mk(msg_type::PAY_QUOTE, q.to_value());
+        pp.bind_quote_envelope(&qinc.raw);
+        let agree = rp.on_quote(&qinc, TS);
+        assert_eq!(agree[0].0, msg_type::PAY_AGREE);
+        assert!(pp.on_agree(&mk(msg_type::PAY_AGREE, agree[0].1.clone())).is_empty());
+        (pp, rp, operator(credit))
+    }
+
+    /// Shuttle one invoice→proof→receipt round through the escrow pair.
+    fn escrow_round(
+        pp: &mut EscrowProviderPayment, rp: &mut EscrowRequesterPayment, op: &mut LedgerOperator,
+        invoice_out: Vec<Outgoing>, release: bool,
+    ) -> PayReceipt {
+        assert_eq!(invoice_out[0].0, msg_type::PAY_INVOICE);
+        let proof = rp.on_invoice(&mk(msg_type::PAY_INVOICE, invoice_out[0].1.clone()), op, TS);
+        assert_eq!(proof[0].0, msg_type::PAY_PROOF, "expected proof, got error {:?}", proof[0].1);
+        let inc = mk(msg_type::PAY_PROOF, proof[0].1.clone());
+        let rcpt = if release { pp.on_release_proof(&inc, TS) } else { pp.on_hold_proof(&inc, TS) };
+        assert_eq!(rcpt[0].0, msg_type::PAY_RECEIPT);
+        rp.on_receipt(&mk(msg_type::PAY_RECEIPT, rcpt[0].1.clone()));
+        PayReceipt::from_value(&rcpt[0].1).unwrap()
+    }
+
+    // FR-7 #1 — prepaid happy path + wrong amount.
+    #[test]
+    fn prepaid_settles_then_permits_execution() {
+        let (mut pp, mut rp, mut op) = prepaid_agreed(1000);
+        assert!(!pp.execution_permitted()); // §5.2.2: no work before settled
+        let inv = pp.invoice([0x60; 16], TS);
+        let proof = rp.on_invoice(&mk(msg_type::PAY_INVOICE, inv[0].1.clone()), &mut op, TS);
+        assert_eq!(proof[0].0, msg_type::PAY_PROOF);
+        let rcpt = pp.on_proof(&mk(msg_type::PAY_PROOF, proof[0].1.clone()), TS);
+        assert_eq!(rcpt[0].0, msg_type::PAY_RECEIPT);
+        let r = PayReceipt::from_value(&rcpt[0].1).unwrap();
+        assert_eq!(r.kind, None); // settled (default kind)
+        assert!(pp.execution_permitted());
+        assert_eq!(op.balance(&ka().agent_id()), 500);
+        assert_eq!(op.balance(&kb().agent_id()), 500);
+    }
+
+    #[test]
+    fn prepaid_wrong_amount_rejected_6010_no_payment() {
+        let (_pp, mut rp, mut op) = prepaid_agreed(1000);
+        let bad = PayInvoice {
+            invoice_id: [0x61; 16], quote_id: QID, amount: usd(499), watermark: None,
+            method_payload: vec![], timestamp_ms: TS, phase: None,
+        };
+        let out = rp.on_invoice(&mk(msg_type::PAY_INVOICE, bad.to_value()), &mut op, TS);
+        assert_eq!(code(&out), 6010);
+        assert_eq!(op.balance(&ka().agent_id()), 1000); // nothing moved
+    }
+
+    // FR-7 #2 — escrow happy path with remainder refund.
+    #[test]
+    fn escrow_hold_complete_release_with_remainder() {
+        let (mut pp, mut rp, mut op) = escrow_agreed(1000);
+        assert!(!pp.execution_permitted());
+        // Hold round: 500 locked, kind-1 receipt, execution opens.
+        let hold_inv = pp.invoice_hold([0x70; 16], TS);
+        let held = escrow_round(&mut pp, &mut rp, &mut op, hold_inv, false);
+        assert_eq!(held.kind, Some(KIND_HELD));
+        assert!(pp.execution_permitted());
+        assert_eq!(op.balance(&ka().agent_id()), 500);
+        assert_eq!(op.escrow_total(), 500);
+        assert_eq!(rp.state(), EscrowRequesterState::Held);
+        // Task runs; COMPLETE goes out and verifies requester-side.
+        pp.mark_complete_sent();
+        rp.set_complete_verified();
+        // Release round: 300 to payee, 200 remainder auto-refunds to payer.
+        let rel_inv = pp.invoice_release([0x71; 16], usd(300), TS);
+        let released = escrow_round(&mut pp, &mut rp, &mut op, rel_inv, true);
+        assert_eq!(released.kind, Some(KIND_RELEASED));
+        assert_eq!(pp.state(), EscrowProviderState::Released);
+        assert_eq!(op.balance(&kb().agent_id()), 300);
+        assert_eq!(op.balance(&ka().agent_id()), 700);
+        assert_eq!(op.escrow_total(), 0);
+    }
+
+    // FR-7 #3 — premature release: requester refuses before COMPLETE verified.
+    #[test]
+    fn premature_release_rejected_6010_nothing_signed() {
+        let (mut pp, mut rp, mut op) = escrow_agreed(1000);
+        let hold_inv = pp.invoice_hold([0x70; 16], TS);
+        escrow_round(&mut pp, &mut rp, &mut op, hold_inv, false);
+        pp.mark_complete_sent(); // provider CLAIMS complete...
+        let rel_inv = pp.invoice_release([0x71; 16], usd(300), TS);
+        // ...but the requester has not verified it: refuse, sign nothing.
+        let out = rp.on_invoice(&mk(msg_type::PAY_INVOICE, rel_inv[0].1.clone()), &mut op, TS);
+        assert_eq!(code(&out), 6010);
+        assert_eq!(op.escrow_total(), 500); // funds still held
+        assert_eq!(op.balance(&kb().agent_id()), 0);
+    }
+
+    // FR-7 #4 — oversized release.
+    #[test]
+    fn oversized_release_rejected_6010() {
+        let (mut pp, mut rp, mut op) = escrow_agreed(1000);
+        let hold_inv = pp.invoice_hold([0x70; 16], TS);
+        escrow_round(&mut pp, &mut rp, &mut op, hold_inv, false);
+        pp.mark_complete_sent();
+        rp.set_complete_verified();
+        // Forge a release above the held amount (bypassing the provider API).
+        let bad = PayInvoice {
+            invoice_id: [0x71; 16], quote_id: QID, amount: usd(501), watermark: None,
+            method_payload: vec![], timestamp_ms: TS, phase: Some(PHASE_RELEASE),
+        };
+        let out = rp.on_invoice(&mk(msg_type::PAY_INVOICE, bad.to_value()), &mut op, TS);
+        assert_eq!(code(&out), 6010);
+        assert_eq!(op.escrow_total(), 500);
+    }
+
+    // FR-7 #5 — duplicate hold (fresh id, same agreement).
+    #[test]
+    fn duplicate_hold_rejected_6010() {
+        let (mut pp, mut rp, mut op) = escrow_agreed(1000);
+        let hold_inv = pp.invoice_hold([0x70; 16], TS);
+        escrow_round(&mut pp, &mut rp, &mut op, hold_inv, false);
+        let second = pp.invoice_hold([0x72; 16], TS); // fresh id, same agreement
+        let out = rp.on_invoice(&mk(msg_type::PAY_INVOICE, second[0].1.clone()), &mut op, TS);
+        assert_eq!(code(&out), 6010);
+        assert_eq!(op.escrow_total(), 500); // only the first hold exists
+    }
+
+    // FR-7 #6 — CANCEL anchors the release to the countersigned checkpoint.
+    #[test]
+    fn cancel_releases_exactly_checkpoint_billed_amount() {
+        let (mut pp, mut rp, mut op) = escrow_agreed(1000);
+        let hold_inv = pp.invoice_hold([0x70; 16], TS);
+        escrow_round(&mut pp, &mut rp, &mut op, hold_inv, false);
+        // Task CANCELled at a checkpoint: 10 in + 20 out gives 10x3 + 20x5 = 130.
+        let cp = Usage { tokens_in: 10, tokens_out: 20, ttft_ms: 1, wall_ms: 2 };
+        let owed = pp.owed_at_checkpoint(&cp);
+        assert_eq!(owed, usd(130));
+        pp.mark_complete_sent(); // COMPLETE(outcome=partial) after cancel
+        rp.set_cancel_checkpoint(cp);
+        // Wrong amount (checkpoint + 1) rejects with 6010.
+        let bad = pp.invoice_release([0x71; 16], usd(131), TS);
+        let out = rp.on_invoice(&mk(msg_type::PAY_INVOICE, bad[0].1.clone()), &mut op, TS);
+        assert_eq!(code(&out), 6010);
+        // Exact checkpoint amount releases; remainder (370) refunds.
+        let good = pp.invoice_release([0x72; 16], usd(130), TS);
+        let released = escrow_round(&mut pp, &mut rp, &mut op, good, true);
+        assert_eq!(released.kind, Some(KIND_RELEASED));
+        assert_eq!(op.balance(&kb().agent_id()), 130);
+        assert_eq!(op.balance(&ka().agent_id()), 870);
+        assert_eq!(op.escrow_total(), 0);
+    }
+
+    // FR-7 #9 — idempotency: re-sent invoices/proofs settle nothing twice.
+    #[test]
+    fn resent_hold_and_release_are_idempotent() {
+        let (mut pp, mut rp, mut op) = escrow_agreed(1000);
+        let hold_inv = pp.invoice_hold([0x70; 16], TS);
+        let held = escrow_round(&mut pp, &mut rp, &mut op, hold_inv.clone(), false);
+        // Re-sent hold invoice re-emits the identical proof; re-sent proof the
+        // identical receipt; no balance movement.
+        let reproof = rp.on_invoice(&mk(msg_type::PAY_INVOICE, hold_inv[0].1.clone()), &mut op, TS);
+        assert_eq!(reproof[0].0, msg_type::PAY_PROOF);
+        let rercpt = pp.on_hold_proof(&mk(msg_type::PAY_PROOF, reproof[0].1.clone()), TS);
+        assert_eq!(PayReceipt::from_value(&rercpt[0].1).unwrap(), held);
+        assert_eq!(op.escrow_total(), 500);
+        assert_eq!(op.balance(&ka().agent_id()), 500);
+        // Same for the release round.
+        pp.mark_complete_sent();
+        rp.set_complete_verified();
+        let rel_inv = pp.invoice_release([0x71; 16], usd(300), TS);
+        let released = escrow_round(&mut pp, &mut rp, &mut op, rel_inv.clone(), true);
+        let reproof2 = rp.on_invoice(&mk(msg_type::PAY_INVOICE, rel_inv[0].1.clone()), &mut op, TS);
+        assert_eq!(reproof2[0].0, msg_type::PAY_PROOF);
+        let rercpt2 = pp.on_release_proof(&mk(msg_type::PAY_PROOF, reproof2[0].1.clone()), TS);
+        assert_eq!(PayReceipt::from_value(&rercpt2[0].1).unwrap(), released);
+        assert_eq!(op.balance(&kb().agent_id()), 300);
+        assert_eq!(op.balance(&ka().agent_id()), 700);
+    }
+
+    // Edge (TASK-024 section 5-9): a terms-1/2 quote missing key 4 is rejected
+    // at quote time, before any agreement forms.
+    #[test]
+    fn quote_without_total_rejected_6010_at_quote_time() {
+        let q = quote(TERMS_ESCROW, None); // terms 2, key 4 absent
+        let mut rp = EscrowRequesterPayment::new(TASK, ka(), kb().agent_id());
+        let out = rp.on_quote(&mk(msg_type::PAY_QUOTE, q.to_value()), TS);
+        assert_eq!(code(&out), 6010);
+        assert_eq!(rp.state(), EscrowRequesterState::Failed);
+        // Same for prepaid.
+        let q1 = quote(TERMS_PREPAID, None);
+        let mut rp1 = PrepaidRequesterPayment::new(TASK, ka().agent_id(), kb().agent_id());
+        let out1 = rp1.on_quote(&mk(msg_type::PAY_QUOTE, q1.to_value()), TS);
+        assert_eq!(code(&out1), 6010);
     }
 }

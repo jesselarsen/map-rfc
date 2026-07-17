@@ -38,6 +38,7 @@ fn invoice(id: u8, mantissa: i64) -> PayInvoice {
         }),
         method_payload: vec![],
         timestamp_ms: 0,
+        phase: None,
     }
 }
 
@@ -74,6 +75,7 @@ fn end_to_end_build_then_verify_and_settle_yields_receipt() {
         amount: inv.amount.clone(),
         timestamp_ms: 1,
         proof_digest: Some(pay_ref_digest(&proof_bytes)),
+        kind: None,
     };
     assert_eq!(receipt.invoice_id, [0x30; 16]);
     assert!(!settlement.tx_ref.is_empty());

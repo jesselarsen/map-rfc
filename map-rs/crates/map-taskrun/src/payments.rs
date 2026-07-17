@@ -146,7 +146,7 @@ impl ProviderPayment {
         let q = self.quote.as_ref().expect("quote set before invoice");
         let amount = q.total.clone().expect("flat quote carries a total");
         self.pending_invoice = Some((invoice_id, amount.clone()));
-        let inv = PayInvoice { invoice_id, quote_id: q.quote_id, amount, watermark: None, method_payload: Vec::new(), timestamp_ms: now_ms };
+        let inv = PayInvoice { invoice_id, quote_id: q.quote_id, amount, watermark: None, method_payload: Vec::new(), timestamp_ms: now_ms, phase: None };
         self.state = ProviderPayState::Invoiced;
         vec![(msg_type::PAY_INVOICE, inv.to_value())]
     }
@@ -180,6 +180,7 @@ impl ProviderPayment {
                     amount,
                     timestamp_ms: now_ms,
                     proof_digest: Some(pay_ref_digest(&proof.proof_payload)),
+                    kind: None,
                 };
                 self.receipt = Some(rcpt.clone());
                 self.state = ProviderPayState::Settled;
@@ -311,7 +312,7 @@ impl RequesterPayment {
                 self.state = RequesterPayState::Insufficient;
                 Vec::new()
             }
-            Err(LedgerError::ExponentMismatch) => {
+            Err(_) => {
                 self.state = RequesterPayState::Failed;
                 err(codes::CAP_EXCEEDED) // exponent mismatch against the cap
             }

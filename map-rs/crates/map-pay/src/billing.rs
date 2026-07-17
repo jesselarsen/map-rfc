@@ -90,6 +90,9 @@ pub struct AgreedTerms {
     pub terms: u64,
     /// PayAgree.4 authorized cap (hard ceiling), if the agreement set one.
     pub authorized_cap: Option<AssetAmount>,
+    /// PayQuote key 4 (estimated/maximum total). REQUIRED under terms 1/2
+    /// (pay §5.2): the prepaid invoice / escrow hold MUST equal it exactly.
+    pub quoted_total: Option<AssetAmount>,
 }
 
 /// `a <= b` requiring the same asset AND exponent (§3: comparisons are
@@ -217,13 +220,13 @@ mod tests {
     }
 
     fn agreed(cap: Option<AssetAmount>) -> AgreedTerms {
-        AgreedTerms { task: [0xAB; 32], pricing_model: 1, rate_table: rates(), terms: 3, authorized_cap: cap }
+        AgreedTerms { task: [0xAB; 32], pricing_model: 1, rate_table: rates(), terms: 3, authorized_cap: cap, quoted_total: None }
     }
     fn watermark(billed_mantissa: i64) -> UsageWatermark {
         UsageWatermark { task: [0xAB; 32], through_seq: 8, usage: usage(), cumulative_billed: micro(billed_mantissa) }
     }
     fn invoice(amount: i64, w: Option<UsageWatermark>) -> PayInvoice {
-        PayInvoice { invoice_id: [1; 16], quote_id: [2; 16], amount: micro(amount), watermark: w, method_payload: vec![], timestamp_ms: 1 }
+        PayInvoice { invoice_id: [1; 16], quote_id: [2; 16], amount: micro(amount), watermark: w, method_payload: vec![], timestamp_ms: 1, phase: None }
     }
 
     #[test]

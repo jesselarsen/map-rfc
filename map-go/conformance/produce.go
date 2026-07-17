@@ -251,6 +251,28 @@ func Produce() map[string][]byte {
 	// 3000/5000 µUSD ⇒ 1523×3000 + 812×5000 = 8_629_000 µUSD.
 	out["TV-016"] = mustSeal(KeyB, 0x0402, msgid(25), payInvoiceContent(cumBilled(8_629_000)))
 
+	// TV-017 escrow hold PAY_INVOICE (pay §5.2.1/§5.2.3, TASK-024): phase
+	// key 7 = 1 (hold), amount = the quote key-4 total (500 cents), NO
+	// watermark. Method payload (pay §5.2.4): the demanded hold expiry-ts
+	// as deterministic-CBOR uint.
+	out["TV-017"] = mustSeal(KeyB, 0x0402, msgid(27), cbor.Map{
+		{K: cbor.Uint(1), V: cbor.Bytes(msgid(0x31))},
+		{K: cbor.Uint(2), V: cbor.Bytes(msgid(0x10))},
+		{K: cbor.Uint(3), V: centUSD(500)},
+		{K: cbor.Uint(5), V: cbor.Bytes(cbor.Encode(cbor.Uint(DelegExpiry)))},
+		{K: cbor.Uint(6), V: cbor.Uint(TS)},
+		{K: cbor.Uint(7), V: cbor.Uint(1)},
+	})
+
+	// TV-018 held PAY_RECEIPT (pay §5.2.1): kind key 5 = 1 (held); key 4
+	// (proof digest) deliberately absent.
+	out["TV-018"] = mustSeal(KeyB, 0x0404, msgid(28), cbor.Map{
+		{K: cbor.Uint(1), V: cbor.Bytes(msgid(0x31))},
+		{K: cbor.Uint(2), V: centUSD(500)},
+		{K: cbor.Uint(3), V: cbor.Uint(TS)},
+		{K: cbor.Uint(5), V: cbor.Uint(1)},
+	})
+
 	// ---- Negative vectors ----
 
 	// NV-001: envelope byte 60 (payload byte 13) XOR 0xFF, original signature.
@@ -314,7 +336,22 @@ func Produce() map[string][]byte {
 	// 6009 (pay §4.1 arithmetic).
 	out["NV-010"] = mustSeal(KeyB, 0x0402, msgid(26), payInvoiceContentBilled(cumBilled(8_629_000), cumBilled(8_629_001)))
 
+	// NV-011: TV-018 with kind = 9 — pay §5.2.1 registers only kinds 0..3;
+	// receivers MUST reject unrecognized kinds fail-closed (6010 class).
+	out["NV-011"] = mustSeal(KeyB, 0x0404, msgid(29), cbor.Map{
+		{K: cbor.Uint(1), V: cbor.Bytes(msgid(0x31))},
+		{K: cbor.Uint(2), V: centUSD(500)},
+		{K: cbor.Uint(3), V: cbor.Uint(TS)},
+		{K: cbor.Uint(5), V: cbor.Uint(9)},
+	})
+
 	return out
+}
+
+// centUSD is ["iso4217:USD", 4([-2, mantissa])] — the TV-017/018 escrow total.
+func centUSD(mantissa int64) cbor.Value {
+	return cbor.Array{cbor.Text("iso4217:USD"),
+		cbor.Tag{Num: 4, Content: cbor.Array{cbor.Int(-2), cbor.Uint(uint64(mantissa))}}}
 }
 
 // microUSD is ["iso4217:USD", 4([-6, mantissa])].

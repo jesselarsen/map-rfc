@@ -41,6 +41,23 @@ pub const UNIT_TOKEN_OUT: u64 = 2;
 pub const UNIT_MS: u64 = 3;
 pub const UNIT_INVOCATION: u64 = 4;
 
+/// Terms codes (PayQuote key 7, pay §3).
+pub const TERMS_POSTPAID: u64 = 0;
+pub const TERMS_PREPAID: u64 = 1;
+pub const TERMS_ESCROW: u64 = 2;
+pub const TERMS_METERED: u64 = 3;
+
+/// Escrow invoice phases (PayInvoice key 7, pay §5.2.1 — terms 2 only).
+pub const PHASE_HOLD: u64 = 1;
+pub const PHASE_RELEASE: u64 = 2;
+
+/// Receipt kinds (PayReceipt key 5, pay §5.2.1). Absent = 0 (settled);
+/// unrecognized kinds MUST be rejected fail-closed (ERROR 6010).
+pub const KIND_SETTLED: u64 = 0;
+pub const KIND_HELD: u64 = 1;
+pub const KIND_RELEASED: u64 = 2;
+pub const KIND_REFUNDED: u64 = 3;
+
 /// Metered usage counters (the `Usage` map: Complete key 4 / ReceiptCore key 8
 /// / kind-3 chunk / UsageWatermark key 3 — one vocabulary across the family).
 /// Mirrored here rather than depended on from map-tasks (map-pay depends only
@@ -391,6 +408,11 @@ pub struct PayInvoice {
     pub watermark: Option<UsageWatermark>,
     pub method_payload: Vec<u8>,
     pub timestamp_ms: u64,
+    /// Escrow phase (key 7, pay §5.2.1): 1 hold, 2 release. REQUIRED iff the
+    /// governing agreement's terms are 2 (mirror of the watermark presence
+    /// rule); other values are a decode error (fail-closed). Non-escrow
+    /// invoices carry `None` and their encoded bytes are unchanged.
+    pub phase: Option<u64>,
 }
 
 impl PayInvoice {
@@ -405,9 +427,20 @@ impl PayInvoice {
         }
         m.push((Value::Uint(5), Value::Bytes(self.method_payload.clone())));
         m.push((Value::Uint(6), Value::Uint(self.timestamp_ms)));
+        if let Some(p) = self.phase {
+            m.push((Value::Uint(7), Value::Uint(p)));
+        }
         Value::Map(m)
     }
     pub fn from_value(v: &Value) -> Result<PayInvoice, PayError> {
+        // Key 7 fail-closed: absent, or exactly 1 (hold) / 2 (release).
+        let phase = match v.map_get(7) {
+            None => None,
+            Some(x) => match x.as_uint() {
+                Some(p @ (PHASE_HOLD | PHASE_RELEASE)) => Some(p),
+                _ => return Err(PayError::BadField(7)),
+            },
+        };
         Ok(PayInvoice {
             invoice_id: id16(v, 1)?,
             quote_id: id16(v, 2)?,
@@ -415,6 +448,7 @@ impl PayInvoice {
             watermark: v.map_get(4).map(UsageWatermark::from_value).transpose()?,
             method_payload: bytes(v, 5)?,
             timestamp_ms: uint(v, 6)?,
+            phase,
         })
     }
 }
@@ -449,6 +483,10 @@ pub struct PayReceipt {
     pub amount: AssetAmount,
     pub timestamp_ms: u64,
     pub proof_digest: Option<Vec<u8>>,
+    /// Receipt kind (key 5, pay §5.2.1): 0 settled (the default when absent —
+    /// pre-existing receipts are byte-unchanged), 1 held, 2 released,
+    /// 3 refunded. Unrecognized kinds are a decode error (fail-closed, 6010).
+    pub kind: Option<u64>,
 }
 
 impl PayReceipt {
@@ -461,9 +499,20 @@ impl PayReceipt {
         if let Some(d) = &self.proof_digest {
             m.push((Value::Uint(4), Value::Bytes(d.clone())));
         }
+        if let Some(k) = self.kind {
+            m.push((Value::Uint(5), Value::Uint(k)));
+        }
         Value::Map(m)
     }
     pub fn from_value(v: &Value) -> Result<PayReceipt, PayError> {
+        // Key 5 fail-closed: absent (= settled), or exactly 0..=3.
+        let kind = match v.map_get(5) {
+            None => None,
+            Some(x) => match x.as_uint() {
+                Some(k) if k <= KIND_REFUNDED => Some(k),
+                _ => return Err(PayError::BadField(5)),
+            },
+        };
         Ok(PayReceipt {
             invoice_id: id16(v, 1)?,
             amount: aa_at(v, 2)?,
@@ -472,6 +521,7 @@ impl PayReceipt {
                 None => None,
                 Some(x) => Some(x.as_bytes().ok_or(PayError::BadField(4))?.to_vec()),
             },
+            kind,
         })
     }
 }
@@ -512,11 +562,11 @@ mod tests {
         assert_eq!(PayAgreeRef::from_value(&ar.to_value()).unwrap(), ar);
         let pref = PayRef { model: Some(0), max_total: Some(usd(600)), methods: Some(vec!["pay:credit-ledger".into()]), agree_ref: Some(ar) };
         assert_eq!(PayRef::from_value(&pref.to_value()).unwrap(), pref);
-        let inv = PayInvoice { invoice_id: [2; 16], quote_id: [1; 16], amount: usd(500), watermark: None, method_payload: vec![], timestamp_ms: 1 };
+        let inv = PayInvoice { invoice_id: [2; 16], quote_id: [1; 16], amount: usd(500), watermark: None, method_payload: vec![], timestamp_ms: 1, phase: None };
         assert_eq!(PayInvoice::from_value(&inv.to_value()).unwrap(), inv);
         let proof = PayProof { invoice_id: [2; 16], method: "pay:credit-ledger".into(), proof_payload: vec![1, 2, 3] };
         assert_eq!(PayProof::from_value(&proof.to_value()).unwrap(), proof);
-        let rcpt = PayReceipt { invoice_id: [2; 16], amount: usd(500), timestamp_ms: 2, proof_digest: Some(pay_ref_digest(b"p")) };
+        let rcpt = PayReceipt { invoice_id: [2; 16], amount: usd(500), timestamp_ms: 2, proof_digest: Some(pay_ref_digest(b"p")), kind: None };
         assert_eq!(PayReceipt::from_value(&rcpt.to_value()).unwrap(), rcpt);
     }
 
@@ -551,7 +601,7 @@ mod tests {
     fn postpaid_invoice_bytes_unchanged_by_optional_watermark() {
         // Regression: a watermark-less invoice encodes to exactly {1,2,3,5,6},
         // byte-identical to the pre-watermark revision (postpaid path).
-        let inv = PayInvoice { invoice_id: [2; 16], quote_id: [1; 16], amount: usd(500), watermark: None, method_payload: vec![], timestamp_ms: 1 };
+        let inv = PayInvoice { invoice_id: [2; 16], quote_id: [1; 16], amount: usd(500), watermark: None, method_payload: vec![], timestamp_ms: 1, phase: None };
         let expect = Value::Map(vec![
             (Value::Uint(1), Value::Bytes([2; 16].to_vec())),
             (Value::Uint(2), Value::Bytes([1; 16].to_vec())),
@@ -563,13 +613,61 @@ mod tests {
     }
 
     #[test]
+    fn settled_receipt_bytes_unchanged_by_optional_kind() {
+        // Regression (pay §5.2.1): a kind-less receipt encodes to exactly
+        // {1,2,3[,4]}, byte-identical to the pre-escrow revision.
+        let rcpt = PayReceipt { invoice_id: [2; 16], amount: usd(500), timestamp_ms: 2, proof_digest: None, kind: None };
+        let expect = Value::Map(vec![
+            (Value::Uint(1), Value::Bytes([2; 16].to_vec())),
+            (Value::Uint(2), usd(500).to_value()),
+            (Value::Uint(3), Value::Uint(2)),
+        ]);
+        assert_eq!(map_core::cbor::encode(&rcpt.to_value()).unwrap(), map_core::cbor::encode(&expect).unwrap());
+    }
+
+    #[test]
+    fn escrow_fields_roundtrip_and_fail_closed() {
+        // Phase 1/2 and kinds 0..=3 round-trip.
+        for p in [PHASE_HOLD, PHASE_RELEASE] {
+            let inv = PayInvoice { invoice_id: [2; 16], quote_id: [1; 16], amount: usd(500), watermark: None, method_payload: vec![], timestamp_ms: 1, phase: Some(p) };
+            assert_eq!(PayInvoice::from_value(&inv.to_value()).unwrap(), inv);
+        }
+        for k in [KIND_SETTLED, KIND_HELD, KIND_RELEASED, KIND_REFUNDED] {
+            let r = PayReceipt { invoice_id: [2; 16], amount: usd(500), timestamp_ms: 2, proof_digest: None, kind: Some(k) };
+            assert_eq!(PayReceipt::from_value(&r.to_value()).unwrap(), r);
+        }
+        // Fail-closed: phase ∉ {1,2} and kind > 3 are DECODE errors (§5.2.1;
+        // NV-011 pins the receipt case at the vector level).
+        for bad_phase in [0u64, 3, 9] {
+            let v = Value::Map(vec![
+                (Value::Uint(1), Value::Bytes([2; 16].to_vec())),
+                (Value::Uint(2), Value::Bytes([1; 16].to_vec())),
+                (Value::Uint(3), usd(500).to_value()),
+                (Value::Uint(5), Value::Bytes(vec![])),
+                (Value::Uint(6), Value::Uint(1)),
+                (Value::Uint(7), Value::Uint(bad_phase)),
+            ]);
+            assert_eq!(PayInvoice::from_value(&v), Err(PayError::BadField(7)));
+        }
+        for bad_kind in [4u64, 9] {
+            let v = Value::Map(vec![
+                (Value::Uint(1), Value::Bytes([2; 16].to_vec())),
+                (Value::Uint(2), usd(500).to_value()),
+                (Value::Uint(3), Value::Uint(2)),
+                (Value::Uint(5), Value::Uint(bad_kind)),
+            ]);
+            assert_eq!(PayReceipt::from_value(&v), Err(PayError::BadField(5)));
+        }
+    }
+
+    #[test]
     fn metered_invoice_carries_watermark_between_3_and_5() {
         let w = UsageWatermark {
             task: [0xAB; 32], through_seq: 8,
             usage: Usage { tokens_in: 1523, tokens_out: 812, ttft_ms: 431, wall_ms: 42000 },
             cumulative_billed: micro(8_629_000),
         };
-        let inv = PayInvoice { invoice_id: [2; 16], quote_id: [1; 16], amount: micro(8_629_000), watermark: Some(w), method_payload: vec![], timestamp_ms: 1 };
+        let inv = PayInvoice { invoice_id: [2; 16], quote_id: [1; 16], amount: micro(8_629_000), watermark: Some(w), method_payload: vec![], timestamp_ms: 1, phase: None };
         assert_eq!(PayInvoice::from_value(&inv.to_value()).unwrap(), inv);
     }
 }

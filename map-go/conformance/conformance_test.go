@@ -35,8 +35,8 @@ func TestProduceParity(t *testing.T) {
 		"TV-001", "TV-002", "TV-003", "TV-004", "TV-005", "TV-006", "TV-007",
 		"TV-008", "TV-009", "TV-010", "TV-010b", "TV-011", "TV-012", "TV-013",
 		"TV-014", "TV-015",
-		"TV-016",
-		"NV-001", "NV-002", "NV-003", "NV-004", "NV-005", "NV-006", "NV-007", "NV-008", "NV-009", "NV-010",
+		"TV-016", "TV-017", "TV-018",
+		"NV-001", "NV-002", "NV-003", "NV-004", "NV-005", "NV-006", "NV-007", "NV-008", "NV-009", "NV-010", "NV-011",
 	}
 	failed := false
 	for _, id := range sections {
@@ -70,7 +70,8 @@ func TestConsume(t *testing.T) {
 		"TV-001": 0x0001, "TV-003": 0x0002, "TV-004": 0x0006, "TV-005": 0x0100,
 		"TV-006": 0x0200, "TV-007": 0x0202, "TV-008": 0x0205, "TV-009": 0x020D,
 		"TV-010": 0x0400, "TV-010b": 0x0400, "TV-011": 0x0502, "TV-013": 0x0401,
-		"TV-014": 0x020F, "TV-015": 0x0210,
+		"TV-014": 0x020F, "TV-015": 0x0210, "TV-016": 0x0402, "TV-017": 0x0402,
+		"TV-018": 0x0404,
 	}
 	for id, mt := range wantType {
 		env, err := vf.Envelope(id)
@@ -221,6 +222,64 @@ func TestReject(t *testing.T) {
 	}
 	if watermarkBillsCorrectly(t, o10.Body.Content) {
 		t.Errorf("NV-010: off-by-one watermark unexpectedly passed the billing check")
+	}
+
+	// NV-011 receipt with an unrecognized kind: opens + verifies as an
+	// envelope; the pay §5.2.1 kind-registry check (fail-closed, 6010 class)
+	// is what rejects it.
+	o11, err := envelope.Open(get("NV-011"), nil)
+	if err != nil {
+		t.Fatalf("NV-011 must open (kind-registry reject, not wire): %v", err)
+	}
+	if receiptKindRecognized(o11.Body.Content) {
+		t.Errorf("NV-011: unrecognized receipt kind 9 unexpectedly accepted")
+	}
+}
+
+// receiptKindRecognized is the pay §5.2.1 receipt-kind registry check, written
+// from the spec (independence rule): key 5 absent (= 0 settled) or 0..3;
+// anything else MUST be rejected fail-closed.
+func receiptKindRecognized(content cbor.Value) bool {
+	v := contentValue(content, 5)
+	if v == nil {
+		return true // absent = kind 0 (settled)
+	}
+	k, ok := v.(cbor.Uint)
+	return ok && uint64(k) <= 3
+}
+
+// TestReceiptKinds: TV-018's kind (1, held) is recognized; NV-011's (9) is
+// not — the executable pay §5.2.1 fail-closed parity (TASK-024).
+func TestReceiptKinds(t *testing.T) {
+	vf := loadVF(t)
+	openContent := func(id string) cbor.Value {
+		env, err := vf.Envelope(id)
+		if err != nil {
+			t.Fatalf("%s: %v", id, err)
+		}
+		o, err := envelope.Open(env, nil)
+		if err != nil {
+			t.Fatalf("%s: %v", id, err)
+		}
+		return o.Body.Content
+	}
+	c18 := openContent("TV-018")
+	if !receiptKindRecognized(c18) {
+		t.Errorf("TV-018 kind 1 (held) should be recognized")
+	}
+	if got := contentUint(t, c18, 5); got != 1 {
+		t.Errorf("TV-018 kind = %d, want 1", got)
+	}
+	if receiptKindRecognized(openContent("NV-011")) {
+		t.Errorf("NV-011 kind 9 should be rejected fail-closed")
+	}
+	// TV-017: hold invoice — phase key 7 = 1, no watermark (key 4 absent).
+	c17 := openContent("TV-017")
+	if got := contentUint(t, c17, 7); got != 1 {
+		t.Errorf("TV-017 phase = %d, want 1 (hold)", got)
+	}
+	if contentValue(c17, 4) != nil {
+		t.Errorf("TV-017 must not carry a watermark (presence iff terms 3)")
 	}
 }
 

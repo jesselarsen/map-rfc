@@ -266,6 +266,22 @@ tv016 = sealed(kb, 0x0402, msgid(25), pay_invoice)
 # In-script arithmetic self-check (pay §4.1), mirroring NV-001's sig check.
 assert 1523 * 3000 + 812 * 5000 == 8629000, "TV-016 billing arithmetic"
 
+# TV-017 escrow hold PAY_INVOICE (0x0402), signed by B. pay §5.2.1/§5.2.3
+#   (terms 2): phase key 7 = 1 (hold), amount = the quote key-4 total, NO
+#   watermark (presence iff terms 3). Method payload (pay §5.2.4,
+#   pay:credit-ledger): the demanded hold expiry-ts as deterministic-CBOR uint.
+HOLD_TOTAL = ["iso4217:USD", cbor2.CBORTag(4, [-2, 500])]
+HOLD_EXPIRY = 1780000600000
+hold_invoice = {1: bytes([0x31]) * 16, 2: bytes([0x10]) * 16, 3: HOLD_TOTAL,
+                5: enc(HOLD_EXPIRY), 6: TS, 7: 1}
+tv017 = sealed(kb, 0x0402, msgid(27), hold_invoice)
+
+# TV-018 held PAY_RECEIPT (0x0404), signed by B. pay §5.2.1: kind key 5 = 1
+#   (held) — the payee's signed statement that a conforming hold exists.
+#   Proof-digest key 4 deliberately absent (exercises the optional-key path).
+held_receipt = {1: bytes([0x31]) * 16, 2: HOLD_TOTAL, 3: TS, 5: 1}
+tv018 = sealed(kb, 0x0404, msgid(28), held_receipt)
+
 # =====================================================================
 # Derived constants (core §6.2 / §7.3, discovery §6, tasks §8.1)
 # =====================================================================
@@ -372,6 +388,13 @@ pay_invoice_bad = {1: bytes([0x30]) * 16, 2: bytes([0x10]) * 16, 3: CUM_BILLED,
                    4: wm_bad, 5: b"", 6: TS}
 nv010 = sealed(kb, 0x0402, msgid(26), pay_invoice_bad)["envelope"]
 assert 1523 * 3000 + 812 * 5000 != 8629001, "NV-010 must be arithmetically wrong"
+
+# NV-011 PAY_RECEIPT with an UNRECOGNIZED kind -> MUST reject (pay §5.2.1
+#   fail-closed; wire 6010). Identical content to TV-018 except key 5 = 9
+#   (plus msg-id and signature): opens + verifies, but the kind registry only
+#   admits 0..3 in this revision — receivers MUST reject unknown kinds.
+bad_kind_receipt = {1: bytes([0x31]) * 16, 2: HOLD_TOTAL, 3: TS, 5: 9}
+nv011 = sealed(kb, 0x0404, msgid(29), bad_kind_receipt)["envelope"]
 
 # =====================================================================
 # Emit markdown. Existing sections (through Verification procedure) are kept
@@ -652,6 +675,53 @@ signature (Ed25519 by Key B, hex):
 
 Complete envelope 18([protected, {{}}, payload, signature]) (hex, {len(tv016['envelope'])} bytes):
   {tv016['envelope'].hex()}
+
+## TV-017 — escrow hold PAY_INVOICE (0x0402, terms 2 phase 1), signed by Key B
+
+Field numbers per pay §4 / §5.2.1. msg-id = h'{msgid(27).hex()}', timestamp {TS}.
+The phase-1 (hold) invoice of a terms-2 (escrow) agreement: key 7 = 1 (hold),
+amount (key 3) = the agreed quote's key-4 total, NO UsageWatermark (key 4 is
+present iff terms 3). The method payload (key 5) is the pay §5.2.4
+`pay:credit-ledger` hold payload: the demanded expiry-ts ({HOLD_EXPIRY}) as a
+deterministic-CBOR uint.
+
+Content (diagnostic):
+  {{1: h'{(bytes([0x31])*16).hex()}', 2: h'{(bytes([0x10])*16).hex()}', 3: ["iso4217:USD", 4([-2, 500])], 5: h'{enc(HOLD_EXPIRY).hex()}', 6: {TS}, 7: 1}}
+
+payload (bstr contents, hex):
+  {tv017['payload'].hex()}
+
+Sig_structure = ["Signature1", protected, h'', payload], encoded (hex):
+  {tv017['sig_struct'].hex()}
+
+signature (Ed25519 by Key B, hex):
+  {tv017['sig'].hex()}
+
+Complete envelope 18([protected, {{}}, payload, signature]) (hex, {len(tv017['envelope'])} bytes):
+  {tv017['envelope'].hex()}
+
+## TV-018 — held PAY_RECEIPT (0x0404, kind 1), signed by Key B
+
+Field numbers per pay §4 / §5.2.1. msg-id = h'{msgid(28).hex()}', timestamp {TS}.
+The receipt for TV-017's settled hold round: kind (key 5) = 1 (held) — the
+payee's signed statement that a conforming hold exists on the rail. Kind 1 is
+NOT a settlement statement (only kinds 0 and 2 feed
+ExecutionReceipt.payment-ref). Key 4 (proof digest) is deliberately absent.
+
+Content (diagnostic):
+  {{1: h'{(bytes([0x31])*16).hex()}', 2: ["iso4217:USD", 4([-2, 500])], 3: {TS}, 5: 1}}
+
+payload (bstr contents, hex):
+  {tv018['payload'].hex()}
+
+Sig_structure = ["Signature1", protected, h'', payload], encoded (hex):
+  {tv018['sig_struct'].hex()}
+
+signature (Ed25519 by Key B, hex):
+  {tv018['sig'].hex()}
+
+Complete envelope 18([protected, {{}}, payload, signature]) (hex, {len(tv018['envelope'])} bytes):
+  {tv018['envelope'].hex()}
 """
 
 negatives = f"""
@@ -740,6 +810,15 @@ differs from TV-016 in exactly one mantissa digit (plus msg-id and signature),
 isolating the arithmetic check the way NV-001 isolates the signature check.
 envelope (hex, {len(nv010)} bytes):
   {nv010.hex()}
+
+### NV-011 — receipt with an unrecognized kind → ESCROW_VIOLATION (6010)
+Identical content to TV-018 except the kind (key 5) is 9 (plus msg-id and
+signature). The envelope opens and its signature verifies (well-formed, signed
+by Key B), but pay §5.2.1 registers only kinds 0..3 in this revision and
+requires receivers to reject unrecognized kinds fail-closed — the executable
+counterpart of TV-018, isolating the kind-registry check.
+envelope (hex, {len(nv011)} bytes):
+  {nv011.hex()}
 """
 
 derived = f"""
@@ -777,3 +856,4 @@ print("TV-013", len(tv013["envelope"]), "| TV-014", len(tv014["envelope"]),
       "| TV-015", len(tv015["envelope"]), "| NV-008", len(nv008), "(pay-agree + reservations)")
 print("NV-009", len(nv009), "(delegation max-depth exceeded)")
 print("TV-016", len(tv016["envelope"]), "| NV-010", len(nv010), "(metered watermark billing)")
+print("TV-017", len(tv017["envelope"]), "| TV-018", len(tv018["envelope"]), "| NV-011", len(nv011), "(escrow phase/kind)")

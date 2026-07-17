@@ -170,6 +170,7 @@ impl MeteredProviderPayment {
             watermark: Some(watermark.clone()),
             method_payload: Vec::new(),
             timestamp_ms: now_ms,
+            phase: None,
         };
         let out = vec![
             (msg_type::CHUNK, chunk.to_value()),
@@ -206,6 +207,7 @@ impl MeteredProviderPayment {
                     amount,
                     timestamp_ms: now_ms,
                     proof_digest: Some(pay_ref_digest(&proof.proof_payload)),
+                    kind: None,
                 };
                 self.receipts.push(rcpt.clone());
                 vec![(msg_type::PAY_RECEIPT, rcpt.to_value())]
@@ -454,7 +456,7 @@ impl MeteredRequesterPayment {
                 self.state = MeteredRequesterState::Insufficient;
                 Vec::new()
             }
-            Err(LedgerError::ExponentMismatch) => {
+            Err(_) => {
                 self.state = MeteredRequesterState::Failed;
                 err(codes::CAP_EXCEEDED, false)
             }

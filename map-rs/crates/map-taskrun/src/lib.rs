@@ -14,6 +14,7 @@
 //! via the exposed [`ReceiptInputs`] artifact and the pay-ref codec fields — NOT
 //! via a dependency on pay/mesh.
 
+pub mod escrow;
 pub mod evidence;
 pub mod metered;
 pub mod payments;
@@ -28,6 +29,10 @@ use map_core::cbor::Value;
 use map_tasks::msg::Usage;
 use map_tasks::TaskId;
 
+pub use escrow::{
+    EscrowProviderPayment, EscrowProviderState, EscrowRequesterPayment, EscrowRequesterState,
+    PrepaidProviderPayment, PrepaidProviderState, PrepaidRequesterPayment, PrepaidRequesterState,
+};
 pub use evidence::{apply_verified_evidence, query_evidence, serve_evidence, EvidenceError};
 pub use metered::{
     MeteredProviderPayment, MeteredProviderState, MeteredRequesterPayment, MeteredRequesterState,

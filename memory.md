@@ -681,6 +681,31 @@ treat as the frozen interop contract.
     should be designed AFTER 024: its receipts/auths are the evidence
     set.
 
+    **TASK-024 DONE 2026-07-17.** map-pay: `PayInvoice.phase` (key 7) /
+    `PayReceipt.kind` (key 5) with FAIL-CLOSED decode ranges + pre-escrow
+    byte-regression tests; `escrow::verify_escrow_invoice` (the §5.2.2/
+    §5.2.3 checks in order, wire codes out — check 2 task-binding is a
+    documented no-op at this layer: terms-1/2 invoices carry no TaskID
+    field, binding is at quote time); `AgreedTerms.quoted_total` added;
+    credit-ledger escrow: `hold`/`release`/`refund` (idempotent by
+    invoice-id, atomic release-with-remainder-refund, expiry rules) +
+    `release_auth_bytes`/`refund_auth_bytes` inner-sig domains +
+    `verify_hold_entry` (returns expiry) / `verify_release_entry`;
+    balance-conservation invariant tested. `codes::ESCROW_VIOLATION =
+    6010`. map-taskrun `escrow`: Prepaid pair (`execution_permitted()`
+    gates on settled — the TASK-025 hook) + Escrow pair (hold/release
+    rounds; requester holds its Keypair and signs release-auths;
+    `set_complete_verified`/`set_cancel_checkpoint` feed the ctx;
+    `owed_at_checkpoint` for CANCEL; hold expiry travels as CBOR uint in
+    the phase-1 method payload). Vectors TV-017 (hold invoice, 231 B) /
+    TV-018 (held receipt, 202 B) / NV-011 (kind 9 → reject, 202 B)
+    additive — regenerated md diff 56 ins / 0 del, frozen bytes
+    untouched. Rust conformance 41→44; map-go 27→30 (+
+    `receiptKindRecognized` written from spec, produce parity byte-exact
+    incl. TV-016/017/018 consume). Whole workspace + gated x402 build +
+    map-go green, zero warnings; gofmt/vet clean. No deviations filed.
+    **TASK-025 and TASK-026 are now UNBLOCKED (parallel-safe).**
+
 21. **ARCHITECT SESSION 2026-07-16 (second pass) — ops §5.1 paid-API
     gateway (x402 composition) DEFINED; TASK-025 packaged (OPEN, blocked
     by 024).** New ops §5.1: a gateway fronting an external x402-priced

@@ -65,6 +65,10 @@ pub mod codes {
     /// A metered invoice's UsageWatermark fails a pay §4.1 check: presence,
     /// monotonicity, meter consistency, or billing arithmetic. Added 2026-07-14.
     pub const INVOICE_WATERMARK_VIOLATION: u16 = 6009;
+    /// A terms-1/2 invoice or receipt fails a pay §5.2 check: phase presence,
+    /// prepaid/hold amount ≠ quoted total, premature or oversized release,
+    /// duplicate hold, or an unrecognized receipt kind. Added 2026-07-16.
+    pub const ESCROW_VIOLATION: u16 = 6010;
 }
 
 pub fn family(code: u16) -> &'static str {

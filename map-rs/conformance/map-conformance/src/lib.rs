@@ -83,6 +83,9 @@ pub fn cases() -> Vec<(&'static str, fn() -> Result<(), String>)> {
         ("NV-009 delegation depth exceeded", extended::case_nv009_depth_exceeded),
         ("TV-016 metered PAY_INVOICE watermark", extended::case_tv016_metered_invoice),
         ("NV-010 watermark billing off-by-one", extended::case_nv010_watermark_billing),
+        ("TV-017 escrow hold PAY_INVOICE", extended::case_tv017_escrow_hold_invoice),
+        ("TV-018 held PAY_RECEIPT", extended::case_tv018_held_receipt),
+        ("NV-011 unknown receipt kind", extended::case_nv011_unknown_receipt_kind),
     ]
 }
 
@@ -183,6 +186,9 @@ mod tests {
     case_test!(nv009_depth_exceeded, extended::case_nv009_depth_exceeded);
     case_test!(tv016_metered_invoice, extended::case_tv016_metered_invoice);
     case_test!(nv010_watermark_billing, extended::case_nv010_watermark_billing);
+    case_test!(tv017_escrow_hold_invoice, extended::case_tv017_escrow_hold_invoice);
+    case_test!(tv018_held_receipt, extended::case_tv018_held_receipt);
+    case_test!(nv011_unknown_receipt_kind, extended::case_nv011_unknown_receipt_kind);
 
     #[test]
     fn run_all_is_green_and_complete() {
@@ -192,7 +198,7 @@ mod tests {
             "conformance failures: {:?}",
             report.failed
         );
-        assert_eq!(report.passed.len(), 41);
-        assert_eq!(report.total(), 41);
+        assert_eq!(report.passed.len(), 44);
+        assert_eq!(report.total(), 44);
     }
 }
