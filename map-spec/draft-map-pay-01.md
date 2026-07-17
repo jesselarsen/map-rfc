@@ -185,11 +185,14 @@ proof, not by count).
 ```cddl
 PayInvoice = { 1 => bstr .size 16 /*invoice-id*/, 2 => bstr /*quote-id*/,
   3 => [Asset, Amount], ? 4 => UsageWatermark, 5 => bstr /*method
-  payload: e.g. BOLT12 offer, processor intent id*/, 6 => Timestamp }
+  payload: e.g. BOLT12 offer, processor intent id*/, 6 => Timestamp,
+  ? 7 => uint /*escrow phase, terms 2 only: 1 hold, 2 release — §5.2.1*/ }
 PayProof   = { 1 => bstr /*invoice-id*/, 2 => tstr /*method*/,
   3 => bstr /*proof payload: preimage, intent confirmation, tx ref*/ }
 PayReceipt = { 1 => bstr /*invoice-id*/, 2 => [Asset, Amount],
-  3 => Timestamp, ? 4 => Multihash /*proof digest*/ }
+  3 => Timestamp, ? 4 => Multihash /*proof digest*/,
+  ? 5 => uint /*kind: 0 settled (default), 1 held, 2 released,
+               3 refunded — §5.2.1; unknown values MUST be rejected*/ }
 
 UsageWatermark = {                    ; PayInvoice key 4 (terms 3 only)
   1 => TaskID,                        ; the metered task this invoice bills
@@ -389,16 +392,176 @@ and facilitator trust are method properties the payee prices in, per this
 section's doctrine. Refund reference: the tx hash of a reverse transfer
 (out of MVP scope).
 
-### 5.2 Escrow and prepay
+### 5.2 Prepay and escrow (terms 1 and 2)
 
-Escrow is a method capability, not a MAP mechanism: methods that support
-conditional release (hold-invoice Lightning, processor auth-then-capture,
-contract escrow) advertise it in MethodOffer params; MAP's role is only
-that COMPLETE + verified transcript-root is the canonical release
-trigger both parties can evaluate. `pay:credit-ledger` deliberately
-accommodates community meshes running reputation-priced barter or
-operator-run tabs — with the ledger operator named and chosen, not
-smuggled in as protocol (the fix for C9's accidental central bank).
+Both variants move settlement BEFORE delivery. Neither adds a message
+type (the same doctrine as §4.2): they are reorderings of the §2 flow
+plus two additive optional fields — the invoice `phase` and the receipt
+`kind` (§5.2.1). What they demand of the rail differs: prepay needs
+nothing beyond §5.1; escrow is a **method capability** — only methods
+that support conditional holds (hold-invoice Lightning, processor
+auth-then-capture, contract escrow, the §5.2.4 credit-ledger extension)
+may be offered in a terms-2 quote, and including a MethodOffer in a
+terms-2 quote asserts that the offered instance supports it. MAP's role
+is unchanged in kind: the rail holds and moves the money; MAP defines the
+signed statements, their ordering, and the canonical release trigger
+both parties can evaluate — **COMPLETE + verified transcript-root**
+(tasks §4).
+
+A quote under terms 1 or 2 MUST carry key 4 (estimated/maximum total):
+it is the amount settled or held up front, under the §3 same-exponent
+rule. Terms are exclusive; combined metered-escrow (a held ceiling drawn
+down by watermarks) is not defined in this revision.
+
+#### 5.2.1 Receipt kinds and invoice phases (additive fields)
+
+`PayReceipt` key 5 `kind`: 0 settled (the default when absent — all
+pre-existing receipts are unchanged), 1 held, 2 released, 3 refunded.
+Receivers MUST reject a receipt with an unrecognized kind (fail-closed;
+ERROR 6010). Only kinds 0 and 2 are settlement statements and feed
+`ExecutionReceipt.payment-ref`; kind 1 is the payee's signed statement
+that a conforming hold exists on the rail; kind 3 records a return of
+held funds to the payer.
+
+`PayInvoice` key 7 `phase`: 1 hold, 2 release. Key 7 MUST be present iff
+the governing agreement's terms are 2 (the mirror of the §4.1 watermark
+presence rule); a violation is ERROR 6010 (escrow violation, core §9).
+
+#### 5.2.2 Terms 1 — prepaid
+
+```
+Requester(payer)                          Provider(payee)
+   | ←---- PAY_QUOTE {terms 1} ---------- |
+   | -- PAY_AGREE ----------------------→ |
+   | ←---- PAY_INVOICE ------------------ |   amount = quote key 4 total
+   |   pay on the rail (out of band)      |
+   | -- PAY_PROOF ----------------------→ |   verify under method rules
+   | ←---- PAY_RECEIPT {settled} -------- |
+   |            ... task executes ...     |
+   | ←------------- COMPLETE ------------ |
+```
+
+Rules: the single PAY_INVOICE MUST equal the quote's key 4 total and
+carries no watermark (§4.1) and no phase key (§5.2.1). The provider MUST
+NOT begin billable execution before the invoice is *settled* — delivery
+keys off settled (§1), which is precisely what the payer buys with a
+prepay. An amount other than the quoted total is ERROR 6010. Excess of
+prepay over eventual usage is not overbilling (the payer agreed the
+total; dispute claim 3 does not apply); non-delivery after settlement is
+dispute claim 0, with the receipt and the absent COMPLETE as evidence,
+remedied by the method's refund reference or the mesh's §6 process.
+
+#### 5.2.3 Terms 2 — escrow
+
+Escrow adds a fourth moment to §1's three: **held** — value locked on
+the rail such that the payer cannot unilaterally reclaim it, the payee
+cannot unilaterally claim it, and a defined expiry returns it to the
+payer. Under terms 2, delivery obligations key off *held*; final
+settlement keys off *released*.
+
+```
+Requester(payer)                          Provider(payee)
+   | ←---- PAY_QUOTE {terms 2} ---------- |
+   | -- PAY_AGREE ----------------------→ |
+   | ←---- PAY_INVOICE {phase 1 hold} --- |   amount = quote key 4 total
+   |   place hold on the rail (oob)       |
+   | -- PAY_PROOF {hold proof} ---------→ |   verify hold under method
+   | ←---- PAY_RECEIPT {kind 1 held} ---- |
+   |            ... task executes ...     |
+   | ←------------- COMPLETE ------------ |   transcript-root (tasks §4)
+   |   verify COMPLETE + transcript-root  |
+   | ←---- PAY_INVOICE {phase 2 release}- |   amount = final owed ≤ held
+   |   authorize release on the rail (oob)|
+   | -- PAY_PROOF {release proof} ------→ |
+   | ←---- PAY_RECEIPT {kind 2 released}- |   remainder refunds to payer
+```
+
+Escrow is **two invoice rounds**, each the standard
+invoice→proof→receipt unit: hold and release carry distinct invoice-ids,
+both bound to the same quote-id, and §4's idempotency rules apply per
+round unchanged (a re-sent hold or release invoice is byte-identical; a
+re-delivered proof settles nothing twice).
+
+The requester MUST verify, in order, before acting on a terms-2 invoice:
+
+1. phase: key 7 present and ∈ {1, 2}, per §5.2.1 — else ERROR 6010;
+2. task binding: as §4.1 check 2 — else 6007;
+3. hold invoices: amount equals the quote key 4 total, and no prior hold
+   exists for this agreement (one hold per agreement) — else 6010;
+4. release invoices: a COMPLETE for the bound task has been received AND
+   its transcript-root verified (tasks §4) — the canonical release
+   trigger. A release invoice before that MUST NOT be paid: 6010;
+5. release amount: ≤ the held amount; and if the task ended by CANCEL,
+   exactly the §4.1 formula applied to the last countersigned
+   checkpoint's usage (the §4.2 cancel anchor) — else 6010;
+6. cap: as §4.1 check 6 — else 6005.
+
+**Authorization symmetry** (the property that makes a hold an escrow and
+not a transfer): the rail/operator MUST NOT move held funds to the payee
+without a payer-signed release authorization bound to (hold-invoice-id,
+release-invoice-id, amount) — the payee cannot self-release; and held
+funds MUST NOT return to the payer before expiry without a payee-signed
+refund authorization — the payer cannot unwind a hold it granted. At
+release, the remainder (held minus released) returns to the payer in the
+same rail operation. A payer that verifies COMPLETE and then withholds
+its release signature is dispute claim 2 (non-payment), with the kind-1
+receipt, the signed COMPLETE, and the transcript as evidence — MAP makes
+the lie expensive to sustain (§6); the method and mesh make it
+remediable.
+
+**Expiry**: every hold MUST carry an expiry (method params); at expiry,
+unreleased funds return to the payer in full, and a release fails on the
+rail thereafter (ERROR 6002 at the MAP layer). Payees SHOULD price the
+expiry at deadline + expected release latency with margin — an expiry
+shorter than the task deadline is self-harm, not a protocol violation.
+
+Failure matrix (honest-party exposure is bounded in every row): COMPLETE
+never arrives → expiry refunds the payer (dispute claim 0 if a record
+matters); CANCEL → release invoice for the checkpoint-anchored amount,
+remainder refunded (a kind-3 receipt for the remainder is OPTIONAL);
+provider vanishes → expiry refund; payer vanishes after COMPLETE →
+dispute claim 2, and the payee's loss is bounded by work it can prove it
+delivered. The payee's exposure is bounded by the hold (it never works
+beyond held value); the payer's by the expiry (money returns absent its
+own signature).
+
+#### 5.2.4 `pay:credit-ledger` escrow extension
+
+The §5.1 credit-ledger method supports terms 2 with three additional
+operator-signed entry forms (same `[entry-bytes, sig]` proof envelope
+and verification rules as §5.1). Params (MethodOffer.2) under terms 2:
+`{? 1 => uint}` — maximum hold validity the operator accepts, seconds.
+
+```
+hold-entry    = enc(["MAPLedgerHold", hold-invoice-id, payer, payee,
+                     [Asset, Amount], expiry-ts, ts])
+release-auth  = enc(["MAPLedgerReleaseAuth", hold-invoice-id,
+                     release-invoice-id, [Asset, Amount]])
+                ; signed by the PAYER, presented to the operator
+refund-auth   = enc(["MAPLedgerRefundAuth", hold-invoice-id])
+                ; signed by the PAYEE (pre-expiry refund)
+release-entry = enc(["MAPLedgerRelease", hold-invoice-id,
+                     release-invoice-id, payer, payee,
+                     [Asset, Amount], ts])
+refund-entry  = enc(["MAPLedgerRefund", hold-invoice-id, payer,
+                     [Asset, Amount], ts])
+```
+
+Operator rules: a hold moves Amount from the payer's balance into an
+escrow bucket keyed by hold-invoice-id (idempotent by that id;
+insufficient balance → no entry). A release requires a valid payer
+`release-auth` over exactly this (hold, release, amount) triple, amount
+≤ held, and now < expiry; it atomically credits the amount to the payee,
+returns the remainder to the payer, and closes the hold (idempotent by
+release-invoice-id). A refund requires expiry passed OR a valid payee
+`refund-auth`, returns the held amount to the payer, and closes the
+hold. The hold entry is the PAY_PROOF payload for the phase-1 invoice;
+the release entry for the phase-2 invoice.
+
+`pay:credit-ledger` deliberately accommodates community meshes running
+reputation-priced barter or operator-run tabs — with the ledger operator
+named and chosen, not smuggled in as protocol (the fix for C9's
+accidental central bank).
 
 ## 6. Disputes
 

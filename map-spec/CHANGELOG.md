@@ -120,6 +120,41 @@ scope, like the other rail methods).
   countersigned checkpoint. Additive (adds a §4.2 subsection, no wire change)
   and makes the TASK-022 runtime normative verbatim.
 
+### Post-cut addition — 2026-07-16 (additive; folded into the `-01` texts)
+
+**pay §5.2 prepay and escrow defined** (formerly a one-paragraph stub;
+implementation packaged as TASK-024). Terms 1 (prepaid) and terms 2
+(escrow) get normative flows under the §4.2 "no new message type"
+doctrine:
+
+- **pay §5.2.1** — two additive optional fields: `PayInvoice` key **7**
+  `phase` (1 hold, 2 release; present **iff** terms 2 — the mirror of the
+  §4.1 watermark presence rule) and `PayReceipt` key **5** `kind`
+  (0 settled = default/absent, 1 held, 2 released, 3 refunded; unknown
+  kinds rejected fail-closed). All pre-existing messages are
+  byte-for-byte unaffected.
+- **pay §5.2.2 (terms 1 prepaid)** — single pre-delivery invoice that
+  MUST equal the quote key 4 total (key 4 now REQUIRED in terms-1/2
+  quotes); billable execution MUST NOT start before *settled*.
+- **pay §5.2.3 (terms 2 escrow)** — a fourth payment moment **held**;
+  escrow = two standard invoice→proof→receipt rounds (hold, then
+  release), reusing §4 idempotency per round. Canonical release trigger:
+  COMPLETE + verified transcript-root, then a payer-signed release
+  authorization (authorization symmetry: payee can never self-release,
+  payer can never unwind pre-expiry; expiry auto-refunds). Six ordered
+  requester checks; CANCEL anchors the release amount to the last
+  countersigned checkpoint via the §4.1 formula.
+- **pay §5.2.4** — `pay:credit-ledger` escrow extension: operator-signed
+  `MAPLedgerHold` / `MAPLedgerRelease` / `MAPLedgerRefund` entries plus
+  payer `MAPLedgerReleaseAuth` / payee `MAPLedgerRefundAuth` inner
+  signatures; atomic release-with-remainder-refund; idempotent by
+  invoice-id.
+- **core §9** — code **6010** escrow violation registered.
+
+Vectors: **TV-017** (terms-2 hold PAY_INVOICE with phase key 7) and
+**TV-018** (PAY_RECEIPT kind 1 held) to be added additively; **NV-011**
+(PAY_RECEIPT with unrecognized kind → 6010). Frozen bytes untouched.
+
 ### Still open (tracked in `ERRATA.md`, deferred to a future revision)
 
 - (none)

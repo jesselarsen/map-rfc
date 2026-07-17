@@ -378,9 +378,12 @@ Code space (registry; Specification Required):
   agreement's task, pay §4.1), 6008 invalid payment proof (forged or
   mismatched settlement proof, pay §5), 6009 invoice-watermark violation
   (a metered invoice's UsageWatermark fails a pay §4.1 check: presence,
-  monotonicity, meter consistency, or billing arithmetic). 6002 remains
-  the generic settlement failure for causes not covered by a specific
-  code.
+  monotonicity, meter consistency, or billing arithmetic), 6010 escrow
+  violation (a terms-1/2 invoice or receipt fails a pay §5.2 check:
+  phase presence, prepaid/hold amount ≠ quoted total, premature or
+  oversized release, duplicate hold, or an unrecognized receipt kind).
+  6002 remains the generic settlement failure for causes not covered by
+  a specific code.
 
 Retryability semantics: `retryable = true` means the identical request MAY
 succeed later at the same peer; false means the requester MUST change

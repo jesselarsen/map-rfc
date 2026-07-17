@@ -656,6 +656,31 @@ treat as the frozen interop contract.
     **No open PENDING-ARCHITECT items remain; only TASK-023 (x402) is an
     open implementation package.**
 
+20. **ARCHITECT SESSION 2026-07-16 — pay §5.2 prepaid/escrow DEFINED
+    (spec + TASK-024 packaged; implementation OPEN).** The §5.2 stub is
+    now four normative subsections under the §4.2 "no new message type"
+    doctrine. Terms 1 (prepaid): single pre-delivery invoice == quote
+    key 4 total (key 4 now REQUIRED under terms 1/2); billable execution
+    gates on *settled*. Terms 2 (escrow): a fourth payment moment
+    **held**; escrow = TWO standard invoice→proof→receipt rounds (hold,
+    then release), each riding existing §4 idempotency. Additive wire
+    fields: `PayInvoice.7 phase` (1 hold / 2 release; present iff terms
+    2 — mirror of the watermark presence rule) and `PayReceipt.5 kind`
+    (0 settled default-absent / 1 held / 2 released / 3 refunded;
+    unknown → reject). Release trigger = COMPLETE + verified
+    transcript-root, then a PAYER-signed release-auth (authorization
+    symmetry: payee can't self-release, payer can't unwind pre-expiry;
+    expiry auto-refunds; CANCEL releases exactly the checkpoint-billed
+    amount). Code **6010 ESCROW_VIOLATION** registered (core §9).
+    `pay:credit-ledger` escrow extension: `MAPLedgerHold/Release/Refund`
+    entries + `MAPLedgerReleaseAuth`/`MAPLedgerRefundAuth` inner sigs
+    (§5.2.4). Planned vectors TV-017/TV-018/NV-011 (additive; frozen
+    bytes untouched). **TASK-024 is the open implementation package**
+    (map-pay codec/ledger/escrow-verify, map-taskrun prepaid+escrow
+    pairs, vectors both impls — map-go codec-only). Disputes (pay §6)
+    should be designed AFTER 024: its receipts/auths are the evidence
+    set.
+
 18. **ARCHITECT SESSION 2026-07-14 (third pass) — `pay:x402` REGISTERED
     (pay §5.1 row + full method definition; additive, CHANGELOG updated).**
     x402 (x402.org / Coinbase) enters MAP as a settlement METHOD, not a
