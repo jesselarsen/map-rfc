@@ -9,24 +9,30 @@ sharded Kademlia DHT, evidence-based local trust, and settlement-agnostic
 payments.
 
 Status: preprint for community review — work in progress. Requirements
-language: BCP 14 (RFC 2119 / RFC 8174), unweakened. **Every ops §6.1
-precondition for leaving draft is met** (two independent implementations,
-byte-exact vector parity, formal analysis of the core security properties,
-and a live pairwise interop matrix) short of human review.
+language: BCP 14 (RFC 2119 / RFC 8174), unweakened. The ops §6.1
+advancement gate is **met**: two independent interoperating implementations
+(`map-rs`, `map-go`), byte-exact test-vector parity (TV-001..020 + NV-001..012),
+formal analysis of the core security properties (ops §6.3), and a live
+pairwise interop matrix (16/16, `interop/MATRIX.md`). The documents remain in
+draft pending human/expert review. Intended publication path is the IETF
+Independent Stream (registry stewardship and submission mechanics: ops §3.5).
 
 ## Contents and reading order
 
 | # | File | Scope | Class |
 |---|------|-------|-------|
-| 0 | `map-spec/01-design-critique.md` | Critical evaluation of the source designs (findings C1–C15) and disposition of every idea into the family | — |
-| 1 | `map-spec/draft-map-arch-01.md` | Goals/non-goals, system & trust model, threat catalog TH1–TH15, zones & privacy model, scalability analysis, conformance classes | Informational |
-| 2 | `map-spec/draft-map-identity-01.md` | AgentID (≡ did:key ≡ libp2p PeerID), key hierarchy, delegation certificates, rotation/revocation, ephemeral & org identities, WebAuthn | Standards |
-| 3 | `map-spec/draft-map-core-01.md` | Signed envelope (COSE_Sign1 over deterministic CBOR), negotiation & downgrade resistance, channel binding, replay protection, flow control, error taxonomy, state machine, transport bindings, extension framework | Standards |
-| 4 | `map-spec/draft-map-discovery-01.md` | Descriptors, governed capability ontology, two-plane discovery (stable DHT / volatile status), hot-key sharding, NAT profile, query privacy | Standards |
-| 5 | `map-spec/draft-map-tasks-01.md` | Offer/quote/assign, streaming with credit flow control, tool grants, Merkle transcripts + countersigned checkpoints, resumption by replay, delegation, memory retrieval, task state machines | Standards |
-| 6 | `map-spec/draft-map-trust-01.md` | Dual-signed ExecutionReceipts, selective evidence disclosure, admission costs, graduated bootstrap, local trust computation, challenges, gaming analysis | Standards |
-| 7 | `map-spec/draft-map-pay-01.md` | Payment negotiation & evidence, settlement-method registry (credit-ledger, x402, Lightning, stablecoin, ACH, Interledger), metered streaming settlement with exact watermark billing, pause/resume/cancel, escrow abstraction, disputes | Standards |
-| 8 | `map-spec/draft-map-ops-01.md` | Engineering policy (context/ownership map), registries & change control, federation gateways, conformance & formal-analysis program, reference implementation, migration (incl. HEP-0.1 → MAP), compliance notes | BCP |
+| I | `map-spec/draft-map-index-01.md` | Family cover/index: document list, reading order, submission status (start here) | Informational |
+| 0 | `map-spec/draft-map-intro-01.md` | Introduction & motivation: the problem, why prior designs failed (C1–C15 at a glance), MAP's design responses, reading guide | Informational |
+| 1 | `map-spec/01-design-critique.md` | Critical evaluation of the source designs (findings C1–C15) and disposition of every idea into the family | — |
+| 2 | `map-spec/draft-map-arch-01.md` | Goals/non-goals, system & trust model, threat catalog TH1–TH15, zones & privacy model, scalability analysis, conformance classes | Informational |
+| 3 | `map-spec/draft-map-identity-01.md` | AgentID (≡ did:key ≡ libp2p PeerID), key hierarchy, delegation certificates, rotation/revocation, ephemeral & org identities, WebAuthn | Standards |
+| 4 | `map-spec/draft-map-core-01.md` | Signed envelope (COSE_Sign1 over deterministic CBOR), negotiation & downgrade resistance, channel binding, replay protection, flow control, error taxonomy, state machine, transport bindings, extension framework | Standards |
+| R | `map-spec/draft-map-wire-01.md` | Wire PDU layering diagram + master registry index (all assigned code points, owner pointers) — the single reference for the code-point space | Informational (reference) |
+| 5 | `map-spec/draft-map-discovery-01.md` | Descriptors, governed capability ontology, two-plane discovery (stable DHT / volatile status), hot-key sharding, NAT profile, query privacy | Standards |
+| 6 | `map-spec/draft-map-tasks-01.md` | Offer/quote/assign, streaming with credit flow control, tool grants, Merkle transcripts + countersigned checkpoints, resumption by replay, delegation, memory retrieval, task state machines | Standards |
+| 7 | `map-spec/draft-map-trust-01.md` | Dual-signed ExecutionReceipts, selective evidence disclosure, admission costs, graduated bootstrap, local trust computation, challenges, gaming analysis | Standards |
+| 8 | `map-spec/draft-map-pay-01.md` | Payment negotiation & evidence, settlement-method registry (credit-ledger, x402, Lightning, stablecoin, ACH, Interledger), metered streaming settlement with exact watermark billing, pause/resume/cancel, escrow abstraction, disputes | Standards |
+| 9 | `map-spec/draft-map-ops-01.md` | Engineering policy (context/ownership map), registries & change control, federation gateways, conformance & formal-analysis program, reference implementation, migration (incl. HEP-0.1 → MAP), compliance notes | BCP |
 | 9 | `map-spec/test-vectors/map-test-vectors.md` | TV-001…016 signed envelopes + NV-001…010 MUST-reject vectors — real Ed25519 signatures over deterministic CBOR, reproducible from listed seeds (`gen_vectors.py`) | Normative examples |
 | — | `map-spec/CHANGELOG.md` | Per-revision changelog (editorial / additive / breaking) required by ops §4 | — |
 | — | `map-spec/ERRATA.md` | Historical record of every architect ruling, with rationale | — |
@@ -39,7 +45,9 @@ packages authored to date); the live interop harness lives in `interop/`.
 `memory.md` is the cross-session project handoff file. Historical input
 designs are under `input-designs/`.
 
-Read 0 → 1 → 3 for orientation; implement in the order 2, 3, 4, 5, then 6/7.
+Read the introduction (`draft-map-intro-01`) → `01-design-critique.md` →
+`draft-map-arch-01` → `draft-map-identity-01` for orientation; implement in
+the order identity, core, discovery, tasks, then trust/pay.
 
 ## Reference implementations
 
@@ -74,7 +82,7 @@ properties are all implemented and tested.
 | `map-cli` | `keygen`, projection-rebuild demo, `serve-ollama` (feature-gated), `interop` (the live-matrix peer) |
 | `map-conformance` | byte-exact TV-001…016 + the full NV-001…010 MUST-reject catalog |
 | `adapters/ollama-provider`, `adapters/gateway` | real inference backend (feature-gated); federation provenance + admission gate |
-| `formal/` | ProVerif models proving downgrade resistance and delegation attenuation (spec-adjacent, not a crate) |
+| `formal/` | ProVerif models proving downgrade resistance, delegation attenuation, escrow charge-authorization symmetry, and dispute watermark binding (spec-adjacent, not a crate) |
 
 Build and test:
 
@@ -156,17 +164,32 @@ no breaking changes since rev 00.
 4. Hard constraints are protocol; ranking is local policy.
 5. Zones 0–3 gate where payloads may flow, normatively.
 
-## Status and what's left
+## Status
 
-The core protocol — identity, envelope, negotiation, discovery, tasks,
-trust, and payments (both postpaid and metered-incremental) — is
-specified, implemented twice, and proven to interoperate live. Deliberately
-out of scope for this revision: prepaid/escrow settlement reordering
-(pay §5.2), the dispute protocol (pay §6), and a Go task/session runtime
-beyond the interop harness. The one open implementation package is
-`tasks/TASK-023-x402-settlement-adapter.md` (a feature-gated adapter for
-the `pay:x402` settlement method, kept isolated so its EVM-signing
-dependency never touches the default build).
+The full protocol — identity, envelope, negotiation, discovery, tasks,
+trust, payments (postpaid, metered-incremental, prepaid, and escrow), the
+dispute-evidence protocol (pay §6), and the x402 paid-API gateway
+composition (ops §5.1) — is specified, implemented twice, and proven to
+interoperate live (16/16 matrix, ops §6.1). All normative code points are
+assigned; all frozen test vectors (TV-001..020, NV-001..012) are reproduced
+byte-for-byte by both implementations.
+
+Genuinely open work (deferred, not claimed done):
+- **Stub extension semantics**: `ext-kvx` engine-fingerprint matching and
+  `ext-git` clone/push protocol details remain deferred (containers and zone
+  rules are normative; full semantics are future work, tasks §8.4/§9).
+- **Relay / NAT interop scenario**: AutoNAT v2, Circuit Relay v2, and DCUtR
+  (discovery §10) are normative for public meshes but no interop scenario
+  exercises them yet.
+- **Formal model of the payment/escrow path**: escrow charge-authorization
+  symmetry (pay §5.2) and dispute watermark binding (pay §6) are machine-checked
+  and proved in `formal/` (TASK-027: `pay-auth.pv`, `pay-auth-control-onesided.pv`,
+  `pay-dispute.pv`). The quote→agree→invoice→proof binding and continuous-metering
+  arithmetic (no settled over-bill, settled-not-submitted, PAY_AGREE digest binding)
+  are now also machine-checked and proved (TASK-028: `pay-meter.pv`, P6). The one
+  remaining unmodeled corner is the **checkpoint-anchored cancel accounting**
+  (tasks §8.2/§11 → pay §4.2 cancel); argued structurally, not yet machine-checked
+  (ops §6.3 lists the metering formal work).
 
 License: Apache-2.0. Naming: "MAP" honors the MP2P
 lineage; "Hermes" remains free as an implementation name.

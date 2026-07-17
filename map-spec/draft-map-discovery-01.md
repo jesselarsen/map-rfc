@@ -2,12 +2,21 @@
 title: "MAP Discovery: Agent Descriptors, Capability Ontology, and Two-Plane Discovery"
 docname: draft-map-discovery-01
 category: std
+submissiontype: independent
 ---
 
 # MAP Discovery and Service Advertisement
 
-**Status:** preprint, work in progress. BCP 14 language applies (see
-Requirements Language, below).
+**Status of This Memo:** This document is an Internet-Draft-style preprint
+published for open-source community review. Two independent interoperating
+implementations pass the full live interop matrix (ops §6.1). It has not been
+submitted to the IETF (intended independent stream; see ops §3.5). Distribution
+is unlimited. It expires six months after publication and MUST NOT be cited
+except as "work in progress" pending human/expert review. BCP 14 language
+applies (see Requirements Language, below).
+
+
+This document is subject to BCP 78 and BCP 79. The source working tree is distributed under Apache-2.0 (see repository LICENSE); contributors SHOULD disclose relevant IPR per BCP 79. On publication the RFC is copyrighted by the IETF Trust and licensed per the IETF Trust's terms (see draft-map-ops-01 sect. 3.5).
 
 ## Requirements Language
 
@@ -170,9 +179,12 @@ When a gateway advertises a *fronted* capability (e.g.
 `map:cap:inference/text-generation`) it SHOULD attach `{1: <namespace>}` to
 that CapEntry, so a consumer sees the capability is proxied. The gateway's
 descriptor subject remains the gateway's own AgentID — never the upstream
-(G-1). (Reference-implementation note: the scaffold `Descriptor` codec does
-not yet model CapEntry params, so the interim carrier is an out-of-band
-`GatewayAdvert` wrapper; the wire assignment above is authoritative.)
+(G-1). The wire assignment above is authoritative: the `gateway-of`
+params key (FINAL, immutable) is the normative carrier of provenance. A
+reference-implementation note: the scaffold `Descriptor` codec does not yet
+model CapEntry params, so early implementations used an out-of-band
+`GatewayAdvert` wrapper; closing that codec gap is a separate, additive task
+and does not change the wire form specified here.
 
 ## 5. Stable-plane publication (DHT)
 
@@ -298,10 +310,23 @@ attacks by `seq` monotonicity; wrong-shard placement by shard verification
 by bucket coarseness — implementers MUST NOT add high-entropy optional
 fields to public descriptors (arch §8.2).
 
+A *safe* public descriptor carries only the coarse registered fields
+(`cap`, `pricing`, `hw-class`, `sandbox`, shard bucket, relayed multiaddrs);
+two providers in the same bucket are therefore indistinguishable beyond
+those fields. A *leaky* descriptor that adds a high-entropy optional field —
+for example a per-instance `device-uuid` or a 256-bit random `nonce` —
+violates the MUST NOT above: it lets an observer single out one provider
+across sessions and shards, defeating bucket coarseness. Such optional
+fields MUST instead travel on the Zone-3 ephemeral identity (§9(d)) or in a
+direct, mutually-authenticated channel, never in a public descriptor.
+
 ## 12. IANA-style considerations
 
 Registries established: MAP Capability Ontology; MAP CapEntry Parameter
-keys (per branch); MAP HardwareClass code points; MAP Sandbox Classes.
+keys (per branch); MAP HardwareClass code points; MAP Sandbox Classes. The
+assigned values and the family-wide index are in `draft-map-wire-01.md`
+§3.10, §3.11, and §3.12; in case of divergence the normative definitions in
+§4 and §2 govern.
 
 ## References (selected)
 

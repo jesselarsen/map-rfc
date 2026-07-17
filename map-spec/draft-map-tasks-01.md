@@ -2,12 +2,21 @@
 title: "MAP Tasks: Negotiation, Streaming Inference, Tools, Checkpoints, and Delegation"
 docname: draft-map-tasks-01
 category: std
+submissiontype: independent
 ---
 
 # MAP Task Execution and Secure Messaging
 
-**Status:** preprint, work in progress. BCP 14 language applies (see
-Requirements Language, below).
+**Status of This Memo:** This document is an Internet-Draft-style preprint
+published for open-source community review. Two independent interoperating
+implementations pass the full live interop matrix (ops §6.1). It has not been
+submitted to the IETF (intended independent stream; see ops §3.5). Distribution
+is unlimited. It expires six months after publication and MUST NOT be cited
+except as "work in progress" pending human/expert review. BCP 14 language
+applies (see Requirements Language, below).
+
+
+This document is subject to BCP 78 and BCP 79. The source working tree is distributed under Apache-2.0 (see repository LICENSE); contributors SHOULD disclose relevant IPR per BCP 79. On publication the RFC is copyrighted by the IETF Trust and licensed per the IETF Trust's terms (see draft-map-ops-01 sect. 3.5).
 
 ## Requirements Language
 
@@ -465,7 +474,12 @@ execution behind stricter sandbox classes than the default.
 ## 16. IANA-style considerations
 
 Registers: chunk kinds; reservation/lease fields; caveat keys `delegable`,
-`budget`, `args-digest`; extensions TBD-BID, TBD-KVX, TBD-GIT.
+`budget`, `args-digest`; extensions `ext-bid` (key 1, complete, §2.2),
+`ext-kvx` (key 2, stub, §8.4), `ext-git` (key 3, stub, §9) — assigned in
+core §5.1. The assigned values and the family-wide index are in
+`draft-map-wire-01.md` §3.13, §3.14, and §3.15 (extension keys in §3.4);
+in case of divergence the normative definitions in §3, §6, §7, §8, and §9
+govern.
 
 ## References (selected)
 

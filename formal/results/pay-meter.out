@@ -1,0 +1,208 @@
+Process 0 (that is, the initial process):
+{1}out(c, pk(skR));
+{2}out(c, pk(skPv));
+{3}new qdHonest: bitstring;
+{4}out(c, qdHonest);
+{5}new skPvIns: skey;
+{6}out(c, skPvIns);
+{7}out(c, pk(skPvIns));
+{8}new skRIns: skey;
+{9}out(c, skRIns);
+{10}out(c, pk(skRIns));
+(
+    {11}!
+    {12}let skPv0: skey = skPv in
+    {13}let qd: bitstring = qdHonest in
+    {14}new u: bitstring;
+    {15}new cb: bitstring;
+    {16}let invBody: bitstring = cat4(tagInvoice,qd,u,cb) in
+    {17}let invEnv: bitstring = sign(invBody,skPv0) in
+    {18}out(c, invEnv);
+    (
+        {19}event Invoiced(qd,u,cb)
+    ) | (
+        {20}in(c, proofEnv: bitstring);
+        {21}let pB: bitstring = getmess(proofEnv) in
+        {22}let cat3(=tagProof,qdP: bitstring,uP: bitstring) = pB in
+        {23}let chk: bitstring = checksign(proofEnv,pk(skR)) in
+        {24}if (chk = pB) then
+        {25}if (qdP = qd) then
+        {26}event Settled(qd,uP,amt_dummy(uP));
+        {27}event ChunkEmitted(qd,uP)
+    )
+) | (
+    {28}!
+    {29}let skR0: skey = skR in
+    {30}let qd_1: bitstring = qdHonest in
+    {31}event Agreed(qd_1);
+    {32}in(c, invEnv_1: bitstring);
+    {33}let invBody_1: bitstring = getmess(invEnv_1) in
+    {34}let cat4(=tagInvoice,qdI: bitstring,u_1: bitstring,cb_1: bitstring) = invBody_1 in
+    {35}let chk_1: bitstring = checksign(invEnv_1,pk(skPv)) in
+    {36}if (chk_1 = invBody_1) then
+    {37}if (qdI = qd_1) then
+    {38}if (cb_1 = billed_capped(u_1)) then
+    {39}let proofBody: bitstring = cat3(tagProof,qd_1,u_1) in
+    {40}let proofEnv_1: bitstring = sign(proofBody,skR0) in
+    {41}out(c, proofEnv_1);
+    {42}event Settled(qd_1,u_1,cb_1)
+) | (
+    {43}!
+    {44}let skPv0_1: skey = skPvIns in
+    {45}let qd_2: bitstring = qdHonest in
+    {46}new u_2: bitstring;
+    {47}new cb_2: bitstring;
+    {48}let invBody_2: bitstring = cat4(tagInvoice,qd_2,u_2,cb_2) in
+    {49}let invEnv_2: bitstring = sign(invBody_2,skPv0_1) in
+    {50}out(c, invEnv_2);
+    (
+        {51}event Invoiced(qd_2,u_2,cb_2)
+    ) | (
+        {52}in(c, proofEnv_2: bitstring);
+        {53}let pB_1: bitstring = getmess(proofEnv_2) in
+        {54}let cat3(=tagProof,qdP_1: bitstring,uP_1: bitstring) = pB_1 in
+        {55}let chk_2: bitstring = checksign(proofEnv_2,pk(skR)) in
+        {56}if (chk_2 = pB_1) then
+        {57}if (qdP_1 = qd_2) then
+        {58}event Settled(qd_2,uP_1,amt_dummy(uP_1));
+        {59}event ChunkEmitted(qd_2,uP_1)
+    )
+) | (
+    {60}!
+    {61}let skR0_1: skey = skRIns in
+    {62}let qd_3: bitstring = qdHonest in
+    {63}event Agreed(qd_3);
+    {64}in(c, invEnv_3: bitstring);
+    {65}let invBody_3: bitstring = getmess(invEnv_3) in
+    {66}let cat4(=tagInvoice,qdI_1: bitstring,u_3: bitstring,cb_3: bitstring) = invBody_3 in
+    {67}let chk_3: bitstring = checksign(invEnv_3,pk(skPv)) in
+    {68}if (chk_3 = invBody_3) then
+    {69}if (qdI_1 = qd_3) then
+    {70}if (cb_3 = billed_capped(u_3)) then
+    {71}let proofBody_1: bitstring = cat3(tagProof,qd_3,u_3) in
+    {72}let proofEnv_3: bitstring = sign(proofBody_1,skR0_1) in
+    {73}out(c, proofEnv_3);
+    {74}event Settled(qd_3,u_3,cb_3)
+)
+
+--  Process 1 (that is, process 0, with let moved downwards):
+{1}out(c, pk(skR));
+{2}out(c, pk(skPv));
+{3}new qdHonest: bitstring;
+{4}out(c, qdHonest);
+{5}new skPvIns: skey;
+{6}out(c, skPvIns);
+{7}out(c, pk(skPvIns));
+{8}new skRIns: skey;
+{9}out(c, skRIns);
+{10}out(c, pk(skRIns));
+(
+    {11}!
+    {14}new u: bitstring;
+    {15}new cb: bitstring;
+    {13}let qd: bitstring = qdHonest in
+    {16}let invBody: bitstring = cat4(tagInvoice,qd,u,cb) in
+    {12}let skPv0: skey = skPv in
+    {17}let invEnv: bitstring = sign(invBody,skPv0) in
+    {18}out(c, invEnv);
+    (
+        {19}event Invoiced(qd,u,cb)
+    ) | (
+        {20}in(c, proofEnv: bitstring);
+        {21}let pB: bitstring = getmess(proofEnv) in
+        {22}let cat3(=tagProof,qdP: bitstring,uP: bitstring) = pB in
+        {23}let chk: bitstring = checksign(proofEnv,pk(skR)) in
+        {24}if (chk = pB) then
+        {25}if (qdP = qd) then
+        {26}event Settled(qd,uP,amt_dummy(uP));
+        {27}event ChunkEmitted(qd,uP)
+    )
+) | (
+    {28}!
+    {30}let qd_1: bitstring = qdHonest in
+    {31}event Agreed(qd_1);
+    {32}in(c, invEnv_1: bitstring);
+    {33}let invBody_1: bitstring = getmess(invEnv_1) in
+    {34}let cat4(=tagInvoice,qdI: bitstring,u_1: bitstring,cb_1: bitstring) = invBody_1 in
+    {35}let chk_1: bitstring = checksign(invEnv_1,pk(skPv)) in
+    {36}if (chk_1 = invBody_1) then
+    {37}if (qdI = qd_1) then
+    {38}if (cb_1 = billed_capped(u_1)) then
+    {39}let proofBody: bitstring = cat3(tagProof,qd_1,u_1) in
+    {29}let skR0: skey = skR in
+    {40}let proofEnv_1: bitstring = sign(proofBody,skR0) in
+    {41}out(c, proofEnv_1);
+    {42}event Settled(qd_1,u_1,cb_1)
+) | (
+    {43}!
+    {46}new u_2: bitstring;
+    {47}new cb_2: bitstring;
+    {45}let qd_2: bitstring = qdHonest in
+    {48}let invBody_2: bitstring = cat4(tagInvoice,qd_2,u_2,cb_2) in
+    {44}let skPv0_1: skey = skPvIns in
+    {49}let invEnv_2: bitstring = sign(invBody_2,skPv0_1) in
+    {50}out(c, invEnv_2);
+    (
+        {51}event Invoiced(qd_2,u_2,cb_2)
+    ) | (
+        {52}in(c, proofEnv_2: bitstring);
+        {53}let pB_1: bitstring = getmess(proofEnv_2) in
+        {54}let cat3(=tagProof,qdP_1: bitstring,uP_1: bitstring) = pB_1 in
+        {55}let chk_2: bitstring = checksign(proofEnv_2,pk(skR)) in
+        {56}if (chk_2 = pB_1) then
+        {57}if (qdP_1 = qd_2) then
+        {58}event Settled(qd_2,uP_1,amt_dummy(uP_1));
+        {59}event ChunkEmitted(qd_2,uP_1)
+    )
+) | (
+    {60}!
+    {62}let qd_3: bitstring = qdHonest in
+    {63}event Agreed(qd_3);
+    {64}in(c, invEnv_3: bitstring);
+    {65}let invBody_3: bitstring = getmess(invEnv_3) in
+    {66}let cat4(=tagInvoice,qdI_1: bitstring,u_3: bitstring,cb_3: bitstring) = invBody_3 in
+    {67}let chk_3: bitstring = checksign(invEnv_3,pk(skPv)) in
+    {68}if (chk_3 = invBody_3) then
+    {69}if (qdI_1 = qd_3) then
+    {70}if (cb_3 = billed_capped(u_3)) then
+    {71}let proofBody_1: bitstring = cat3(tagProof,qd_3,u_3) in
+    {61}let skR0_1: skey = skRIns in
+    {72}let proofEnv_3: bitstring = sign(proofBody_1,skR0_1) in
+    {73}out(c, proofEnv_3);
+    {74}event Settled(qd_3,u_3,cb_3)
+)
+
+-- Query event(Settled(qd_4,u_4,cb_4)) ==> event(Agreed(qd_4)) && cb_4 = billed_capped(u_4) in process 1.
+Translating the process into Horn clauses...
+Completing...
+Starting query event(Settled(qd_4,u_4,cb_4)) ==> event(Agreed(qd_4)) && cb_4 = billed_capped(u_4)
+RESULT event(Settled(qd_4,u_4,cb_4)) ==> event(Agreed(qd_4)) && cb_4 = billed_capped(u_4) is true.
+-- Query event(ChunkEmitted(qd_4,u_4)) ==> event(Settled(qd_4,u_4,amt_dummy(u_4))) in process 1.
+Translating the process into Horn clauses...
+Completing...
+Starting query event(ChunkEmitted(qd_4,u_4)) ==> event(Settled(qd_4,u_4,amt_dummy(u_4)))
+RESULT event(ChunkEmitted(qd_4,u_4)) ==> event(Settled(qd_4,u_4,amt_dummy(u_4))) is true.
+-- Query event(Settled(qd_4,u_4,cb_4)) ==> event(Agreed(qd_4)) in process 1.
+Translating the process into Horn clauses...
+Completing...
+Starting query event(Settled(qd_4,u_4,cb_4)) ==> event(Agreed(qd_4))
+RESULT event(Settled(qd_4,u_4,cb_4)) ==> event(Agreed(qd_4)) is true.
+-- Query not event(Settled(qd_4,u_4,cb_4)) in process 1.
+Translating the process into Horn clauses...
+Completing...
+Starting query not event(Settled(qd_4,u_4,cb_4))
+RESULT not event(Settled(qd_4,u_4,cb_4)) is true.
+
+--------------------------------------------------------------
+Verification summary:
+
+Query event(Settled(qd_4,u_4,cb_4)) ==> event(Agreed(qd_4)) && cb_4 = billed_capped(u_4) is true.
+
+Query event(ChunkEmitted(qd_4,u_4)) ==> event(Settled(qd_4,u_4,amt_dummy(u_4))) is true.
+
+Query event(Settled(qd_4,u_4,cb_4)) ==> event(Agreed(qd_4)) is true.
+
+Query not event(Settled(qd_4,u_4,cb_4)) is true.
+
+--------------------------------------------------------------
+

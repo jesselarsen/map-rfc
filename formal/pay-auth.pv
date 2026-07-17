@@ -1,0 +1,133 @@
+(* TASK-027 FR-2 — escrow charge-authorization symmetry (P4), as specified in
+   draft-map-pay-01.md §5.2 (`pay:credit-ledger`) and as implemented in
+   map-rs/crates/map-pay/src/escrow.rs::verify_escrow_invoice (the PHASE_RELEASE
+   branch requires BOTH a previously-accepted payer hold AND the payee's
+   canonical release trigger: complete_verified || cancel_checkpoint_usage).
+
+   Scope / abstractions (see formal/README.md "Abstraction gaps"): the escrow
+   is modeled as a 2-of-2 authorization gate. The payer authorizes a HOLD; the
+   payee authorizes release by signing a release token for the SAME invoice. A
+   charge is applied ONLY when BOTH the payer reached the active (non-paused)
+   branch AND a valid payee-signed release token for that invoice is verified
+   (signature checks out AND the signer is the expected payee from the
+   agreement). Pause takes the separate GatePaused branch, which has no charge
+   path (fail-closed). Continuous metering / credit-window arithmetic is out of
+   scope (it does not affect the symmetry property). The invoice-id is an
+   unforgeable bitstring (new-bound per invoice), so the attacker cannot mint a
+   valid one without the honest parties' cooperation.
+
+   Adversary: full active Dolev-Yao network control (channel `c`), PLUS an
+   insider -- the payer's and/or payee's key is leaked, so the attacker can act
+   as a genuinely authorized party and emit arbitrary signed tokens. Q1 asks
+   whether a `ChargeApplied` is EVER reachable without BOTH authorizations and
+   outside a paused state, regardless of attacker strategy.
+
+   Convention (mirrors delegation.pv / hello-cb.pv): honest payer `skP` and
+   honest payee `skE` are top-level [private] names so the query can pin them
+   directly. An attacker trivially satisfies every signature check using its
+   OWN self-consistent, entirely fabricated invoice -- which is not a symmetry
+   violation (no real payer/payee authorized anything); Q1 is about what a
+   charge against the REAL payer/payee can be tricked into requiring. *)
+
+(* ---------- Signatures (Ed25519 abstraction, copied from hello-cb.pv) ------ *)
+type skey.
+type pkey.
+fun pk(skey): pkey.
+fun sign(bitstring, skey): bitstring.
+reduc forall m: bitstring, sk: skey; getmess(sign(m, sk)) = m.
+reduc forall m: bitstring, sk: skey; checksign(sign(m, sk), pk(sk)) = m.
+
+(* ---------- One-way primitives ---------- *)
+fun h(bitstring): bitstring.
+fun kdf(bitstring, bitstring): bitstring.
+
+(* ---------- Tuples (publicly destructible data constructors) -------------- *)
+fun cat2(bitstring, bitstring): bitstring [data].
+fun cat3(bitstring, bitstring, bitstring): bitstring [data].
+fun pk2bs(pkey): bitstring [data].
+fun catKey(bitstring, pkey, bitstring): bitstring [data].
+
+free c: channel.
+
+(* ---------- Domain-separation tags (pay §3/§5/§6 msg_type discriminates) -- *)
+free tagInvoice: bitstring.
+
+(* ---------- Honest principals (top-level private, query-scoped) ----------- *)
+free skP: skey [private].   (* payer  *)
+free skE: skey [private].   (* payee  *)
+
+(* ---------- Authorization / charge events -------------------------------- *)
+event PayerAuthorized(pkey, bitstring).      (* payer accepted HOLD for inv *)
+event PayeeAuthorized(pkey, bitstring).      (* payee release token verified *)
+event GatePaused(bitstring).                 (* flow paused for inv *)
+event NotPaused(bitstring).                  (* flow NOT paused for inv *)
+event ChargeApplied(pkey, pkey, bitstring, bitstring).  (* payer, payee, inv, amt *)
+
+(* An honest payer authorizes a HOLD for an invoice, then either pauses (no
+   charge path) or proceeds: it receives a payee-signed release token and
+   charges ONLY after verifying the signature AND that the signer is the
+   expected payee (the agreement counterparty). This is the 2-of-2 gate. *)
+let payer(skP0: skey, expectedPayee: pkey) =
+  new inv: bitstring;
+  new amt: bitstring;
+  let holdBody = catKey(tagInvoice, pk(skP0), inv) in
+  let holdEnv = sign(holdBody, skP0) in
+  out(c, holdEnv);
+  event PayerAuthorized(pk(skP0), inv);
+  ( (* paused branch: no charge ever reachable *)
+    event GatePaused(inv)
+  | (* active branch: charge requires a verified payee release token *)
+    event NotPaused(inv);
+    in(c, relEnv: bitstring);
+    let relBody = getmess(relEnv) in
+    let catKey(=tagInvoice, payeePk, =inv) = relBody in
+    let chk = checksign(relEnv, payeePk) in
+    if chk = relBody then
+    if payeePk = expectedPayee then
+      event PayeeAuthorized(payeePk, inv);
+      event ChargeApplied(pk(skP0), payeePk, inv, amt)
+  ).
+
+(* An honest payee emits a signed release token for the invoice named in the
+   HOLD it observes (the canonical COMPLETE/verified trigger, abstracted). *)
+let payee(skE0: skey) =
+  in(c, holdEnvIn: bitstring);
+  let holdBodyIn = getmess(holdEnvIn) in
+  let catKey(=tagInvoice, payerPk, inv) = holdBodyIn in
+  let chk = checksign(holdEnvIn, payerPk) in
+  if chk = holdBodyIn then
+    let relBody = catKey(tagInvoice, pk(skE0), inv) in
+    let relEnv = sign(relBody, skE0) in
+    out(c, relEnv).
+
+(* ==========================================================================
+   Queries
+   ========================================================================== *)
+
+(* Q1 (P4, pay §5.2): escrow charge-authorization symmetry. Whenever a charge
+   is applied against the REAL payer and payee, BOTH must have authorized the
+   same invoice AND the gate must not be paused. No one-sided debit is ever
+   reachable. Expected: proved TRUE. *)
+query payerPk: pkey, payeePk: pkey, inv: bitstring, amt: bitstring;
+  event(ChargeApplied(payerPk, payeePk, inv, amt))
+    ==> event(PayerAuthorized(payerPk, inv))
+    && event(PayeeAuthorized(payeePk, inv))
+    && event(NotPaused(inv)).
+
+(* Q2: reachability sanity (non-vacuity guard). Expected result:
+   "cannot be proved" WITH a witnessing trace -- shows honest charges DO
+   complete, so Q1 holding is not vacuously true over an empty trace set. *)
+query payerPk: pkey, payeePk: pkey, inv: bitstring, amt: bitstring;
+  event(ChargeApplied(payerPk, payeePk, inv, amt)).
+
+process
+  out(c, pk(skP));
+  out(c, pk(skE));
+  (* Insider: payer's key is leaked (attacker can act as a genuine payer). *)
+  new skPins: skey; out(c, skPins); out(c, pk(skPins));
+  (* Insider: payee's key is leaked (attacker can act as a genuine payee). *)
+  new skEins: skey; out(c, skEins); out(c, pk(skEins));
+  ( !payer(skP, pk(skE))
+  | !payee(skE)
+  | !payer(skPins, pk(skEins))
+  | !payee(skEins) )

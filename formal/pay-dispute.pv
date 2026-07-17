@@ -1,0 +1,96 @@
+(* TASK-027 FR-4 — dispute watermark binding (P5), as specified in
+   draft-map-pay-01.md §6.1 (PayDispute key 2 `invoice-id`, key 4
+   `PayAgreeRef`) / §6.3 (mechanical verification) and as implemented in
+   map-rs/crates/map-pay/src/dispute.rs (PayDispute.invoice_id, .agree_ref;
+   the verdict engine is a pure function of (dispute, evidence sets)).
+
+   Scope / abstractions: the arbiter is HONEST (top-level [private] name). A
+   `DisputeResolved` resolution event is emitted ONLY when the arbiter has
+   previously observed a `PayDispute` for the SAME (invoice-id, agree_ref)
+   pair -- recorded in a `table contested(invId, agreeRef)` and checked with
+   `get ... suchthat` before resolution. This mirrors the CB-collision
+   pattern from hello-cb.pv (table-based check on the derived/observed value
+   itself, which is the right tool -- a correspondence over signed blobs
+   would collapse to unforgeability alone; see formal/README.md §165-169).
+
+   Disputants' keys may be leaked (insider): the attacker can open genuinely
+   authorized disputes, but a resolution for an UNCONTESTED invoice pair must
+   remain unreachable. The §6.3 claim-code rebuttal logic (claims 0-4) is out
+   of scope -- the model binds resolution to the contested watermark only.
+   CB-disclosure (§6.2) is modeled as an opaque bitstring tag, not re-derived.
+
+   invoice-id and agree_ref are unforgeable bitstrings (new-bound per dispute),
+   so the attacker cannot mint a valid, arbiter-observed pair on its own. *)
+
+type skey.
+type pkey.
+fun pk(skey): pkey.
+fun sign(bitstring, skey): bitstring.
+reduc forall m: bitstring, sk: skey; getmess(sign(m, sk)) = m.
+reduc forall m: bitstring, sk: skey; checksign(sign(m, sk), pk(sk)) = m.
+
+fun cat2(bitstring, bitstring): bitstring [data].
+fun cat3(bitstring, bitstring, bitstring): bitstring [data].
+fun pk2bs(pkey): bitstring [data].
+
+free c: channel.
+
+free tagDispute: bitstring.
+free tagEvidence: bitstring.
+
+(* Honest arbiter (top-level private, query-scoped). *)
+free skA: skey [private].
+
+event Contested(bitstring, bitstring).                 (* invId, agreeRef *)
+event DisputeResolved(pkey, bitstring, bitstring).     (* arbiter, invId, agreeRef *)
+
+table contested(bitstring, bitstring).
+
+(* Arbiter: on seeing a PayDispute (invId, agreeRef) it records the contest;
+   it emits a resolution ONLY for a pair it has recorded (get ... suchthat). *)
+let arbiter(skA0: skey) =
+  in(c, disputeEnv: bitstring);
+  let dB = getmess(disputeEnv) in
+  let cat3(=tagDispute, invId, agreeRef) = dB in
+  let chk = checksign(disputeEnv, pk(skA0)) in
+  if chk = dB then
+  insert contested(invId, agreeRef);
+  event Contested(invId, agreeRef);
+  ( get contested(=invId, =agreeRef) in
+      event DisputeResolved(pk(skA0), invId, agreeRef)
+    else 0 ).
+
+(* A disputant opens a dispute (may be the leaked insider). The attacker may
+   present a dispute for ANY (invId, agreeRef) it can construct, but to have
+   the arbiter RESOLVE it, the pair must first be recorded by the honest
+   arbiter -- which only happens via the arbiter's own process above. *)
+let disputant(skD: skey) =
+  new invId: bitstring;
+  new agreeRef: bitstring;
+  let dB = cat3(tagDispute, invId, agreeRef) in
+  let dEnv = sign(dB, skD) in
+  out(c, dEnv).
+
+(* ==========================================================================
+   Queries
+   ========================================================================== *)
+
+(* Q3 (P5, pay §6.1/§6.3): watermark binding. Whenever the honest arbiter
+   emits a resolution for (invId, agreeRef), it previously observed a
+   contested dispute for that exact pair. No resolution of an uncontested
+   invoice is ever reachable. Expected: proved TRUE. *)
+query arbiterPk: pkey, invId: bitstring, agreeRef: bitstring;
+  event(DisputeResolved(arbiterPk, invId, agreeRef))
+    ==> event(Contested(invId, agreeRef)).
+
+(* Q4: reachability sanity (non-vacuity guard). Expected:
+   "cannot be proved" WITH a witnessing trace -- honest disputes DO get
+   resolved, so Q3 holding is not vacuous over an empty trace set. *)
+query arbiterPk: pkey, invId: bitstring, agreeRef: bitstring;
+  event(DisputeResolved(arbiterPk, invId, agreeRef)).
+
+process
+  out(c, pk(skA));
+  new skDishonest: skey; out(c, skDishonest); out(c, pk(skDishonest));
+  ( !arbiter(skA)
+  | !disputant(skDishonest) )

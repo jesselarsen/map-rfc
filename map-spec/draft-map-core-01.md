@@ -2,13 +2,20 @@
 title: "MAP Core: Message Envelope, Sessions, Negotiation, and Error Handling"
 docname: draft-map-core-01
 category: std
+submissiontype: independent
 ---
 
 # MAP Core Protocol
 
-**Status of This Memo:** Internet-Draft-style preprint for community
-review; work in progress. Requirements language per BCP 14 (see
-Requirements Language, below).
+**Status of This Memo:** This document is an Internet-Draft-style preprint
+published for open-source community review. Two independent interoperating
+implementations pass the full live interop matrix (ops §6.1). It has not been
+submitted to the IETF (intended independent stream; see ops §3.5). Distribution
+is unlimited. It expires six months after publication and MUST NOT be cited
+except as "work in progress" pending human/expert review.
+
+
+This document is subject to BCP 78 and BCP 79. The source working tree is distributed under Apache-2.0 (see repository LICENSE); contributors SHOULD disclose relevant IPR per BCP 79. On publication the RFC is copyrighted by the IETF Trust and licensed per the IETF Trust's terms (see draft-map-ops-01 sect. 3.5).
 
 ## Requirements Language
 
@@ -483,7 +490,10 @@ windows and accept the enlarged replay cache, or deploy roughtime.
 
 This document establishes (initial contents above; policies in ops §3):
 MAP Cryptographic Suites; MAP Message Types; MAP Body Keys; MAP Extension
-Keys; MAP Error Codes; MAP Transport Bindings (ALPN/protocol-ID strings).
+Keys; MAP Error Codes; MAP Transport Bindings (ALPN/protocol-ID strings). The
+assigned values and the full family-wide index are in `draft-map-wire-01.md`
+§3.1, §3.2, §3.3, §3.4, §3.5, and §3.6 respectively; in case of divergence
+the normative tables above govern.
 
 ## References (selected)
 

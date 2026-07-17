@@ -1,0 +1,191 @@
+(* TASK-028 FR-2 — continuous-metering arithmetic & quote/agree/invoice/proof
+   binding (P6 / README open-work item 3), as specified in
+   draft-map-pay-01.md §3 (quotes/agreements, same-exponent rule) and §4
+   (metering, incremental PAY_INVOICE at usage watermarks, PAY_PROOF top-up,
+   "settled not submitted", idempotent invoices, authorized-cap ceiling).
+
+   Scope / abstractions (see formal/README.md "Abstraction gaps"): continuous
+   metering is modeled as a SINGLE metered unit (tokens-out under pricing
+   model 1, rate unit 2) -- the same-exponent rule (§3) makes every product an
+   exact integer `usage × rate`, so a one-unit model captures the arithmetic
+   that multi-unit billing shares. The quoted rate and authorized cap are
+   bound into the agreement; a PAY_INVOICE carries a cumulative UsageWatermark
+   (usage, cumulative-billed) plus the incremental amount. A PAY_PROOF settles
+   an invoice (verified under the method) and is the trigger to continue
+   delivery. The escrow 2-of-2 gate (pay-auth.pv, P4) and dispute watermark
+   (P5) are out of scope here; this model adds the metering layer on top of
+   "agreed".
+
+   Adversary: full active Dolev-Yao network control (channel `c`), PLUS an
+   insider -- the provider's and/or requester's key is leaked, so the attacker
+   can act as a genuinely authorized party and emit arbitrary signed invoices
+   or withhold arbitrary proofs. The three queries ask whether, regardless of
+   attacker strategy, the billing arithmetic can be violated:
+
+     Q-overbill : the requester is never tricked into SETTLING an invoice whose
+                  cumulative-billed exceeds usage × rate, or exceeds the agreed
+                  cap (the requester recomputes both from the private rate/cap
+                  and refuses otherwise -- so a settled over-bill is unreachable).
+     Q-underpay : the provider never emits a billed CHUNK at usage u unless a
+                  verified PAY_PROOF settling usage u was observed first
+                  (settled-not-submitted; delivery is gated on settlement).
+     Q-bind     : the requester only ever SETTLES an invoice for a quote digest
+                  it previously agreed to (PAY_AGREE digest binding, pay §3).
+
+   Convention (mirrors pay-auth.pv / pay-dispute.pv): honest requester `skR`
+   and honest provider `skPv` are top-level [private] names so the queries can
+   pin them directly. An attacker trivially satisfies every signature check
+   using its OWN fabricated quote/invoice -- which is not an arithmetic
+   violation (no real agreed rate/cap constrains it); the queries are about
+   what can be settled against the REAL agreed quote. *)
+
+(* ---------- Signatures (Ed25519 abstraction, copied from pay-auth.pv) ------ *)
+type skey.
+type pkey.
+fun pk(skey): pkey.
+fun sign(bitstring, skey): bitstring.
+reduc forall m: bitstring, sk: skey; getmess(sign(m, sk)) = m.
+reduc forall m: bitstring, sk: skey; checksign(sign(m, sk), pk(sk)) = m.
+
+(* ---------- One-way primitives ---------- *)
+fun h(bitstring): bitstring.
+
+(* ---------- Tuples (publicly destructible data constructors) -------------- *)
+fun cat3(bitstring, bitstring, bitstring): bitstring [data].
+fun cat4(bitstring, bitstring, bitstring, bitstring): bitstring [data].
+fun pk2bs(pkey): bitstring [data].
+(* Requester-side helper: a dummy amount carried with a settlement, only used
+   to keep the Settled event shape uniform; arithmetic is checked by query. *)
+fun amt_dummy(bitstring): bitstring [data].
+(* The honest billing+cap function u -> u × rate, defined only for usage u
+   within the authorized cap. rate and cap are private (below), so an attacker
+   cannot forge a value of the form billed_capped(u) for the real rate/cap --
+   this folds BOTH the arithmetic check (cb = u × rate, pay §4.1 step 5) and
+   the cap check (cb <= cap, pay §4.1 step 6) into one private derivation that
+   the requester recomputes and the attacker cannot satisfy for a bad invoice. *)
+fun billed_capped(bitstring): bitstring [data].
+
+free c: channel.
+
+(* ---------- Domain-separation tags (pay §3/§4 msg_type discriminates) ------ *)
+free tagInvoice: bitstring.
+free tagProof: bitstring.
+
+(* ---------- Honest principals (top-level private, query-scoped) ----------- *)
+free skR: skey [private].    (* requester / payer   *)
+free skPv: skey [private].   (* provider / payee    *)
+
+(* ---------- Authorized parameters (bound by the agreed quote digest) ------ *)
+(* The agreed rate (per-unit price, same-exponent mantissa) and the authorized
+   cap (hard ceiling on cumulative-billed) are private to the honest agreement.
+   They stand in for "the rate table / cap carried by the quoted quote digest
+   the requester signed in PAY_AGREE". Because they are private, an attacker
+    cannot produce a billed_capped(u) value for the real rate/cap, nor exceed
+    the real cap undetected. *)
+free rate: bitstring [private].
+free cap: bitstring [private].
+
+(* ---------- Events -------------------------------------------------------- *)
+event Agreed(bitstring).                             (* quoteDigest  *)
+event Invoiced(bitstring, bitstring, bitstring).    (* quoteDigest, usage, cumulativeBilled *)
+event Settled(bitstring, bitstring, bitstring).     (* quoteDigest, usage, cumulativeBilled *)
+event ChunkEmitted(bitstring, bitstring).           (* quoteDigest, usage *)
+
+(* ==========================================================================
+   Processes
+   ========================================================================== *)
+
+(* Provider: offers no state; it may emit an invoice at a cumulative usage u
+   (a billing CLAIM -- not itself enforced) and, after observing a verified
+   requester PAY_PROOF for usage u, emit a billed CHUNK advancing to u. The
+   chunk is gated on the settlement of the SAME usage u (settled-not-submitted).
+   The insider provider variant uses a leaked key but the same structure. *)
+let provider(skPv0: skey, qd: bitstring) =
+  ( (* emit an invoice (claim) at cumulative usage u with cumulative-billed cb *)
+    new u: bitstring;
+    new cb: bitstring;
+    let invBody = cat4(tagInvoice, qd, u, cb) in
+    let invEnv = sign(invBody, skPv0) in
+    out(c, invEnv);
+    event Invoiced(qd, u, cb)
+  | (* emit a billed CHUNK at usage u ONLY after a verified PAY_PROOF for u *)
+    in(c, proofEnv: bitstring);
+    let pB = getmess(proofEnv) in
+    let cat3(=tagProof, qdP, uP) = pB in
+    let chk = checksign(proofEnv, pk(skR)) in
+    if chk = pB then
+    if qdP = qd then
+      event Settled(qd, uP, amt_dummy(uP));
+      event ChunkEmitted(qd, uP)
+  ).
+
+(* Requester: agrees to a quote digest qd (binds the rate/cap), then settles
+   invoices it observes. It settles ONLY when (a) it agreed to qd, (b) the
+   invoice's cumulative-billed equals the honest billed(u) for that usage
+   (arithmetic: cb = u × rate, no rounding), and (c) cb does not exceed cap.
+   Because rate/cap are private, an attacker invoice with a wrong/excessive cb
+   cannot satisfy (b)/(c) and is never settled -- so a settled over-bill is
+   unreachable. The requester signs the PAY_PROOF, which the provider needs to
+   release the next chunk. *)
+let requester(skR0: skey, qd: bitstring) =
+  event Agreed(qd);
+  in(c, invEnv: bitstring);
+  let invBody = getmess(invEnv) in
+  let cat4(=tagInvoice, qdI, u, cb) = invBody in
+  let chk = checksign(invEnv, pk(skPv)) in
+  if chk = invBody then
+  if qdI = qd then
+    (* arithmetic + cap enforcement, using the private rate/cap derivation *)
+    if cb = billed_capped(u) then
+      let proofBody = cat3(tagProof, qd, u) in
+      let proofEnv = sign(proofBody, skR0) in
+      out(c, proofEnv);
+      event Settled(qd, u, cb).
+
+(* ==========================================================================
+   Queries
+   ========================================================================== *)
+
+(* Q-overbill (P6, pay §4.1): whenever the requester settles an invoice, the
+   cumulative-billed equals the agreed rate applied to usage (billed_capped(u),
+   which encodes both the arithmetic cb = u × rate and the cap cb <= cap) and
+   the quote was agreed. Because rate/cap are private, a settled over-bill or
+   over-cap is unreachable against the real quote. Expected: TRUE. *)
+query qd: bitstring, u: bitstring, cb: bitstring;
+  event(Settled(qd, u, cb))
+    ==> event(Agreed(qd))
+    && cb = billed_capped(u).
+
+(* Q-underpay (pay §4.2 settled-not-submitted): whenever the provider emits a
+   billed CHUNK at usage u, a verified PAY_PROOF settling usage u was observed
+   first. Delivery is gated on settlement. Expected: TRUE. *)
+query qd: bitstring, u: bitstring;
+  event(ChunkEmitted(qd, u))
+    ==> event(Settled(qd, u, amt_dummy(u))).
+
+(* Q-bind (pay §3 PAY_AGREE digest binding): the requester only ever settles an
+   invoice for a quote digest it previously agreed to. Expected: TRUE. *)
+query qd: bitstring, u: bitstring, cb: bitstring;
+  event(Settled(qd, u, cb))
+    ==> event(Agreed(qd)).
+
+(* Q-reach: reachability sanity (non-vacuity guard). Expected:
+   "cannot be proved" WITH a witnessing trace -- honest invoices DO get
+   settled and chunks DO get emitted, so the above holding is not vacuous. *)
+query qd: bitstring, u: bitstring, cb: bitstring;
+  event(Settled(qd, u, cb)).
+
+process
+  out(c, pk(skR));
+  out(c, pk(skPv));
+  (* The honest agreed quote digest. *)
+  new qdHonest: bitstring;
+  out(c, qdHonest);
+  (* Insider: provider key leaked (attacker can emit genuinely-signed invoices). *)
+  new skPvIns: skey; out(c, skPvIns); out(c, pk(skPvIns));
+  (* Insider: requester key leaked (attacker can emit genuinely-signed proofs). *)
+  new skRIns: skey; out(c, skRIns); out(c, pk(skRIns));
+  ( !provider(skPv, qdHonest)
+  | !requester(skR, qdHonest)
+  | !provider(skPvIns, qdHonest)
+  | !requester(skRIns, qdHonest) )

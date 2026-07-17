@@ -2,12 +2,21 @@
 title: "MAP Trust: Execution Receipts, Evidence Exchange, and Local Reputation"
 docname: draft-map-trust-01
 category: std
+submissiontype: independent
 ---
 
 # MAP Trust and Reputation
 
-**Status:** preprint, work in progress. BCP 14 language applies (see
-Requirements Language, below).
+**Status of This Memo:** This document is an Internet-Draft-style preprint
+published for open-source community review. Two independent interoperating
+implementations pass the full live interop matrix (ops §6.1). It has not been
+submitted to the IETF (intended independent stream; see ops §3.5). Distribution
+is unlimited. It expires six months after publication and MUST NOT be cited
+except as "work in progress" pending human/expert review. BCP 14 language
+applies (see Requirements Language, below).
+
+
+This document is subject to BCP 78 and BCP 79. The source working tree is distributed under Apache-2.0 (see repository LICENSE); contributors SHOULD disclose relevant IPR per BCP 79. On publication the RFC is copyrighted by the IETF Trust and licensed per the IETF Trust's terms (see draft-map-ops-01 sect. 3.5).
 
 ## Requirements Language
 
@@ -138,8 +147,21 @@ keeps a unilateral receipt.
 Outcome mapping (field 7) from the requester's task terminal (tasks §13):
 a Verified completion → 0 (ok); a Failed task → 1 (failed); a TTFT-timeout
 CANCEL (tasks §2, error 5001) → 3 (cancelled). Codes 2 (timeout) and 4
-(disputed) are set by other paths (provider-side deadline miss; the dispute
-protocol, pay §6) and are not requester-task-terminal.
+(disputed) are set by other paths and are not requester-task-terminal:
+- **Code 2 (timeout)** is produced by a *provider-side deadline miss* — the
+  provider lets the task's `deadline` (tasks §82) elapse without a COMPLETE;
+  this is reported on the requester side as error 5001 (TTFT miss, tasks
+  §105/§454) and recorded as a receipt with outcome 2. It is distinct from the
+  requester-terminal CANCEL (outcome 3).
+- **Code 4 (disputed)** is produced by the dispute protocol (pay §6); a
+  receipt with outcome 4 records the event on the trust plane (pay §638).
+
+This ExecutionReceipt field-7 outcome vocabulary (0 ok, 1 failed, 2 timeout,
+3 cancelled, 4 disputed) is **separate** from the `Complete` message's own
+outcome field (tasks §181: 0 ok, 1 partial, 2 failed), which describes the
+task *result* carried in the COMPLETE message, not the receipt outcome. The
+two numeric scales overlap by coincidence; they are different structures and
+MUST NOT be conflated.
 
 ## 4. Evidence exchange — selective disclosure
 
@@ -287,7 +309,9 @@ diversifying `ModelEntry.weights-digest` across the redundant set.
 ## 11. IANA-style considerations
 
 Registers: receipt outcome codes; evidence query parameters; vouch caveat
-keys; challenge disclosure modes.
+keys; challenge disclosure modes. The assigned values and the family-wide
+index are in `draft-map-wire-01.md` §3.16 and §3.17; in case of divergence
+the normative definitions in §3 and §8 govern.
 
 ## References (selected)
 

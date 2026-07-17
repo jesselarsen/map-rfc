@@ -1,0 +1,93 @@
+(* TASK-027 FR-3 — P4 NEGATIVE CONTROL. Deliberately weakens pay-auth.pv by
+   dropping the expected-payee binding: the payer charges on a validly-signed
+   release token from ANY signer (simulating a missing payee-authorization /
+   complete_verified check in verify_escrow_invoice's PHASE_RELEASE branch).
+   This is the ONLY change vs pay-auth.pv.
+
+   Expected: Q1 (the same symmetry query) becomes NOT provable -- a
+   witnessing trace exists where a charge is applied with only payer
+   authorization (a self-signed or attacker-signed release). This proves the
+   honest model's Q1 has teeth (it was not vacuously true). Per TASK-014 FR-4
+   (one mandatory control per property). *)
+
+type skey.
+type pkey.
+fun pk(skey): pkey.
+fun sign(bitstring, skey): bitstring.
+reduc forall m: bitstring, sk: skey; getmess(sign(m, sk)) = m.
+reduc forall m: bitstring, sk: skey; checksign(sign(m, sk), pk(sk)) = m.
+
+fun h(bitstring): bitstring.
+fun kdf(bitstring, bitstring): bitstring.
+
+fun cat2(bitstring, bitstring): bitstring [data].
+fun cat3(bitstring, bitstring, bitstring): bitstring [data].
+fun pk2bs(pkey): bitstring [data].
+fun catKey(bitstring, pkey, bitstring): bitstring [data].
+
+free c: channel.
+
+free tagInvoice: bitstring.
+
+free skP: skey [private].
+free skE: skey [private].
+
+event PayerAuthorized(pkey, bitstring).
+event PayeeAuthorized(pkey, bitstring).
+event GatePaused(bitstring).
+event NotPaused(bitstring).
+event ChargeApplied(pkey, pkey, bitstring, bitstring).
+
+(* Diff vs pay-auth.pv: the `if payeePk = expectedPayee` check is REMOVED.
+   The payer charges on any validly-signed release token (payee auth not
+   genuinely required). All other structure identical. *)
+let payer(skP0: skey, expectedPayee: pkey) =
+  new inv: bitstring;
+  new amt: bitstring;
+  let holdBody = catKey(tagInvoice, pk(skP0), inv) in
+  let holdEnv = sign(holdBody, skP0) in
+  out(c, holdEnv);
+  event PayerAuthorized(pk(skP0), inv);
+  ( event GatePaused(inv)
+  | event NotPaused(inv);
+    in(c, relEnv: bitstring);
+    let relBody = getmess(relEnv) in
+    let catKey(=tagInvoice, payeePk, =inv) = relBody in
+    let chk = checksign(relEnv, payeePk) in
+    if chk = relBody then
+    (* WEAKENED: no `payeePk = expectedPayee` check. Charge fires on payer
+       authorization + any valid signature -- the missing payee-auth flaw. *)
+    event PayeeAuthorized(payeePk, inv);
+    event ChargeApplied(pk(skP0), payeePk, inv, amt)
+  ).
+
+let payee(skE0: skey) =
+  in(c, holdEnvIn: bitstring);
+  let holdBodyIn = getmess(holdEnvIn) in
+  let catKey(=tagInvoice, payerPk, inv) = holdBodyIn in
+  let chk = checksign(holdEnvIn, payerPk) in
+  if chk = holdBodyIn then
+    let relBody = catKey(tagInvoice, pk(skE0), inv) in
+    let relEnv = sign(relBody, skE0) in
+    out(c, relEnv).
+
+(* Q1 (same as pay-auth.pv): expected NOT provable here -- a one-sided
+   (payer-only) charge is reachable. *)
+query payerPk: pkey, payeePk: pkey, inv: bitstring, amt: bitstring;
+  event(ChargeApplied(payerPk, payeePk, inv, amt))
+    ==> event(PayerAuthorized(payerPk, inv))
+    && event(PayeeAuthorized(payeePk, inv))
+    && event(NotPaused(inv)).
+
+query payerPk: pkey, payeePk: pkey, inv: bitstring, amt: bitstring;
+  event(ChargeApplied(payerPk, payeePk, inv, amt)).
+
+process
+  out(c, pk(skP));
+  out(c, pk(skE));
+  new skPins: skey; out(c, skPins); out(c, pk(skPins));
+  new skEins: skey; out(c, skEins); out(c, pk(skEins));
+  ( !payer(skP, pk(skE))
+  | !payee(skE)
+  | !payer(skPins, pk(skEins))
+  | !payee(skEins) )

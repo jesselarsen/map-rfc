@@ -8,6 +8,165 @@ version that carries it). No revision to date contains a breaking change.
 
 ---
 
+## Formal analysis: continuous metering arithmetic & quote/agree/invoice/proof binding (Item 9 / TASK-028) — 2026-07-17
+
+Additive cross-cutting change (ops §3.2): extends the TASK-027 payment
+formal-analysis program (ops §6.3) to cover the metered-billing path. No
+wire format, registry, test-vector, or implementation (Rust/Go) change. Both
+reference implementations remain at 16/16 live interop.
+
+### Additive
+
+- **`formal/pay-meter.pv`** (new) — ProVerif 2.05 model of P6: under terms 3
+  (metered-incremental), a `PAY_INVOICE` watermark's `cumulative-billed`
+  equals `usage × rate` (pay §3 same-exponent rule) and stays within the
+  `PAY_AGREE` authorized cap (pay §4.1 steps 5–6); the requester settles only
+  well-formed invoices (no settled over-bill / over-cap — Q-overbill); a billed
+  CHUNK is emitted only after a verified `PAY_PROOF` settles the covered usage
+  (settled-not-submitted — Q-underpay); and an invoice bills only a quote the
+  requester agreed to (PAY_AGREE digest binding, pay §3 — Q-bind). Rate and cap
+  are modeled as private constants; the honest billing+cap derivation
+  `billed_capped(u)` is the only value the requester will settle.
+- **`formal/results/pay-meter.out`** (new) — ProVerif 2.05 output: Q-overbill,
+  Q-underpay, Q-bind all **proved TRUE**; Q-reach **reachable** (non-vacuity).
+- **`tasks/TASK-028-pay-meter.md`** (new) — implementation-specification
+  package mirroring TASK-027.
+
+### Editorial (wording; no wire/behavior change)
+
+- **`formal/README.md`** — `pay-meter.pv` added to the model inventory and
+  query table (P6, Q-overbill/Q-underpay/Q-bind); reproduce loop includes it;
+  the "continuous metering" open-question note updated to mark P6 covered and
+  name the single remaining corner (checkpoint-anchored cancel accounting).
+- **`README.md`** (Status → genuinely-open-work) — the payment/escrow formal
+  line now states the metering arithmetic + quote/agree/invoice/proof binding
+  are machine-checked (TASK-028); only the checkpoint-anchored cancel corner
+  remains as remaining formal work.
+
+---
+
+## Publishability: index bundle + IPR/license headers (Item 8) — 2026-07-17
+
+Editorial/additive cross-cutting change (ops §3.2): makes the family
+submittable as an IETF Independent Stream set. No wire format, registry,
+test-vector, or implementation (Rust/Go) change. Both reference
+implementations remain at 16/16 live interop.
+
+### Additive
+
+- **`map-spec/draft-map-index-01.md`** (new) — family cover/index: abstract,
+  one-paragraph overview, the authoritative 10-document index table (mirrors
+  arch §11), reading order, and submission-status section. Defines no wire
+  format, code point, or protocol behavior (no second source of truth).
+- **`LICENSE`** (new, repo root) — full Apache License 2.0 text, matching the
+  README's "Apache-2.0" claim. Closes the missing-license-file gap.
+
+### Editorial (wording; no wire/behavior change)
+
+- **Front-matter consistency** — `submissiontype: independent` added to the
+  seven drafts that lacked it (core/identity/discovery/tasks/trust/pay/ops),
+  so all ten carry the Independent Stream submission type (arch/intro/wire
+  already had it).
+- **Per-draft IPR note** — a BCP 78/BCP 79 copyright paragraph added to all
+  ten drafts (Apache-2.0 working tree; contributors disclose IPR per BCP 79;
+  published RFC under IETF Trust terms, pointer to ops §3.5). Consistent with
+  the ops §3.5 IPR statement.
+- **Cross-links** — `draft-map-index-01` added to the README contents table
+  (row "I") and to `draft-map-arch-01` §11 document map; the index points to
+  intro/arch as entry points.
+
+## Documentation hygiene pass (Item 7) — 2026-07-17
+
+Editorial-only changes (ops §3.2): three targeted clarity fixes. No wire
+format, registry, test-vector, or implementation (Rust/Go) change. Both
+reference implementations remain at 16/16 live interop.
+
+### Editorial (wording; no wire/behavior change)
+
+- **discovery §11** — the fingerprinting MUST NOT (no high-entropy optional
+  fields in public descriptors) now has a concrete safe/leaky descriptor
+  example: a safe descriptor carries only coarse registered fields (two
+  providers in a bucket stay indistinguishable); a leaky one adds a
+  per-instance `device-uuid`/`nonce` and thereby violates the rule. Such
+  fields MUST instead use a Zone-3 ephemeral identity or a direct channel.
+- **trust §3** — receipt outcome code **2 (timeout)** is now explicitly wired:
+  a provider-side `deadline` miss (tasks §82) reported as error 5001 (tasks
+  §105/§454) records a receipt with outcome 2, distinct from the
+  requester-terminal CANCEL (outcome 3). Code 4 (disputed) already pointed at
+  pay §6; both are now stated with their cross-references. Added a note that
+  the ExecutionReceipt field-7 outcome vocabulary is **separate** from the
+  `Complete` message's own outcome field (tasks §181: 0 ok, 1 partial,
+  2 failed) — the overlapping numbers are different structures and MUST NOT
+  be conflated.
+- **ops §3.3** — reaffirms message type `0x0206` as a permanent,
+  deliberately-unassigned reservation (wire §3.20): never reused; any claim
+  on `0x0206` is non-conformant.
+
+## Governance & registry-ownership clarification for external submission (Item 6) — 2026-07-17
+
+Editorial / additive cross-cutting change (ops §3.2): clarifies registry
+ownership and the external-submission path so the family is submittable as an
+IETF Independent Stream document without an undefined "steering process". No
+wire format, registry, test-vector, or implementation (Rust/Go) change. Both
+reference implementations remain at 16/16 live interop.
+
+### Additive
+
+- **ops §3.5 (new) — Registry stewardship and IETF submission**: defines the
+  protocol **steward** (document editor(s) named on the ops front matter) as
+  the pre-publication registry authority who appoints designated experts
+  (resolving the previously-undefined "steering process" in §3.1); states that
+  on IETF publication **IANA** operates every registry under the policies in
+  `draft-map-wire-01.md` §4; fixes the pre/post-publication authority split;
+  records the IPR position (source tree Apache-2.0; contributors disclose per
+  BCP 79; published RFC under IETF Trust terms); and gates submission on the
+  §6.1 two-implementation criterion.
+
+### Editorial (wording; no wire/behavior change)
+
+- **Status-of-This-Memo blocks** — all ten `draft-map-*-01.md` documents now
+  carry one consistent block: Internet-Draft-style preprint, two
+  implementations pass the live interop matrix (ops §6.1), *not yet submitted
+  to the IETF (intended independent stream; see ops §3.5)*, distribution
+  unlimited, expires six months after publication, cite as work in progress.
+  The six documents that previously used a shorter `Status:` line
+  (core/identity/discovery/tasks/trust/pay/ops) were brought up to the full
+  boilerplate already used by arch/intro/wire.
+- **`README.md`** — status note adds the intended IETF Independent Stream
+  publication path (pointer to ops §3.5).
+
+## Formal analysis: payment escrow symmetry + dispute watermark (Item 5 / TASK-027) — 2026-07-17
+
+Documentation-only / additive cross-cutting change (ops §3.2): adds machine-checked
+ProVerif models for two payment-plane security properties and wires them into the
+formal-analysis program. No wire format, registry, test-vector, or implementation
+(Rust/Go) change. Both reference implementations remain at 16/16 live interop.
+
+### Additive
+
+- **`formal/`** — new ProVerif 2.05 models:
+  - `pay-auth.pv` — proves **P4** escrow charge-authorization symmetry (pay §5.2
+    `pay:credit-ledger`): a `PHASE_RELEASE` debit requires BOTH a payer HOLD and a
+    verified payee release token; pause is fail-closed. Q1 proved `true`.
+  - `pay-auth-control-onesided.pv` — mandatory P4 negative control (drops the
+    expected-payee binding): the weakened gate is reachable, confirming Q1 has teeth.
+  - `pay-dispute.pv` — proves **P5** dispute watermark binding (pay §6.1/§6.3): an
+    arbiter `DisputeResolved` is emitted only for an `invoice-id`/`PayAgreeRef` pair
+    it observed contested. Q3 proved `true`.
+  - `formal/results/{pay-auth,pay-auth-control-onesided,pay-dispute}.log` — captured
+    prover output.
+- **`tasks/TASK-027-pay-formal.md`** — implementation-specification package for the
+  above (mirrors TASK-014 structure).
+
+### Editorial (wording; no wire/behavior change)
+
+- **`formal/README.md`** — inventory table, property-to-spec mapping, and run
+  command extended with P4/P5; new modeling-notes subsections (Q1 P4, Q3 P5);
+  payment abstraction gaps recorded (continuous metering, claim-code evaluation,
+  ledger-operator trust).
+- **`README.md`** — "Status" open-work item for the payment/escrow formal model
+  updated to "covered (TASK-027)"; `formal/` contents-table description extended.
+
 ## draft-map-\*-01 — 2026-07-13
 
 Folds the 2026-07-12 architect rulings (full rationale in `ERRATA.md`) into
@@ -224,3 +383,65 @@ envelope VERBATIM — the vector itself exercises I1 verbatim-carry), and
 ### Still open (tracked in `ERRATA.md`, deferred to a future revision)
 
 - (none)
+
+---
+
+### Documentation refresh — 2026-07-17 (editorial; no wire/registry/vector change)
+
+Aligns the family's public-facing status with the implemented scope
+(prepaid/escrow §5.2, disputes §6, and the x402 paid-API gateway composition
+ops §5.1 are all specified and implemented; the live 16/16 interop matrix
+meets the ops §6.1 advancement gate).
+
+- **README.md** — "Status" section rewritten: removed the stale
+  "deliberately out of scope" claim for prepaid/escrow (pay §5.2) and the
+  dispute protocol (pay §6), and the "one open package is TASK-023-x402"
+  line (TASK-023/024/025/026 are DONE); now lists the genuinely-open items
+  (ext-kvx/ext-git stub semantics, relay/NAT interop scenario, formal model
+  of the pay/escrow path). Header status line reconciled with the met gate.
+- **draft-map-tasks-01 §16** and **draft-map-ops-01 §7.2** — stale
+  "TBD-BID / TBD-KVX / TBD-GIT" labels replaced with the assigned extension
+  keys 1/2/3 (`ext-bid`, `ext-kvx`, `ext-git`, core §5.1).
+- **draft-map-discovery-01 §4** — the gateway-provenance codec note reworded:
+  the `gateway-of` params key (FINAL) is the authoritative wire carrier; the
+  scaffold `Descriptor` codec gap is noted as a separate additive task, not an
+  interim carrier.
+- **All eight `draft-map-*-01` documents** — status lines reconciled with the
+  ops §6.1 advancement gate (two implementations + live matrix met; documents
+  remain in draft pending human/expert review).
+- **New `draft-map-intro-01.md`** (Introduction & Motivation): problem
+  statement, high-level summary of findings C1–C15, a problem→mechanism→spec
+  table, explicit non-goals, reading guide, and maturity statement. Slotted as
+  reading-order item 0; cross-linked from the README contents table and
+  arch §11 document map, and the README reading-order sentence updated.
+
+No breaking, additive-field, or code-point changes; all conformance classes,
+test vectors, and wire encodings are byte-for-byte unaffected.
+
+---
+
+### Wire reference & master registry index — 2026-07-17 (editorial; no wire/registry/vector change)
+
+- **New `draft-map-wire-01.md`** (Wire Format & Registry Index): a single
+  consolidated, non-normative reference. §2 gives the envelope → Body →
+  content → transcript-commitment PDU layering diagram (in-session vs
+  out-of-session contexts, invariants I1–I4). §3 is the master registry
+  index: every assigned code point (cryptographic suites, message types,
+  body keys, extension keys, error codes, transport bindings, AgentID key
+  types, delegation caveats, revocation reasons, capability ontology,
+  CapEntry params, HW/sandbox classes, chunk kinds, reservation/lease fields,
+  task caveat keys, receipt outcomes, settlement methods, pricing models /
+  terms / unit codes, dispute claims / evidence kinds) copied with a
+  "Defined in §X" pointer to its owning draft. §4 summarizes IANA policies
+  and the immutability/deprecation rules (ops §3).
+- Each owning draft's IANA-style section (core §15, identity §11, discovery
+  §12, tasks §16, trust §11, pay §8) is trimmed to a pointer to the master
+  index, keeping its normative CDDL/definitions in place — enforcing the
+  "one named source of truth per fact" policy (ops §2 rule 1) and preventing
+  registry-table drift across documents.
+- README contents table: added the wire reference as row "R" (and the
+  pre-existing duplicate "#1" on the critique/arch rows corrected to 1/2,
+  remaining rows renumbered 3–9). arch §11 document map and the intro
+  reading guide now reference `draft-map-wire-01.md`.
+
+No wire/registry/vector changes; all encodings byte-for-byte unaffected.

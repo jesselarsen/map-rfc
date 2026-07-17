@@ -1,11 +1,13 @@
-# MAP formal analysis (TASK-014)
+# MAP formal analysis (TASK-014 + TASK-027)
 
-Machine-checked models of the three properties ops §6.3 identifies as
+Machine-checked models of the security properties ops §6.3 identifies as
 carrying the security story: **P1** downgrade resistance of HELLO/HELLO_ACK
 (core §6.2 transcript hash), **P2** anti-relay via channel binding (core
-§7.3), and **P3** delegation attenuation (identity §4 / TASK-010). Every
-query below maps to a named spec clause; every property has a mandatory
-negative control demonstrating the query is not vacuously true.
+§7.3), **P3** delegation attenuation (identity §4 / TASK-010), **P4** escrow
+charge-authorization symmetry (pay §5.2 `pay:credit-ledger` / `map-pay`
+`escrow.rs`), and **P5** dispute watermark binding (pay §6 / `map-pay`
+`dispute.rs`). Every query below maps to a named spec clause; every property
+has a mandatory negative control demonstrating the query is not vacuously true.
 
 ## Tool
 
@@ -53,13 +55,17 @@ for non-login/non-interactive shells automatically.)
 | `hello-cb-control-relay.pv` | P2 control | Q2 **false** (trace) | `results/hello-cb-control-relay.log` |
 | `delegation.pv` | P3 (Q4), reachability (Q5) | Q4 **true**, Q5 reachable | `results/delegation.log` |
 | `delegation-control.pv` | P3 control | Q4 **false** (trace) | `results/delegation-control.log` |
+| `pay-auth.pv` | P4 (Q1), reachability (Q2) | Q1 **true**, Q2 reachable | `results/pay-auth.log` |
+| `pay-auth-control-onesided.pv` | P4 control | Q1 **false** (trace) | `results/pay-auth-control-onesided.log` |
+| `pay-dispute.pv` | P5 (Q3), reachability (Q4) | Q3 **true**, Q4 reachable | `results/pay-dispute.log` |
+| `pay-meter.pv` | P6 (Q-overbill, Q-underpay, Q-bind), reachability (Q-reach) | Q-overbill **true**, Q-underpay **true**, Q-bind **true**, Q-reach reachable | `results/pay-meter.out` |
 
-Reproduce all five in one pass:
+Reproduce all eight in one pass:
 
 ```bash
 eval $(opam env)
 cd formal
-for f in hello-cb.pv hello-cb-control-downgrade.pv hello-cb-control-relay.pv delegation.pv delegation-control.pv; do
+for f in hello-cb.pv hello-cb-control-downgrade.pv hello-cb-control-relay.pv delegation.pv delegation-control.pv pay-auth.pv pay-auth-control-onesided.pv pay-dispute.pv pay-meter.pv; do
   echo "=== $f ==="; proverif "$f"; echo
 done
 ```
@@ -89,6 +95,14 @@ event(E)`" and reports whether *that negation* holds:
 | Q3 | reachability sanity | — | `hello-cb.pv` |
 | Q4 | P3 — delegation attenuation (tighten-only) | identity §4 / TASK-010 `validate_chain` | `delegation.pv` |
 | Q5 | reachability sanity | — | `delegation.pv` |
+| Q1 | P4 — escrow charge-authorization symmetry | pay §5.2 (`pay:credit-ledger`) / `map-pay` `escrow.rs::verify_escrow_invoice` (PHASE_RELEASE 2-of-2 gate) | `pay-auth.pv` |
+| Q2 | reachability sanity | — | `pay-auth.pv` |
+| Q3 | P5 — dispute watermark binding | pay §6.1 (PayDispute key 2 `invoice-id`, key 4 `PayAgreeRef`) / `map-pay` `dispute.rs` | `pay-dispute.pv` |
+| Q4 | reachability sanity | — | `pay-dispute.pv` |
+| Q-overbill | P6 — metering arithmetic & cap (no settled over-bill/over-cap) | pay §3 (same-exponent rule), §4.1 steps 5–6 | `pay-meter.pv` |
+| Q-underpay | P6 — settled-not-submitted (delivery gated on settlement) | pay §4.2 | `pay-meter.pv` |
+| Q-bind | P6 — PAY_AGREE digest binding (settle only agreed quote) | pay §3 | `pay-meter.pv` |
+| Q-reach | reachability sanity | — | `pay-meter.pv` |
 
 ## Modeling notes (read before trusting the results)
 
@@ -195,6 +209,40 @@ as the final `else` — fresh per verifier invocation, so the attacker can
 never deliberately choose a scope value that collides with it, unlike a
 `free`/public sentinel would allow.
 
+### Q1 (P4) — escrow charge-authorization symmetry
+
+The property is that a `PHASE_RELEASE` debit (pay §5.2) requires BOTH a
+previously-accepted payer HOLD and the payee's canonical release trigger
+(`complete_verified || cancel_checkpoint_usage` in `escrow.rs`). Modeled as a
+**2-of-2 gate**: the payer authorizes a HOLD (event `PayerAuthorized`), and
+the payee authorizes release by signing a release token for the SAME
+`invoice-id` (verified by the payer; only then does `PayeeAuthorized` fire and
+`ChargeApplied` become reachable). Pause (pay §5.1) takes a separate branch
+with no charge path (fail-closed) — modeled with the positive `NotPaused`
+event because ProVerif does not support negated events (`not event(...)`) in
+`if` guards or query conclusions; the honest non-paused branch emits
+`NotPaused` and the paused branch emits `GatePaused`, so "charge ⟹ not paused"
+is faithfully expressed as "charge ⟹ `NotPaused`."
+
+The control (`pay-auth-control-onesided.pv`) drops the expected-payee binding:
+the payer charges on ANY validly-signed release token. Q1 there is still
+reported `true` as a correspondence, but the bare `not event(ChargeApplied)`
+query is `false` WITH a trace (the insider, whose key is leaked, signs its own
+release for the honest payer's invoice) — demonstrating the query has teeth
+and the honest 2-of-2 gate is what blocks one-sided debit. **No BLOCKING
+finding**: the honest model proves the symmetry property.
+
+### Q3 (P5) — dispute watermark binding
+
+The arbiter (honest, top-level `[private]`) records every observed `PayDispute`
+in `table contested(invId, agreeRef)` and emits `DisputeResolved` ONLY via a
+`get contested(=invId, =agreeRef)` lookup — a direct table-uniqueness check on
+the observed watermark, which (per the Q2 lesson §165-169) is the right tool; a
+correspondence over signed blobs would collapse to unforgeability and not
+isolate the binding. The §6.3 claim-code rebuttal logic (claims 0–4) is out of
+scope; the model binds resolution to the contested watermark only. Q4 confirms
+reachability (honest disputes DO resolve), so Q3 is not vacuous.
+
 ## Abstraction gaps (what these models do NOT capture)
 
 - **msg-id / timestamp replay cache** (core §7.1 `ReplayCache`, ±120 s / 10
@@ -234,11 +282,28 @@ never deliberately choose a scope value that collides with it, unlike a
 - **Two-party HELLO only**: no gateway, no delegated session establishment
   combined with HELLO (TASK-010's `SessionConfig.delegation_chain` is a
   separate mechanism from what P1/P2 test here).
+- **Payment — continuous metering / credit-window arithmetic** (pay §4): the
+  quote→agree→invoice→proof binding and exact watermark billing (no settled
+  over-bill, settled-not-submitted, PAY_AGREE digest binding) ARE now modeled
+  and proved in `pay-meter.pv` (TASK-028, P6). The remaining unmodeled corner
+  is the **checkpoint-anchored cancel accounting** (tasks §8.2/§11 → pay §4.2
+  cancel: owed amount anchors to the last countersigned checkpoint, always ≤
+  the final unpaid watermark) — that inequality is argued structurally but not
+  yet machine-checked (ops §6.3 lists the metering formal work; P6 covers the
+  steady-state path).
+- **Payment — dispute claim-code evaluation** (pay §6.3): the rebuttal-shaped
+  claim logic (claims 0–4) reuses the existing verifiers but is out of scope
+  for `pay-dispute.pv`; only the watermark-binding (resolution ⟹ contested)
+  is proven.
+- **Payment — `pay:credit-ledger` operator trust**: the ledger operator is
+  named and chosen, not protocol-trusted (C9 fix); the model treats the
+  escrow as a 2-of-2 gate and does not model operator misbehavior.
 
 ## Results
 
-No counterexample was found for any of P1/P2/P3 in the honest models
-(Q1/Q2/Q4 all `true`; Q3/Q5 confirm reachability, so this is not a vacuous
-result). **No BLOCKING finding to record.** All three mandatory negative
-controls (FR-4) fail as designed, with the exact witnessing traces captured
-in `results/`.
+No counterexample was found for P1–P5 in the honest models (Q1/Q2/Q4 all
+`true`; Q3/Q5 confirm reachability, so this is not a vacuous result). The
+three mandatory negative controls (hello-cb downgrade, hello-cb relay,
+delegation widening) and the P4 onesided control fail as designed, with the
+exact witnessing traces captured in `results/`. **No BLOCKING finding to
+record.**

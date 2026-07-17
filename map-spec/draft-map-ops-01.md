@@ -2,12 +2,21 @@
 title: "MAP Operations: Governance, Registries, Federation, Interoperability, and Migration"
 docname: draft-map-ops-01
 category: bcp
+submissiontype: independent
 ---
 
 # MAP Operations, Governance, and Interoperability
 
-**Status:** preprint, work in progress. BCP 14 language applies (see
+**Status of This Memo:** This document is an Internet-Draft-style preprint
+published for open-source community review. Two independent interoperating
+implementations pass the full live interop matrix (§6.1). It has not been
+submitted to the IETF (intended independent stream; see §3.5). Distribution is
+unlimited. It expires six months after publication and MUST NOT be cited except
+as "work in progress" pending human/expert review. BCP 14 language applies (see
 Requirements Language, below).
+
+
+This document is subject to BCP 78 and BCP 79. The source working tree is distributed under Apache-2.0 (see repository LICENSE); contributors SHOULD disclose relevant IPR per BCP 79. On publication the RFC is copyrighted by the IETF Trust and licensed per the IETF Trust's terms (see draft-map-ops-01 sect. 3.5).
 
 ## Requirements Language
 
@@ -91,13 +100,55 @@ MUST NOT appear in public-mesh descriptors.
 
 ### 3.3 Immutability of assignments
 Code points are never reused or re-defined; deprecation marks them
-reserved forever (rule 6 above).
+reserved forever (rule 6 above). As a standing example, message type
+`0x0206` is a **permanent, deliberately-unassigned reservation** in the
+Tasks range (wire §3.20): it is never reused for any future meaning, and
+any document or implementation that claims `0x0206` is non-conformant.
 
 ### 3.4 Deprecation process
 Mark deprecated in registry with rationale and replacement → minimum two
 minor versions of dual support → removal only at a major version, with the
 major's migration notes. HELLO negotiation makes the sunset observable in
 the field (peers advertising deprecated versions are countable).
+
+### 3.5 Registry stewardship and IETF submission
+
+The MAP family is intended for publication as **Independent Stream**
+Internet-Drafts (each draft's `submissiontype: independent` front-matter
+records this). This section fixes *who owns the registries and how governance
+works* — both before and after publication — so the family is externally
+submittable without an undefined "steering process".
+
+- **Pre-publication ownership.** While the documents are Internet-Drafts (not
+  yet RFCs), the **protocol steward** — the document editor(s) named on the
+  front matter of this operations document — is the registry authority. The
+  steward appoints the designated experts required by §3.1, resolves registry
+  disputes, and runs the change-control process in §3/§4. "The project's
+  steering process" (§3.1) means this steward appointment, not a separate
+  body.
+- **Post-publication ownership.** On IETF publication, **IANA** operates every
+  registry under the policies enumerated in `draft-map-wire-01.md` §4
+  (Specification Required, Expert Review, Standards Action). The designated
+  experts become IANA-appointed Expert Reviewers / registration reviewers per
+  the relevant IANA policy; the Independent Stream shepherd and the IESG
+  provide the oversight the stream defines. The MAP steward's pre-publication
+  appointments SHOULD be carried forward as IANA's initial expert roster.
+- **Authority split (no double authority).** Internal ops §3/§4 change-control
+  governs *draft* revisions and the working tree. Once an RFC is published,
+  code-point assignments are made by IANA under the registered policy; the
+  steward no longer unilaterally assigns points. The immutability and
+  deprecation rules (§3.3/§3.4) apply identically in both periods — IANA
+  honors "never reuse" as a permanent reservation.
+- **Intellectual property.** The source working tree is distributed under
+  Apache-2.0 (see repository README). Contributors SHOULD disclose relevant
+  IPR per IETF BCP 79. The published RFC is copyrighted by the IETF Trust and
+  licensed for use per the IETF Trust's terms; this is distinct from the
+  source-repo Apache-2.0 grant and does not change the wire format or code
+  points.
+- **Readiness gate.** Submission (and any request that IANA create the
+  registries) is gated on the two-independent-implementation criterion in
+  §6.1; the documents remain in draft pending human/expert review until that
+  gate is met and the Independent Stream review completes.
 
 ## 4. Versioning discipline
 
@@ -263,7 +314,7 @@ architectural: no supernodes, tolerance of churn, small messages.
 | CapabilityQuery | CAP_QUERY hard constraints + local ranking | critique C5 |
 | routing score formula | informative guidance only | tasks §5 |
 | TaskCheckpoint | CHECKPOINT + requester countersign | critique C11 |
-| kv_cache_delta | transcript replay; TBD-KVX extension | critique C10 |
+| kv_cache_delta | transcript replay; `ext-kvx` extension (tasks §8.4, extension key 2) | critique C10 |
 | did:hep | AgentID ≡ did:key ≡ libp2p PeerID | critique C13 |
 | credits/escrow prose | PAY_* + settlement registry | critique C9 |
 | protobuf-signed ads | deterministic CBOR + COSE, verify received bytes | critique C2 |

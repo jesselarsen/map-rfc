@@ -8,9 +8,15 @@ submissiontype: independent
 # The Manolito Agent Protocol (MAP): Architecture
 
 **Status of This Memo:** This document is an Internet-Draft-style preprint
-published for open-source community review. It has not been submitted to the
-IETF. Distribution is unlimited. It expires six months after publication and
-MUST NOT be cited except as "work in progress".
+published for open-source community review. Two independent interoperating
+implementations pass the full live interop matrix (ops §6.1). It has not been
+submitted to the IETF (intended independent stream; see ops §3.5). Distribution
+is unlimited. It expires six months after
+publication and MUST NOT be cited except as "work in progress" pending human/
+expert review.
+
+
+This document is subject to BCP 78 and BCP 79. The source working tree is distributed under Apache-2.0 (see repository LICENSE); contributors SHOULD disclose relevant IPR per BCP 79. On publication the RFC is copyrighted by the IETF Trust and licensed per the IETF Trust's terms (see draft-map-ops-01 sect. 3.5).
 
 ## Abstract
 
@@ -298,7 +304,10 @@ meshes. Test-suite structure: draft-map-ops-01 §6.
 
 | Document | Scope | Depends on |
 |---|---|---|
+| draft-map-index-01 | family cover/index: document list, reading order, submission status | — |
+| draft-map-intro-01 | introduction & motivation; problem statement, critique thesis, reading guide | — |
 | draft-map-arch-01 | this document | — |
+| draft-map-wire-01 | wire PDU layering diagram & master registry index (all assigned code points) | all |
 | draft-map-core-01 | envelope, negotiation, sessions, errors, flow control, extension framework, transport bindings | identity |
 | draft-map-identity-01 | AgentID, key hierarchy, delegation, rotation, revocation, DID/WebAuthn interop | — |
 | draft-map-discovery-01 | descriptors, capability ontology, two-plane discovery, NAT traversal profile | core |

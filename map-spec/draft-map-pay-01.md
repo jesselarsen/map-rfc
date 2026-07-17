@@ -2,12 +2,21 @@
 title: "MAP Payments: Negotiation, Settlement-Method Abstraction, Metering, and Disputes"
 docname: draft-map-pay-01
 category: std
+submissiontype: independent
 ---
 
 # MAP Payments and Settlement
 
-**Status:** preprint, work in progress. BCP 14 language applies (see
-Requirements Language, below).
+**Status of This Memo:** This document is an Internet-Draft-style preprint
+published for open-source community review. Two independent interoperating
+implementations pass the full live interop matrix (ops §6.1). It has not been
+submitted to the IETF (intended independent stream; see ops §3.5). Distribution
+is unlimited. It expires six months after publication and MUST NOT be cited
+except as "work in progress" pending human/expert review. BCP 14 language
+applies (see Requirements Language, below).
+
+
+This document is subject to BCP 78 and BCP 79. The source working tree is distributed under Apache-2.0 (see repository LICENSE); contributors SHOULD disclose relevant IPR per BCP 79. On publication the RFC is copyrighted by the IETF Trust and licensed per the IETF Trust's terms (see draft-map-ops-01 sect. 3.5).
 
 ## Requirements Language
 
@@ -722,7 +731,9 @@ can exclude rails inconsistent with the task's sensitivity.
 
 Registers: settlement method URIs (Specification Required); pricing model
 codes; terms codes; dispute claim codes; dispute evidence-item kinds
-(§6.1); unit codes for rate tables.
+(§6.1); unit codes for rate tables. The assigned values and the
+family-wide index are in `draft-map-wire-01.md` §3.18, §3.19, and §3.20;
+in case of divergence the normative definitions in §3, §5.1, and §6 govern.
 
 ## References (selected)
 
