@@ -700,6 +700,35 @@ treat as the frozen interop contract.
     `PaidGatewayProvider`; `real-x402` reused; default build zero new
     deps). **Implementation order: 024 then 025.**
 
+22. **ARCHITECT SESSION 2026-07-16 (third pass) — pay §6 disputes
+    DEFINED; TASK-026 packaged (OPEN, blocked by 024).** §6 rewritten
+    from sketch to normative: §6.1 CDDL for PAY_DISPUTE (dispute-id,
+    invoice-id, claim 0..4, PayAgreeRef anchor, optional TaskID +
+    free-text statement that is NEVER evidence) and PAY_DISPUTE_EVIDENCE
+    (`[+ EvidenceItem]`, FLOW_CREDIT-chunked, dedup by content address);
+    EvidenceItem = (kind 0..8 registry, artifact bytes VERBATIM per I1,
+    ? CB). **§6.2 CB disclosure — the new mechanism**: in-session
+    envelopes sign with external_aad = CB, so third-party verification
+    REQUIRES the disclosed CB (safe: HKDF output, not key material;
+    bonus: same-CB items prove same-session provenance); CB-less
+    in-session items = unavailable evidence. §6.3 mechanical per-claim
+    procedures with a THREE-VALUED verdict (supported/rebutted/
+    insufficient): claims 0/2 rebuttal-shaped (stand unrebutted against
+    the party that must hold the artifacts if honest), claim 1 =
+    transcript-root recompute, claim 3 = §4.1 arithmetic vs highest
+    COUNTERSIGNED checkpoint usage, claim 4 = re-run existing
+    6005/6006/6008/6009/6010 verifiers. §6.4 griefing bounds. No new
+    code points (0x0405/0x0406 were pre-assigned); vectors TV-019/020 +
+    NV-012 planned additively. TASK-026: map-pay `dispute.rs` (codecs +
+    pure verdict engine REUSING existing verifiers — acceptance-grep'd),
+    map-taskrun thin hooks (evidence from `Incoming.raw`, session CB
+    getter, outcome-4 receipt hook), map-go codec-only. §6.2 tests MUST
+    use a real loopback-session CB. **Implementation order: 024 →
+    025/026 (025∥026 safe — different files). The pay family design is
+    now COMPLETE** (quote→…→disputes); remaining unpackaged: method-
+    generic runtimes, Go task runtime + interop scenarios, non-pay
+    frontier.
+
 18. **ARCHITECT SESSION 2026-07-14 (third pass) — `pay:x402` REGISTERED
     (pay §5.1 row + full method definition; additive, CHANGELOG updated).**
     x402 (x402.org / Coinbase) enters MAP as a settlement METHOD, not a

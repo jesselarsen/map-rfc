@@ -565,24 +565,141 @@ accidental central bank).
 
 ## 6. Disputes
 
-Scope: MAP adjudicates *evidence availability*, not outcomes.
+Scope: MAP adjudicates *evidence availability*, not outcomes. The
+protocol's whole job here is that each party can (a) state a precise
+claim bound to a precise agreement, (b) hand over the signed artifacts
+that bear on it, and (c) let ANY third party the disputants choose (mesh
+arbiter, method-level chargeback, court) check the claim mechanically
+without trusting either disputant. Timeboxes, arbiter selection, and
+remedies are mesh/method policy — deliberately outside this document.
+Design goal: make lying *expensive to sustain* — every step of a MAP
+payment leaves a signed artifact the liar must contradict.
 
-```
-PAY_DISPUTE {invoice-id, claim code}        (either party; 0x0405)
-PAY_DISPUTE_EVIDENCE {invoice-id, items}    (both; 0x0406)
+### 6.1 Messages
+
+```cddl
+PayDispute = {                        ; msg-type 0x0405; either party
+  1 => bstr .size 16,                 ; dispute-id (fresh)
+  2 => bstr .size 16,                 ; invoice-id under dispute
+  3 => uint,                          ; claim code (registry, §8):
+                                      ;  0 non-delivery, 1 output-mismatch,
+                                      ;  2 non-payment, 3 overbilling,
+                                      ;  4 terms breach
+  4 => PayAgreeRef,                   ; the governing agreement (§3.1) —
+                                      ;  anchors quote, terms, cap, task
+  ? 5 => bstr .size 32,               ; TaskID, if the agreement is bound
+  ? 6 => tstr .size (0..1024),        ; free-text statement (never evidence)
+  7 => Timestamp
+}
+
+PayDisputeEvidence = {                ; msg-type 0x0406; both parties
+  1 => bstr .size 16,                 ; dispute-id
+  2 => [+ EvidenceItem],
+  ? 3 => bool                         ; more available (chunk under
+}                                     ;  FLOW_CREDIT, core §8.1)
+
+EvidenceItem = {
+  1 => uint,                          ; kind (registry, §8):
+                                      ;  0 PAY_QUOTE envelope
+                                      ;  1 PAY_AGREE envelope
+                                      ;  2 PAY_INVOICE envelope
+                                      ;  3 PAY_PROOF envelope
+                                      ;  4 PAY_RECEIPT envelope
+                                      ;  5 countersigned checkpoint
+                                      ;     (Checkpoint + the requester
+                                      ;      countersignature, tasks §8.2)
+                                      ;  6 COMPLETE envelope
+                                      ;  7 ExecutionReceipt (dual-signed,
+                                      ;     trust §3)
+                                      ;  8 method artifact (ledger entry,
+                                      ;     release-auth, x402 payload,
+                                      ;     gateway upstream evidence …)
+  2 => bstr,                          ; the artifact VERBATIM: for envelope
+                                      ;  kinds, the received envelope bytes
+                                      ;  (core I1 — never re-serialized)
+  ? 3 => bstr .size 32                ; the session channel binding (CB)
+}                                     ;  under which an in-session envelope
+                                      ;  was signed — see §6.2
 ```
 
-Claim codes: 0 non-delivery, 1 output-mismatch (transcript-root ≠
-delivered), 2 non-payment, 3 overbilling (usage > countersigned
-watermarks), 4 terms breach. Evidence items are exactly the signed
-artifacts already defined — quote, agreement, invoices, proofs,
-countersigned checkpoints, COMPLETE, receipts — so every claim above is
-mechanically checkable by any third party the disputants choose (mesh
-arbiter, method-level chargeback, court). Timeboxes, arbiter selection,
-and remedies are mesh/method policy; a receipt with outcome 4 (disputed)
-records the event either way. Design goal: make lying *expensive to
-sustain* — every step of a MAP payment leaves a signed artifact the liar
-must contradict.
+Unrecognized claim codes and evidence kinds MUST be rejected
+(fail-closed). Disputes are idempotent by dispute-id; re-sent evidence
+messages MUST NOT duplicate items in the verifier's view (dedup by item
+content address). Opening a dispute does not suspend other machinery by
+itself; a party refusing to continue a flow pending resolution signals
+ERROR 6003 (dispute opened). A receipt with outcome 4 (disputed, trust
+§3) records the event on the trust plane either way, whoever proves
+right.
+
+### 6.2 Third-party verifiability and CB disclosure
+
+Inner-signed artifacts (ExecutionReceipts, checkpoint
+countersignatures — decision-9-style signatures over stated bytes) are
+verifiable by anyone from the bytes alone. Envelope artifacts are
+COSE_Sign1 over the received bytes with `external_aad` = the session
+channel binding (CB) when sent in-session (core §7.3) — so a third
+party CANNOT verify them without the CB. Therefore: an EvidenceItem
+carrying an in-session envelope MUST include key 3 (the CB value);
+out-of-session envelopes (empty external_aad) omit it. Disclosing a CB
+post-hoc is safe — it is an HKDF output, not key material, and reveals
+nothing about session traffic keys — and it is *useful*: all in-session
+items verifying under the SAME disclosed CB are thereby proven to come
+from one session between the two disputants. A verifier MUST treat an
+in-session item whose CB is absent or fails verification as unavailable
+evidence, not as a verified artifact.
+
+### 6.3 Mechanical verification procedure
+
+Given a PayDispute and both parties' evidence sets, a verifier (either
+disputant, or any third party) proceeds: authenticate every item per
+§6.2 against the AgentIDs bound by the agreement (item signers MUST be
+the disputants or the method's named operator; anything else is
+discarded); resolve the agreement (kind-1 item matching PayAgreeRef's
+digest, and its kind-0 quote matching the agreement's quote digest —
+the 6006 machinery); then evaluate the claim:
+
+- **0 non-delivery** (payer claims): supported iff the payer's evidence
+  shows value moved — a settled PAY_RECEIPT (kind 0/2) or verified
+  proof — AND the payee's evidence contains NO countersigned checkpoint
+  and no COMPLETE for the bound task. This is rebuttal-shaped: absence
+  is never proven, so the claim *stands unrebutted* if the payee, who
+  by construction holds the countersigned artifacts if delivery
+  happened, produces none.
+- **1 output-mismatch** (payer claims): supported iff the COMPLETE's
+  transcript-root does not equal the root recomputed (tasks §8.1) over
+  the delivered transcript the payer presents, at or before the
+  COMPLETE's chunk range. Fully mechanical.
+- **2 non-payment** (payee claims): rebuttal-shaped dual of claim 0:
+  stands unless the payer produces a verifying PAY_PROOF / receipt /
+  release-auth covering the invoice (escrow: the release round).
+- **3 overbilling** (payer claims): supported iff an invoice's
+  cumulative-billed (or a terms-1/2 amount) exceeds the §4.1 formula
+  applied to the highest COUNTERSIGNED usage (checkpoint key 5) in
+  evidence, under the agreement's rate table — exact arithmetic, no
+  tolerance. (Watermarks the payer accepted but did not countersign
+  bill validly under §4.1; overbilling is measured against what the
+  payer ACKNOWLEDGED, which is why checkpoints exist.)
+- **4 terms breach** (either): supported iff the evidence itself
+  exhibits a violation of §3–§5.2 rules that existing verifiers detect
+  mechanically: quote-digest mismatch (6006), cap breach (6005),
+  watermark violation (6009), escrow-phase/prepaid violation (6010),
+  invalid proof (6008). The claim names the rule; the verifier re-runs
+  the corresponding check over the presented artifacts.
+
+The verdict vocabulary is three-valued: **supported**, **rebutted**, or
+**insufficient evidence** — MAP never emits remedies. Both
+rebuttal-shaped claims (0, 2) resolve against the party that withholds
+artifacts it must hold if honest; that asymmetry is the availability
+doctrine doing its work.
+
+### 6.4 Griefing bounds
+
+A dispute is itself a signed artifact: frivolous disputants accumulate
+their own evidence trail (§7), and outcome-4 receipts weigh against
+both parties' trust projections pending resolution (trust §5). Evidence
+volume rides FLOW_CREDIT (§6.1 `more` chunking) — a party cannot flood;
+a verifier MAY cap total evidence size as local policy and rule
+"insufficient" beyond it.
 
 ## 7. Security considerations
 
@@ -601,7 +718,8 @@ can exclude rails inconsistent with the task's sensitivity.
 ## 8. IANA-style considerations
 
 Registers: settlement method URIs (Specification Required); pricing model
-codes; terms codes; dispute claim codes; unit codes for rate tables.
+codes; terms codes; dispute claim codes; dispute evidence-item kinds
+(§6.1); unit codes for rate tables.
 
 ## References (selected)
 

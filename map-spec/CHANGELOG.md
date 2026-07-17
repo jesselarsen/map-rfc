@@ -171,6 +171,41 @@ authorization derivation RECOMMENDED for upstream retry safety. Purely an
 ops-layer composition of existing mechanisms; no message, field, or code
 point changes.
 
+### Post-cut addition — 2026-07-16 (third pass; additive)
+
+**pay §6 disputes defined** (formerly a sketch naming messages and claim
+codes; implementation packaged as TASK-026). The already-assigned code
+points 0x0405/0x0406 gain normative CDDL and procedure:
+
+- **§6.1** — `PayDispute` (dispute-id, invoice-id, claim code,
+  PayAgreeRef anchor, optional TaskID/free-text) and
+  `PayDisputeEvidence` (`[+ EvidenceItem]`, FLOW_CREDIT-chunked).
+  `EvidenceItem` = (kind registry 0–8, artifact bytes VERBATIM per I1,
+  optional CB). Unknown claim codes / kinds rejected fail-closed;
+  dispute-id idempotency; ERROR 6003 signals flow refusal pending
+  resolution; trust receipt outcome 4 records the event.
+- **§6.2 CB disclosure** — the new architectural piece: in-session
+  envelopes sign with `external_aad` = the session channel binding, so
+  third parties cannot verify them from bytes alone. An in-session
+  evidence item MUST carry its CB (key 3); disclosure is safe (HKDF
+  output, not key material) and proves same-session provenance across
+  items. CB-less in-session items are unavailable evidence, never
+  verified artifacts.
+- **§6.3 mechanical verification** — per-claim procedures over
+  authenticated evidence: claims 0/2 are rebuttal-shaped (stand
+  unrebutted against the party that must hold the artifacts if honest);
+  claim 1 recomputes the tasks §8.1 transcript root; claim 3 recomputes
+  §4.1 arithmetic against the highest COUNTERSIGNED checkpoint usage;
+  claim 4 re-runs the existing 6005/6006/6008/6009/6010 verifiers.
+  Three-valued verdict (supported / rebutted / insufficient); MAP never
+  emits remedies.
+- **§6.4 griefing bounds**; **§8** registers the evidence-kind registry.
+
+No new code points (0x0405/0x0406 were assigned in -00), no changes to
+existing message encodings. Vectors: **TV-019** (PAY_DISPUTE),
+**TV-020** (PAY_DISPUTE_EVIDENCE), **NV-012** (unknown claim code →
+reject) to be added additively; frozen bytes untouched.
+
 ### Still open (tracked in `ERRATA.md`, deferred to a future revision)
 
 - (none)
