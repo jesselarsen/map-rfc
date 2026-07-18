@@ -13,7 +13,11 @@ use map_core::envelope::{seal, Body, MsgId, PROTOCOL_VERSION_1_0};
 use map_core::errors::codes;
 use map_core::hello::Hello;
 use map_identity::Keypair;
+use map_net::{MapNode, NetError};
 use map_session::{RandomMsgIds, Session, SessionConfig, SessionError, SystemClock, TcpTransport};
+use map_taskrun::{Executor, ProviderTask, RequesterTask};
+use map_tasks::{ChunkKind, TaskId};
+use sha2::{Digest, Sha256};
 use std::net::{TcpListener, TcpStream};
 use std::process::exit;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
@@ -33,6 +37,7 @@ struct Flags {
     peer_seed: [u8; 32],
     issuer_seed: Option<[u8; 32]>,
     scenario: String,
+    transport: String,
 }
 
 /// Entry point (never returns; prints OK/FAIL and exits).
@@ -44,7 +49,13 @@ pub fn run(args: &[String]) -> ! {
             exit(2);
         }
     };
-    let result = if f.role == "listen" {
+    let result = if f.transport == "libp2p" {
+        if f.role == "listen" {
+            run_libp2p_listen(&f)
+        } else {
+            run_libp2p_dial(&f)
+        }
+    } else if f.role == "listen" {
         run_listen(&f)
     } else {
         run_dial(&f)
@@ -64,6 +75,7 @@ pub fn run(args: &[String]) -> ! {
 fn parse(args: &[String]) -> Result<Flags, String> {
     let (mut role, mut addr, mut scenario) = (None, None, None);
     let (mut seed, mut peer_seed, mut issuer_seed) = (None, None, None);
+    let mut transport = "tcp".to_string();
     let mut i = 2; // args[0]=bin, args[1]="interop"
     while i < args.len() {
         let val = args.get(i + 1).cloned();
@@ -74,6 +86,7 @@ fn parse(args: &[String]) -> Result<Flags, String> {
             "--peer-seed" => peer_seed = val.and_then(|v| parse_seed(&v)),
             "--issuer-seed" => issuer_seed = val.and_then(|v| parse_seed(&v)),
             "--scenario" => scenario = val,
+            "--transport" => transport = val.unwrap_or_else(|| "tcp".to_string()),
             other => return Err(format!("unknown flag {other}")),
         }
         i += 2;
@@ -85,6 +98,7 @@ fn parse(args: &[String]) -> Result<Flags, String> {
         peer_seed: peer_seed.ok_or("missing/invalid --peer-seed")?,
         issuer_seed,
         scenario: scenario.ok_or("missing --scenario")?,
+        transport,
     })
 }
 
@@ -357,4 +371,143 @@ fn echo_loop(s: &mut Session<TcpTransport, SystemClock, RandomMsgIds>) -> Result
             Err(e) => return Err(format!("recv: {e:?}")),
         }
     }
+}
+
+// --- libp2p task scenarios ---------------------------------------------------
+//
+// These run the live task protocol (tasks §1–§13) over a real libp2p/QUIC
+// session (core §10 / map-net). The wire format is identical to the Go peer
+// (`map-go/cmd/map-interop --transport libp2p`) — the transcript codec is
+// cross-impl-verified in `map-go/tasks/transcript_test.go` (TV-008) — so the
+// same three scenarios run Rust↔Go in both orientations. The executor output
+// is deterministic and matches the Go `scenarioExecutor` so rust↔rust and
+// mixed orientations verify the same roots.
+
+const LIBP2P_CAP: &str = "map:cap:demo/excuse";
+const LIBP2P_LISTEN: &str = "/ip4/127.0.0.1/udp/0/quic-v1";
+
+/// Deterministic executor for the task-* libp2p scenarios.
+struct Libp2pExecutor {
+    scenario: String,
+}
+
+impl Executor for Libp2pExecutor {
+    fn execute(&self, input: &[u8]) -> Vec<(ChunkKind, Vec<u8>)> {
+        let prompt = String::from_utf8_lossy(input).into_owned();
+        match self.scenario.as_str() {
+            "task-stream" => vec![(
+                ChunkKind::OutputText,
+                format!("Excuse: {prompt}").into_bytes(),
+            )],
+            "task-multichunk" => (0..20)
+                .map(|i| {
+                    (
+                        ChunkKind::OutputText,
+                        format!("chunk-{i}: {prompt}").into_bytes(),
+                    )
+                })
+                .collect(),
+            "task-transcript" => vec![
+                (ChunkKind::OutputText, format!("alpha {prompt}").into_bytes()),
+                (ChunkKind::OutputBytes, vec![0x01, 0x02, 0x03]),
+                (ChunkKind::OutputText, format!("omega {prompt}").into_bytes()),
+            ],
+            _ => vec![(ChunkKind::OutputText, prompt.into_bytes())],
+        }
+    }
+}
+
+/// Derive a deterministic 32-byte TaskId from the scenario name.
+fn task_id(scenario: &str) -> TaskId {
+    let h = Sha256::digest(scenario.as_bytes());
+    let mut id = [0u8; 32];
+    id.copy_from_slice(&h);
+    TaskId(id)
+}
+
+type LpSession = Session<map_net::Libp2pTransport, SystemClock, RandomMsgIds>;
+
+fn run_libp2p_listen(f: &Flags) -> Result<(), String> {
+    if !matches!(f.scenario.as_str(), "task-stream" | "task-multichunk" | "task-transcript") {
+        return Err(format!(
+            "libp2p transport only supports task-* scenarios, got {}",
+            f.scenario
+        ));
+    }
+    let node = MapNode::new(f.seed, std_hello()).map_err(|e| format!("node: {e}"))?;
+    let (bound, peer) = node
+        .listen_with_peer(LIBP2P_LISTEN.parse().map_err(|e| format!("addr: {e}"))?)
+        .map_err(|e| format!("listen: {e}"))?;
+    println!("LISTENING {bound}/p2p/{peer}");
+
+    let mut s: LpSession = node.accept().map_err(|e| format!("accept: {e}"))?;
+    let mut provider = ProviderTask::new(Libp2pExecutor {
+        scenario: f.scenario.clone(),
+    });
+    // Pump the provider FSM to terminal (COMPLETE sent).
+    while !matches!(
+        provider.state(),
+        map_taskrun::ProviderState::Completed
+            | map_taskrun::ProviderState::Cancelled
+            | map_taskrun::ProviderState::Failed
+    ) {
+        let inc = s.recv().map_err(|e| format!("recv: {e:?}"))?;
+        for (mt, val) in provider.on_incoming(&inc, now_ms()) {
+            s.send(mt, val).map_err(|e| format!("send: {e:?}"))?;
+        }
+    }
+    // Await the requester's CLOSE before tearing down, so COMPLETE is flushed
+    // and the requester has verified (avoids a shutdown race).
+    loop {
+        match s.recv() {
+            Ok(_) => continue,
+            Err(SessionError::PeerClosed { .. }) => break,
+            Err(e) => return Err(format!("await close: {e:?}")),
+        }
+    }
+    // The peer already closed; an explicit close is best-effort and may report
+    // State if the session is already torn down — ignore it.
+    let _ = s.close(0, "done");
+    Ok(())
+}
+
+fn run_libp2p_dial(f: &Flags) -> Result<(), String> {
+    if !matches!(f.scenario.as_str(), "task-stream" | "task-multichunk" | "task-transcript") {
+        return Err(format!(
+            "libp2p transport only supports task-* scenarios, got {}",
+            f.scenario
+        ));
+    }
+    let expected = kp(&f.peer_seed).agent_id();
+    let node = MapNode::new(f.seed, std_hello()).map_err(|e| format!("node: {e}"))?;
+    let mut s: LpSession = node
+        .dial(f.addr.parse().map_err(|e| format!("addr: {e}"))?, expected)
+        .map_err(|e| match e {
+            NetError::Session(se) => format!("handshake: {se:?}"),
+            other => format!("dial: {other}"),
+        })?;
+
+    let mut r = RequesterTask::new(task_id(&f.scenario), LIBP2P_CAP, Default::default(), b"traffic".to_vec());
+    for (mt, val) in r.start_offer(now_ms()) {
+        s.send(mt, val).map_err(|e| format!("send: {e:?}"))?;
+    }
+    while !(r.state().is_terminal() || r.verified().is_some()) {
+        let msgs = r.poll_deadline(now_ms());
+        if !msgs.is_empty() {
+            for (mt, val) in msgs {
+                s.send(mt, val).map_err(|e| format!("send: {e:?}"))?;
+            }
+        }
+        let inc = s.recv().map_err(|e| format!("recv: {e:?}"))?;
+        for (mt, val) in r.on_incoming(&inc, now_ms()) {
+            s.send(mt, val).map_err(|e| format!("send: {e:?}"))?;
+        }
+    }
+    let root = match r.verified() {
+        Some((_, root)) => *root,
+        None => return Err("task did not verify".into()),
+    };
+    s.close(0, "done").map_err(|e| format!("close: {e:?}"))?;
+    println!("OK transcript-root: {}", hex::encode(root));
+    Ok(())
 }

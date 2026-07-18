@@ -10,10 +10,29 @@ points and error codes used here come from core §5/§9 directly).
 
 ## Build and test
 
-Requires Go ≥ 1.24 (this repo's toolchain: go1.26.5). **Zero external
-dependencies** — pure stdlib (`crypto/ed25519`, `crypto/hkdf`,
-`crypto/sha256`); base58 is implemented in-package. No network, no
-clocks, no randomness in tests.
+Requires Go ≥ 1.24 (this repo's toolchain: go1.26.5). **The protocol core
+has zero external dependencies** — the packages that define wire behavior
+(`cbor`, `envelope`, `identity`, `session`, `hello`, `receipt`,
+`discovery`, `conformance`) are pure stdlib (`crypto/ed25519`,
+`crypto/hkdf`, `crypto/sha256`); base58 is implemented in-package. No
+network, no clocks, no randomness in the conformance tests. This is the
+independence marker: the byte-exact conformance surface reads the spec,
+not a library. Verify it — this MUST print nothing:
+
+```
+go list -deps ./cbor ./envelope ./identity ./session ./hello ./receipt \
+  ./discovery ./conformance | grep -E 'libp2p|multiformats|mr-tron'
+```
+
+External dependencies (`go-libp2p`, Kademlia DHT, multiformats) are
+confined to the **transport binding and demo layer** added in the
+TASK-020 interop extension: `net` (libp2p/QUIC `MapNode`), `dht` (the
+Kademlia descriptor router — kept a SEPARATE package from `discovery`
+precisely so the codec/conformance surface stays libp2p-free), and the
+`cmd/*` demo agents. This mirrors `map-rs`, which confines libp2p to its
+own `map-net` crate. The core §10 transport is a *binding*, not part of
+the frozen wire format, so it does not touch the independence claim
+above.
 
 ```
 cd map-go

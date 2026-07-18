@@ -173,3 +173,32 @@ NOTE (bookkeeping, TASK-010): the widened-scope negative vector is NV-007
 (TASK-010's planned "NV-006" was already taken by the bound-PAY_QUOTE
 pass). The NV counter now stands at **NV-009** (TASK-018's max-depth
 vector, added 2026-07-12); a future negative vector takes NV-010.
+
+---
+
+RESOLVED 2026-07-17 (TASK-020 interop-extension session; ratified in the
+2026-07-17 preserve-the-work review) — extending the live interop matrix
+(`interop/run-matrix.ps1`) with the task protocol over libp2p/QUIC
+(scenarios `task-stream`, `task-multichunk`, `task-transcript`) raised the
+question of whether the **Rust ↔ Go task cells** could be wired, or whether
+only Go ↔ Go (impl #2 over its own transport) was in reach. RULING (chose
+option (a) — wire the Rust ↔ Go cells): `map-cli` gained `map-net` +
+`map-taskrun` deps and a `--transport libp2p` task-mode in
+`crates/map-cli/src/interop.rs` (a `Libp2pExecutor` mirroring the Go
+`scenarioExecutor`, plus pump loops driving `ProviderTask`/`RequesterTask`
+over `map_net::MapNode`); `map-net` gained `MapNode::listen_with_peer` to
+surface the dialable `/p2p/<peerid>` multiaddr. The matrix demo capability
+is the shared `map:cap:demo/excuse` — the interop contract needs only a
+shared capability URI + identical transcript codec, both satisfied; the
+`rfc-title-o-matic` name in the original plan was a demo-agent detail, and
+that binary was ALSO delivered (a `[[bin]]` of `map-cli`,
+`src/rfc_title_o_matic.rs`, cap `map:cap:demo/rfc-title`) and live-verified
+cross-impl against the capability-agnostic Go `map-requester`
+(`OK transcript-root: f1752ebae4594c2f0415694143bf881f53230d7669b4ebbb17545ab58218b7d4`).
+The transcript wire format was already cross-impl-verified (TV-008 /
+`map-go/tasks/transcript_test.go`), so NO spec change was implied — only
+the Rust runtime + interop harness. Result: **16/16 core (TCP, Rust↔Go) +
+6/6 task (libp2p, both orientations) PASS**; the core-session 16/16 TCP
+matrix is unchanged. Where implemented: `crates/map-cli/src/interop.rs`,
+`crates/map-cli/src/rfc_title_o_matic.rs`, `map-go/{tasks,net,dht,cmd}`,
+`interop/run-matrix.ps1`.

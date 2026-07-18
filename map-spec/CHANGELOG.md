@@ -8,6 +8,52 @@ version that carries it). No revision to date contains a breaking change.
 
 ---
 
+## Live interop matrix extended: task protocol over libp2p/QUIC, both orientations (TASK-020 extension) — 2026-07-17
+
+Additive change (ops §6.1): the live interop matrix (`interop/run-matrix.ps1`)
+now exercises the **task protocol (tasks §1–§13) over a real libp2p/QUIC
+session** in both orientations, proving the full task runtime interoperates
+across both implementations. The transcript codec is cross-impl-verified
+(TV-008), so the roots printed by each side match byte-for-byte. No wire
+format, registry, or normative-text change — this is implementation + harness
+only.
+
+### Additive (implementation / harness; no spec change)
+
+- **`map-go/tasks`** — complete task runtime: `TranscriptBuilder` (Merkle root),
+  `ProviderTask`/`RequesterTask` FSMs, flow-credit streaming, `RunProvider`/
+  `RunRequester` session pumps. (Impl #2 task runtime, end-to-end.)
+- **`map-go/net`** — real libp2p/QUIC transport: `MapNode` (`/map/1.0.0`
+  substream, 4-byte-BE framing, channel-binding exporter = initiator‖responder
+  AgentID, Kademlia DHT for descriptor publish/lookup).
+- **`map-go/discovery`** — stdlib-only descriptor codec + sharded
+  capability-key derivation (discovery §5/§6). Kept libp2p-free so the
+  conformance surface stays dependency-free (independence marker).
+- **`map-go/dht`** — the libp2p/Kademlia `Router` over the sharded
+  capability key, in its OWN package (imports `net` + `discovery`) so the
+  codec above never links libp2p.
+- **`map-go/cmd/map-excuse`** — Go demo agent "MAP-Excuse-As-A-Service"
+  (`map:cap:demo/excuse`), a real task-answerer over libp2p.
+- **`map-go/cmd/map-interop`** — `--transport libp2p` + task scenarios
+  (`task-stream`, `task-multichunk`, `task-transcript`).
+- **`map-rs` `map-cli`** — gained `map-net` + `map-taskrun` deps; `interop.rs`
+  `--transport libp2p` branch with a `Libp2pExecutor` (mirrors the Go
+  `scenarioExecutor`) driving `ProviderTask`/`RequesterTask` over
+  `map_net::MapNode`. `map-net` gained `MapNode::listen_with_peer`.
+- **`interop/run-matrix.ps1`** — runs the 3 task scenarios × 2 orientations over
+  libp2p/QUIC (6 cells) in addition to the 16 core-session TCP cells. Result:
+  **16/16 core + 6/6 task PASS**.
+- **`interop/MATRIX.md`**, **`interop/DEMOS.md`** — updated to the 6/6 task
+  result (both orientations); `map-spec/ERRATA.md` PENDING-ARCHITECT item
+  resolved.
+
+### Editorial (wording; no wire/behavior change)
+
+- **`memory.md`** — entry N. records the extension; the §5 "live matrix met"
+  note now covers the task cells too.
+
+---
+
 ## Formal analysis: continuous metering arithmetic & quote/agree/invoice/proof binding (Item 9 / TASK-028) — 2026-07-17
 
 Additive cross-cutting change (ops §3.2): extends the TASK-027 payment

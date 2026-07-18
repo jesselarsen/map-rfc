@@ -9,7 +9,9 @@
 package main
 
 import (
+	"context"
 	"crypto/ed25519"
+	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
 	"net"
@@ -19,7 +21,9 @@ import (
 	"github.com/jesselarsen/map-rfc/map-go/cbor"
 	"github.com/jesselarsen/map-rfc/map-go/envelope"
 	"github.com/jesselarsen/map-rfc/map-go/identity"
+	mapnet "github.com/jesselarsen/map-rfc/map-go/net"
 	"github.com/jesselarsen/map-rfc/map-go/session"
+	"github.com/jesselarsen/map-rfc/map-go/tasks"
 )
 
 const testMsgType = 0xF000
@@ -31,6 +35,7 @@ type flags struct {
 	peerSeed   []byte
 	issuerSeed []byte // optional; delegated scenario
 	scenario   string
+	transport  string // "tcp" (default) or "libp2p"
 }
 
 func die(scenario string, err error) {
@@ -73,6 +78,8 @@ func parseArgs(args []string) (flags, error) {
 			f.issuerSeed = mustHex(val())
 		case "--scenario":
 			f.scenario = val()
+		case "--transport":
+			f.transport = val()
 		default:
 			return f, fmt.Errorf("unknown flag %q", args[i])
 		}
@@ -106,6 +113,9 @@ func stdHello() session.Hello {
 }
 
 func run(f flags) error {
+	if f.transport == "libp2p" {
+		return runLibp2p(f)
+	}
 	if f.role == "listen" {
 		return runListen(f)
 	}
@@ -434,5 +444,116 @@ func expectLocalCode(err error, code uint16) error {
 	if !ok || se.Code != code {
 		return fmt.Errorf("expected local error %d, got %v", code, err)
 	}
+	return nil
+}
+
+// --- libp2p task scenarios ---------------------------------------------------
+//
+// These scenarios run the live task protocol (tasks §1-§13) over a real
+// libp2p/QUIC session (core §10 / net). The provider and requester are both the
+// Go implementation #2, proving impl #2's task runtime end-to-end over its own
+// transport. The wire format is identical to Rust by construction (the
+// transcript codec is cross-impl-verified in tasks/transcript_test.go), so the
+// same scenarios run Rust<->Go once the Rust interop peer gains a libp2p
+// task-mode (see ERRATA PENDING-ARCHITECT).
+
+const libp2pCapURI = "map:cap:demo/excuse"
+
+// scenarioExecutor emits a deterministic chunk set so a task's transcript root
+// is reproducible. It stands in for a real capability handler.
+type scenarioExecutor struct{ scenario string }
+
+func (e scenarioExecutor) Execute(input []byte) []tasks.Chunk {
+	var prompt string
+	if len(input) > 0 {
+		prompt = string(input)
+	}
+	switch e.scenario {
+	case "task-stream":
+		return []tasks.Chunk{{Seq: 0, Kind: tasks.ChunkOutputText, Content: []byte("Excuse: " + prompt)}}
+	case "task-multichunk":
+		var out []tasks.Chunk
+		for i := 0; i < 20; i++ {
+			out = append(out, tasks.Chunk{
+				Seq:     uint64(i),
+				Kind:    tasks.ChunkOutputText,
+				Content: []byte(fmt.Sprintf("chunk-%d: %s", i, prompt)),
+			})
+		}
+		return out
+	case "task-transcript":
+		return []tasks.Chunk{
+			{Seq: 0, Kind: tasks.ChunkOutputText, Content: []byte("alpha " + prompt)},
+			{Seq: 1, Kind: tasks.ChunkOutputByte, Content: []byte{0x01, 0x02, 0x03}},
+			{Seq: 2, Kind: tasks.ChunkOutputText, Content: []byte("omega " + prompt)},
+		}
+	default:
+		return []tasks.Chunk{{Seq: 0, Kind: tasks.ChunkOutputText, Content: []byte(prompt)}}
+	}
+}
+
+func runLibp2p(f flags) error {
+	if f.role == "listen" {
+		return runLibp2pListen(f)
+	}
+	return runLibp2pDial(f)
+}
+
+func runLibp2pListen(f flags) error {
+	hello := session.Hello{Versions: []uint16{0x0100}, Suites: []uint16{1}, MaxMessageSize: 262144}
+	node, err := mapnet.New(f.seed, hello, "/ip4/127.0.0.1/udp/0/quic-v1")
+	if err != nil {
+		return err
+	}
+	defer node.Close()
+	addr, err := node.ListenAddr()
+	if err != nil {
+		return err
+	}
+	fmt.Printf("LISTENING %s/p2p/%s\n", addr.String(), node.PeerID())
+
+	sess := node.Accept()
+	if sess == nil {
+		return fmt.Errorf("accept closed")
+	}
+	provider := tasks.NewProviderTask(scenarioExecutor{scenario: f.scenario})
+	if err := tasks.RunProvider(sess, provider); err != nil {
+		return err
+	}
+	// Await the requester's CLOSE before tearing down, so the COMPLETE frame is
+	// fully flushed and the requester has verified before the stream closes.
+	_, _ = sess.Recv()
+	_ = sess.Close(0, "done")
+	return nil
+}
+
+func runLibp2pDial(f flags) error {
+	if f.scenario != "task-stream" && f.scenario != "task-multichunk" && f.scenario != "task-transcript" {
+		return fmt.Errorf("libp2p transport only supports task-* scenarios, got %q", f.scenario)
+	}
+	expected := aidOf(key(f.peerSeed))
+	hello := session.Hello{Versions: []uint16{0x0100}, Suites: []uint16{1}, MaxMessageSize: 262144}
+	node, err := mapnet.New(f.seed, hello, "/ip4/127.0.0.1/udp/0/quic-v1")
+	if err != nil {
+		return err
+	}
+	defer node.Close()
+
+	ctx := context.Background()
+	sess, err := node.Dial(ctx, f.addr, expected)
+	if err != nil {
+		return err
+	}
+	tid := tasks.TaskID(sha256.Sum256([]byte(f.scenario)))
+	r := tasks.NewRequesterTask(tid, libp2pCapURI, tasks.TaskConstraints{}, []byte("traffic"))
+	ver, root, err := tasks.RunRequester(sess, r, false)
+	if err != nil {
+		return err
+	}
+	_ = sess.Close(0, "done")
+	if ver == nil {
+		return fmt.Errorf("task did not verify")
+	}
+	fmt.Printf("OK transcript-root: %x\n", root)
 	return nil
 }

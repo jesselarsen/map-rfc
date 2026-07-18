@@ -7,6 +7,7 @@
 
 use crate::transport::Libp2pTransport;
 use crate::NetError;
+use crate::peer_id_of;
 use futures::StreamExt;
 use libp2p::kad::{self, store::MemoryStore};
 use libp2p::core::transport::ListenerId;
@@ -195,6 +196,14 @@ impl MapNode {
         rx.blocking_recv()
             .map_err(|_| NetError::Closed)?
             .map_err(NetError::Swarm)
+    }
+
+    /// Like [`MapNode::listen`], but also returns this node's libp2p `PeerId`
+    /// string so the caller can build a dialable `/p2p/<peerid>` multiaddr.
+    pub fn listen_with_peer(&self, addr: Multiaddr) -> Result<(Multiaddr, String), NetError> {
+        let bound = self.listen(addr)?;
+        let pid = peer_id_of(&self.local).ok_or_else(|| NetError::Identity("no PeerId".into()))?;
+        Ok((bound, pid.to_string()))
     }
 
     /// Dial a peer and establish a MAP session as the initiator. `expected` is

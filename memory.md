@@ -909,6 +909,54 @@ treat as the frozen interop contract.
     check on the derived value itself (`get TBL(...) suchthat ... in ...
     else insert TBL(...)`) is the right tool — this is what Q2 uses.
 
+N. **TASK-020 EXTENSION 2026-07-17 — task protocol over libp2p/QUIC added
+   to the live interop matrix in BOTH orientations (Rust↔Go + Go↔Go).** Go
+   impl #2 has a complete task runtime (`map-go/tasks`: transcript Merkle root,
+   provider/requester FSMs, flow-credit streaming, `RunProvider`/`RunRequester`)
+   + a real libp2p/QUIC transport (`map-go/net`: `MapNode`, `/map/1.0.0`
+   substream, 4-byte-BE framing, channel-binding exporter = initiator‖responder
+   AgentID, Kademlia DHT) + a stdlib-only descriptor codec (`map-go/discovery`)
+   + the libp2p Kademlia router split into its OWN package (`map-go/dht`, so
+   the codec/conformance surface never links libp2p — see the dep-boundary
+   note at the end of this entry).
+   The Go demo agent `map-excuse` (`map:cap:demo/excuse`) is a real
+   task-answerer over libp2p. Rust impl #1 gained a libp2p task-mode:
+   `map-cli` now depends on `map-net` + `map-taskrun`; `interop.rs` has a
+   `--transport libp2p` branch with a `Libp2pExecutor` (mirrors the Go
+   `scenarioExecutor`) driving `ProviderTask`/`RequesterTask` over
+   `map_net::MapNode` (`map-net` gained `MapNode::listen_with_peer` to surface
+   the dialable `/p2p/<peerid>` multiaddr). The shared capability is
+   `map:cap:demo/excuse`. `interop/run-matrix.ps1` runs the 3 task scenarios
+   (`task-stream`, `task-multichunk`, `task-transcript`) in both orientations
+   over libp2p/QUIC. Result: **16/16 core (TCP, Rust↔Go) + 6/6 task (libp2p,
+   both orientations) PASS**, and the transcript roots printed by each side
+   match byte-for-byte (cross-impl parity, TV-008). FINDING/fix: a shutdown
+   race (provider closing the session before the requester verified COMPLETE)
+   was fixed on both sides by having the provider await the requester's CLOSE
+   before teardown (Go `sess.Recv()` drain; Rust best-effort `close` after
+   `PeerClosed`). Demo doc: `interop/DEMOS.md`. Phase D also delivers the
+   standalone Rust `rfc-title-o-matic` binary (a `[[bin]]` of the `map-cli`
+   crate, `src/rfc_title_o_matic.rs`): a real task-answerer for
+   `map:cap:demo/rfc-title` (deterministic RFC-title `Executor`), libp2p/QUIC
+   accept-loop, best-effort descriptor publish. The capability-agnostic Go
+   `map-requester` dials it directly — live verified cross-impl
+   (`OK transcript-root: f1752ebae4594c2f0415694143bf881f53230d7669b4ebbb17545ab58218b7d4`).
+   Phase D complete.
+
+   **DEPENDENCY BOUNDARY (independence marker preserved).** libp2p/QUIC is a
+   core §10 transport *binding*, not part of the frozen wire format, so it is
+   confined to the transport/demo layer in BOTH impls: Rust keeps it in the
+   `map-net` crate; Go keeps it in `net` + `dht` + `cmd/*`. The protocol-core
+   Go packages that define wire behavior — `cbor`, `envelope`, `identity`,
+   `session`, `hello`, `receipt`, `discovery` (codec), `conformance` — remain
+   pure stdlib. The step-13 "ZERO external deps" claim is thus still true FOR
+   THE CONFORMANCE SURFACE; the whole-module `go.mod` now lists go-libp2p
+   (transport only). Enforce with: `go list -deps ./cbor ./envelope ./identity
+   ./session ./hello ./receipt ./discovery ./conformance | grep -E
+   'libp2p|multiformats|mr-tron'` MUST be empty (checked 2026-07-17). The DHT
+   router lives in `map-go/dht` precisely to keep this true — do NOT merge it
+   back into `discovery`. map-go/README.md documents the same boundary.
+
 ## 9. Working conventions
 
 - BCP 14 language, unweakened. Registry code points never reused.

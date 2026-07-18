@@ -47,6 +47,32 @@ when bound, and every run's last stdout line is `OK <scenario>` or
 wrongsid, relay) are crafted at the envelope layer using each session's
 public channel-binding accessor plus the `send_raw` harness hook.
 
+## Task matrix (libp2p/QUIC, both orientations)
+
+In addition to the core-session matrix above, the driver now runs the **task
+protocol (tasks §1–§13) over a real libp2p/QUIC session** in both orientations
+to prove the full task runtime interoperates across the two implementations
+over the libp2p transport binding (core §10 / net). The wire format is
+identical by construction — the transcript codec is cross-impl-verified in
+`map-go/tasks/transcript_test.go` (TV-008) — and the transcript roots printed
+by each side match byte-for-byte.
+
+- **Date added:** 2026-07-17
+- **Result:** **6 / 6 PASS** (task-stream, task-multichunk, task-transcript ×
+  rust→go and go→rust)
+- **Transport:** libp2p/QUIC loopback (`/ip4/127.0.0.1/udp/0/quic-v1`),
+  `/map/1.0.0` substream protocol, 4-byte big-endian framing, channel-binding
+  exporter = initiator-AgentID ‖ responder-AgentID (FR-4); Noise-authenticated
+  PeerID ≡ AgentID (FR-3).
+- **Capability:** `map:cap:demo/excuse` (Go demo "MAP-Excuse-As-A-Service" /
+  Rust `map-cli interop` libp2p task-mode).
+
+| scenario | rust→go | go→rust | what it proves |
+|---|---|---|---|
+| task-stream | PASS | PASS | OFFER→QUOTE→ASSIGN→ACCEPT + 1 CHUNK→COMPLETE, transcript root verified on requester |
+| task-multichunk | PASS | PASS | 20 CHUNK transcript, flow-credit streaming + requester re-grant, root verified |
+| task-transcript | PASS | PASS | mixed-kind (text/byte/text) transcript root verified end-to-end |
+
 ## Notes / findings
 
 - The per-frame **SessionID → 1006** check (core §6.1) was implemented in
@@ -54,10 +80,12 @@ public channel-binding accessor plus the `send_raw` harness hook.
   (TASK-020 FR-2, map-session `recv`) — the `wrongsid` cells are its live
   cross-impl proof. Before the fix, Rust silently accepted a foreign
   SessionID post-handshake.
-- The interop is intentionally scoped to the core session envelope
-  (handshake + framed in-session messages + delegation). Task/receipt/
-  payment flows over a live cross-language session remain future work; they
-  layer on this session without changing it (I2).
+- The TCP core-session matrix (above) confirms the two implementations
+  interoperate on the envelope. The libp2p task matrix (above) confirms the
+  full task protocol interoperates across both implementations over the
+  libp2p transport in both orientations. The task wire format is proven
+  cross-impl via the transcript test vectors (TV-008) — the roots printed by
+  each side match byte-for-byte.
 
 ## Reproducing
 

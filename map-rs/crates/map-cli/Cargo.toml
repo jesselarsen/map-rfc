@@ -9,12 +9,21 @@ description = "MAP command-line tooling: keygen, projection-rebuild demo (TASK-0
 name = "map-cli"
 path = "src/main.rs"
 
+[[bin]]
+name = "rfc-title-o-matic"
+path = "src/rfc_title_o_matic.rs"
+
 [dependencies]
 map-core = { path = "../map-core" }
 map-identity = { path = "../map-identity" }
 map-session = { path = "../map-session" }
 map-tasks = { path = "../map-tasks" }
 map-trust = { path = "../map-trust" }
+map-taskrun = { path = "../map-taskrun" }
+map-net = { path = "../map-net" }
+map-discovery = { path = "../map-discovery" }
+map-mesh = { path = "../map-mesh" }
+libp2p = { version = "0.54", default-features = false }
 sha2.workspace = true
 hex.workspace = true
 getrandom.workspace = true

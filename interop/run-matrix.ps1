@@ -33,8 +33,8 @@ if ($LASTEXITCODE -ne 0) { Pop-Location; Write-Error "cargo build failed" }
 Pop-Location
 
 $GO   = Join-Path $interop "map-interop.exe"
-$RUST = Join-Path $repo "map-rs\target\debug\map-cli.exe"
-if (-not (Test-Path $RUST)) { $RUST = Join-Path $repo "map-rs\target\x86_64-pc-windows-gnu\debug\map-cli.exe" }
+$RUST = Join-Path $repo "map-rs\target\x86_64-pc-windows-gnu\debug\map-cli.exe"
+if (-not (Test-Path $RUST)) { $RUST = Join-Path $repo "map-rs\target\debug\map-cli.exe" }
 if (-not (Test-Path $GO))   { Write-Error "go binary missing" }
 if (-not (Test-Path $RUST)) { Write-Error "rust binary missing" }
 
@@ -110,7 +110,7 @@ foreach ($scen in $scenarios) {
 }
 
 Write-Host ""
-Write-Host "=== Interop matrix ==="
+Write-Host "=== Interop matrix (core session, TCP) ==="
 $fmt = "{0,-16} {1,-14} {2,-14}"
 Write-Host ($fmt -f "scenario", "rust->go", "go->rust")
 foreach ($scen in $scenarios) {
@@ -118,6 +118,87 @@ foreach ($scen in $scenarios) {
   $gr = if ($results["$scen|go->rust"].pass) { "PASS" } else { "FAIL" }
   Write-Host ($fmt -f $scen, $rg, $gr)
 }
+
+# --- libp2p task matrix (task protocol over libp2p/QUIC) --------------------
+# These cells prove the full task protocol (tasks §1-§13) end-to-end over
+# libp2p/QUIC in BOTH orientations: rust->go and go->rust. The transcript codec
+# is cross-impl-verified (TV-008), so the same roots appear on both sides.
+$taskScenarios = @("task-stream", "task-multichunk", "task-transcript")
+$taskResults = @{}
+$taskPass = $true
 Write-Host ""
-if ($allPass) { Write-Host "RESULT: 16/16 PASS"; exit 0 }
-else { Write-Host "RESULT: FAILURES PRESENT"; exit 1 }
+Write-Host "=== Task matrix (libp2p/QUIC) ==="
+$fmt2 = "{0,-18} {1,-14} {2,-14}"
+Write-Host ($fmt2 -f "scenario", "rust->go", "go->rust")
+
+# Run one task cell: dialKind/listenKind in {"go","rust"}. The listener prints
+# LISTENING <multiaddr>/p2p/<peerid>; the dialer takes that as --addr and
+# --peer-seed = the listener's seed (so the authenticated AgentID matches).
+# The Go binary (map-interop) takes flags directly; the Rust binary (map-cli)
+# needs the `interop` subcommand first.
+function RunTaskCell($dialKind, $listenKind, $scen) {
+  $lbin = if ($listenKind -eq "go") { $GO } else { $RUST }
+  $dbin = if ($dialKind   -eq "go") { $GO } else { $RUST }
+  $largs = if ($listenKind -eq "go") {
+    @("--transport","libp2p","--role","listen","--addr","x","--seed",$SEED_B,"--peer-seed",$SEED_A,"--scenario",$scen)
+  } else {
+    @("interop","--transport","libp2p","--role","listen","--addr","x","--seed",$SEED_B,"--peer-seed",$SEED_A,"--scenario",$scen)
+  }
+  $dargs = if ($dialKind -eq "go") {
+    @("--transport","libp2p","--role","dial","--addr",$null,"--seed",$SEED_A,"--peer-seed",$SEED_B,"--scenario",$scen)
+  } else {
+    @("interop","--transport","libp2p","--role","dial","--addr",$null,"--seed",$SEED_A,"--peer-seed",$SEED_B,"--scenario",$scen)
+  }
+  $lout = Join-Path $env:TEMP "task_l_$($scen)_$($dialKind)$($listenKind).txt"
+  $dout = Join-Path $env:TEMP "task_d_$($scen)_$($dialKind)$($listenKind).txt"
+  Remove-Item $lout,$dout -ErrorAction SilentlyContinue
+  $lp = Start-Process -FilePath $lbin -ArgumentList $largs `
+        -RedirectStandardOutput $lout -NoNewWindow -PassThru
+  $addr = $null
+  for ($i = 0; $i -lt 50 -and -not $addr; $i++) {
+    Start-Sleep -Milliseconds 100
+    if (Test-Path $lout) {
+      $m = Select-String -Path $lout -Pattern "LISTENING\s+(\S+)" | Select-Object -First 1
+      if ($m) { $addr = $m.Matches[0].Groups[1].Value }
+    }
+  }
+  $ok = $false; $detail = "listener never bound"
+  if ($addr) {
+    # Replace the placeholder --addr value. Index 5 for Go (no subcommand),
+    # index 6 for Rust (the `interop` subcommand shifts everything by one).
+    if ($dialKind -eq "go") { $dargs[5] = $addr } else { $dargs[6] = $addr }
+    $dp = Start-Process -FilePath $dbin -ArgumentList $dargs `
+          -RedirectStandardOutput $dout -NoNewWindow -PassThru
+    $dp.WaitForExit(15000)
+    if (-not $lp.HasExited) { $lp.WaitForExit(15000) }
+    $dline = if (Test-Path $dout) { ((Get-Content $dout | Select-String "^OK|^FAIL") -join " ") } else { "" }
+    $lline = if (Test-Path $lout) { ((Get-Content $lout | Select-String "^OK") -join " ") } else { "" }
+    $ok = ($dline -match "^OK" -and $lline -match "^OK")
+    if (-not $ok) { $detail = "dial='$dline' listen='$lline'" }
+  }
+  foreach ($p in @($dp,$lp)) { try { if (-not $p.HasExited) { Stop-Process -Id $p.Id -ErrorAction SilentlyContinue } } catch {} }
+  return @{ pass = $ok; detail = $detail }
+}
+
+foreach ($scen in $taskScenarios) {
+  $rg = RunTaskCell "rust" "go" $scen
+  $gr = RunTaskCell "go" "rust" $scen
+  $taskResults["$scen|rust->go"] = $rg
+  $taskResults["$scen|go->rust"] = $gr
+  if (-not $rg.pass) { $taskPass = $false }
+  if (-not $gr.pass) { $taskPass = $false }
+  $mark1 = if ($rg.pass) { "PASS" } else { "FAIL" }
+  $mark2 = if ($gr.pass) { "PASS" } else { "FAIL" }
+  Write-Host ($fmt2 -f $scen, $mark1, $mark2)
+  if (-not $rg.pass) { Write-Host ("    rust->go: {0}" -f $rg.detail) }
+  if (-not $gr.pass) { Write-Host ("    go->rust: {0}" -f $gr.detail) }
+}
+
+Write-Host ""
+if ($allPass -and $taskPass) {
+  Write-Host "RESULT: 16/16 core PASS + 6/6 task (libp2p, both orientations) PASS"
+  exit 0
+} else {
+  Write-Host "RESULT: FAILURES PRESENT (core=$allPass task=$taskPass)"
+  exit 1
+}
