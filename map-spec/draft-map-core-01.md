@@ -486,6 +486,24 @@ payload contents to unauthenticated peers). Residual: timestamp windows
 assume ±120 s clock sanity; deployments with worse clocks MUST widen
 windows and accept the enlarged replay cache, or deploy roughtime.
 
+**Channel-binding strength depends on the transport (§7.3, §10).** The
+anti-relay and endpoint-binding guarantees of §7.3 are only as strong as
+the `transport-exporter` fed into the CB derivation. On transports that
+expose a true key-schedule exporter (TLS 1.3, raw QUIC — §10) CB binds the
+specific connection instance. On transports lacking a portable exporter —
+notably the `/map/1.0.0` libp2p binding as currently implemented, whose
+exporter is the authenticated `initiator-AgentID || responder-AgentID`
+pair (§10) — CB binds the identity *pair* but not the specific connection,
+so it does not by itself separate two concurrent connections between the
+same pair; §7.1's per-message msg-id replay cache and monotonic in-session
+sequence numbers carry that separation within the window. Deployments
+requiring instance-level binding MUST use an exporter-bearing transport
+(TLS/QUIC) or a libp2p stack that surfaces Noise handshake-hash material,
+and SHOULD treat the identity-pair fallback as Zone ≥2. This is an
+implementation-maturity limitation of the reference libp2p binding, not a
+wire-format constraint: the CB derivation (§7.3) is unchanged across
+transports, so a stronger exporter drops in without a protocol change.
+
 ## 15. IANA-Style Considerations
 
 This document establishes (initial contents above; policies in ops §3):

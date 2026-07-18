@@ -85,5 +85,15 @@ The transcript codec is cross-impl-verified by
 `map-go/tasks/transcript_test.go` against the canonical Python oracle roots
 (see `map-spec/test-vectors/map-test-vectors.md` TV-008). Because the
 session framing, envelope, and transcript bytes are identical by
-construction, the same task scenarios run Rust ↔ Go once the Rust interop
-peer gains a libp2p task-mode.
+construction, the same task scenarios run Rust ↔ Go over the shared libp2p
+task-mode.
+
+**Channel-binding caveat.** The `/map/1.0.0` sessions in these demos use the
+identity-pair exporter stand-in (`initiator-AgentID ‖ responder-AgentID`) of
+core §10 — rust-libp2p exposes no portable Noise handshake-hash / TLS
+exporter on its stream API. This is weaker than a true key-schedule exporter
+(binds the identity pair, not the connection instance) and is a known
+pre-submission maturity limitation; see core §7.3 / §10 / §14. A deployment
+needing instance-level channel binding should run MAP over an
+exporter-bearing transport (raw QUIC / TLS 1.3) — the CB derivation is
+transport-agnostic, so no wire change is required.

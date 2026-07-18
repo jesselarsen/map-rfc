@@ -68,6 +68,15 @@ by each side match byte-for-byte.
   PeerID ≡ AgentID (FR-3).
 - **Capability:** `map:cap:demo/excuse` (Go demo "MAP-Excuse-As-A-Service" /
   Rust `map-cli interop` libp2p task-mode).
+- **Channel-binding caveat:** the `/map/1.0.0` exporter above is the
+  identity-pair stand-in of core §10 (rust-libp2p exposes no portable Noise
+  handshake-hash / TLS-exporter on its stream API), which is **weaker than a
+  true key-schedule exporter** — it binds the identity pair, not the specific
+  connection instance. It is sufficient for this matrix (single connection per
+  pair; msg-id replay cache + monotonic seq carry instance separation) but is
+  a known pre-submission maturity limitation, analyzed in core §7.3 / §10 /
+  §14. The CB derivation is transport-agnostic, so a stronger exporter drops
+  in without a wire change.
 
 | scenario | rust→go | go→rust | what it proves |
 |---|---|---|---|

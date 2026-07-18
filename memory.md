@@ -946,7 +946,10 @@ N. **TASK-020 EXTENSION 2026-07-17 — task protocol over libp2p/QUIC added
    **DEPENDENCY BOUNDARY (independence marker preserved).** libp2p/QUIC is a
    core §10 transport *binding*, not part of the frozen wire format, so it is
    confined to the transport/demo layer in BOTH impls: Rust keeps it in the
-   `map-net` crate; Go keeps it in `net` + `dht` + `cmd/*`. The protocol-core
+   `map-net` crate and behind `map-cli`'s `libp2p-interop` feature (default-ON;
+   `--no-default-features` gives a libp2p-free map-cli — the `rfc-title-o-matic`
+   bin is `required-features`-gated); Go keeps it in `net` + `dht` + `cmd/*`.
+   The protocol-core
    Go packages that define wire behavior — `cbor`, `envelope`, `identity`,
    `session`, `hello`, `receipt`, `discovery` (codec), `conformance` — remain
    pure stdlib. The step-13 "ZERO external deps" claim is thus still true FOR

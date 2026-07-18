@@ -13,10 +13,14 @@ use map_core::envelope::{seal, Body, MsgId, PROTOCOL_VERSION_1_0};
 use map_core::errors::codes;
 use map_core::hello::Hello;
 use map_identity::Keypair;
+#[cfg(feature = "libp2p-interop")]
 use map_net::{MapNode, NetError};
 use map_session::{RandomMsgIds, Session, SessionConfig, SessionError, SystemClock, TcpTransport};
+#[cfg(feature = "libp2p-interop")]
 use map_taskrun::{Executor, ProviderTask, RequesterTask};
+#[cfg(feature = "libp2p-interop")]
 use map_tasks::{ChunkKind, TaskId};
+#[cfg(feature = "libp2p-interop")]
 use sha2::{Digest, Sha256};
 use std::net::{TcpListener, TcpStream};
 use std::process::exit;
@@ -50,10 +54,17 @@ pub fn run(args: &[String]) -> ! {
         }
     };
     let result = if f.transport == "libp2p" {
-        if f.role == "listen" {
-            run_libp2p_listen(&f)
-        } else {
-            run_libp2p_dial(&f)
+        #[cfg(feature = "libp2p-interop")]
+        {
+            if f.role == "listen" {
+                libp2p_task::run_libp2p_listen(&f)
+            } else {
+                libp2p_task::run_libp2p_dial(&f)
+            }
+        }
+        #[cfg(not(feature = "libp2p-interop"))]
+        {
+            Err("built without the `libp2p-interop` feature: --transport libp2p unavailable".to_string())
         }
     } else if f.role == "listen" {
         run_listen(&f)
@@ -382,6 +393,12 @@ fn echo_loop(s: &mut Session<TcpTransport, SystemClock, RandomMsgIds>) -> Result
 // same three scenarios run Rust↔Go in both orientations. The executor output
 // is deterministic and matches the Go `scenarioExecutor` so rust↔rust and
 // mixed orientations verify the same roots.
+//
+// Gated behind `libp2p-interop` (default-ON) so a minimal `map-cli` build
+// (`--no-default-features`) drops the entire libp2p transport stack.
+#[cfg(feature = "libp2p-interop")]
+mod libp2p_task {
+    use super::*;
 
 const LIBP2P_CAP: &str = "map:cap:demo/excuse";
 const LIBP2P_LISTEN: &str = "/ip4/127.0.0.1/udp/0/quic-v1";
@@ -427,7 +444,7 @@ fn task_id(scenario: &str) -> TaskId {
 
 type LpSession = Session<map_net::Libp2pTransport, SystemClock, RandomMsgIds>;
 
-fn run_libp2p_listen(f: &Flags) -> Result<(), String> {
+    pub fn run_libp2p_listen(f: &Flags) -> Result<(), String> {
     if !matches!(f.scenario.as_str(), "task-stream" | "task-multichunk" | "task-transcript") {
         return Err(format!(
             "libp2p transport only supports task-* scenarios, got {}",
@@ -471,7 +488,7 @@ fn run_libp2p_listen(f: &Flags) -> Result<(), String> {
     Ok(())
 }
 
-fn run_libp2p_dial(f: &Flags) -> Result<(), String> {
+    pub fn run_libp2p_dial(f: &Flags) -> Result<(), String> {
     if !matches!(f.scenario.as_str(), "task-stream" | "task-multichunk" | "task-transcript") {
         return Err(format!(
             "libp2p transport only supports task-* scenarios, got {}",
@@ -510,4 +527,7 @@ fn run_libp2p_dial(f: &Flags) -> Result<(), String> {
     s.close(0, "done").map_err(|e| format!("close: {e:?}"))?;
     println!("OK transcript-root: {}", hex::encode(root));
     Ok(())
+}
+
+// close mod libp2p_task (gated)
 }

@@ -8,6 +8,40 @@ version that carries it). No revision to date contains a breaking change.
 
 ---
 
+## Post-review hardening: CB-exporter security note + map-cli feature gate — 2026-07-17
+
+Editorial + implementation follow-ups from the preserve-the-work review; no
+wire-format, registry, or behavior change.
+
+### Editorial (wording; no wire/behavior change)
+
+- **core §14 (Security Considerations)** — added an explicit
+  channel-binding-strength paragraph: the §7.3 anti-relay/endpoint-binding
+  guarantees are only as strong as the transport exporter, and the
+  `/map/1.0.0` libp2p binding currently uses the identity-pair stand-in
+  (`initiator-AgentID ‖ responder-AgentID`, core §10) which is weaker than a
+  true key-schedule exporter (binds the identity pair, not the connection
+  instance). Surfaces in the Security Considerations section the limitation
+  that §10 already documented, so an IETF reviewer finds it where expected.
+  The CB derivation is transport-agnostic — a stronger exporter drops in with
+  no wire change.
+- **`interop/MATRIX.md`, `interop/DEMOS.md`** — the same CB-exporter caveat
+  added next to the 6/6 task-matrix / demo results (previously stated the
+  exporter neutrally).
+
+### Implementation / harness (no spec change)
+
+- **`map-rs` `map-cli`** — the TASK-020 libp2p deps (`map-net`, `map-taskrun`,
+  `map-discovery`, `map-mesh`, `libp2p`) moved behind a **`libp2p-interop`**
+  feature (default-ON, so the interop matrix and `cargo build --workspace`
+  are unchanged); `--no-default-features` now yields a minimal, libp2p-free
+  `map-cli` (keygen / projection / TCP interop). The `rfc-title-o-matic` demo
+  bin carries `required-features = ["libp2p-interop"]`. Restores the crate's
+  `real-backend` / `real-x402` convention of gating heavy/network deps. Zero
+  warnings in both feature configurations.
+
+---
+
 ## Live interop matrix extended: task protocol over libp2p/QUIC, both orientations (TASK-020 extension) — 2026-07-17
 
 Additive change (ops §6.1): the live interop matrix (`interop/run-matrix.ps1`)
