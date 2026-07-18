@@ -960,6 +960,34 @@ N. **TASK-020 EXTENSION 2026-07-17 — task protocol over libp2p/QUIC added
    router lives in `map-go/dht` precisely to keep this true — do NOT merge it
    back into `discovery`. map-go/README.md documents the same boundary.
 
+O. **ARCHITECT SESSION 2026-07-18 — D-milestones PLANNED; TASK-029/030/031
+   packaged (all OPEN).** The approved plan is IN-REPO at
+   `tasks/PLAN-D-milestones.md` (normative for scope); each package file adds
+   the execution contract (FR clarifications, §17 prompt, §18 checklist).
+   - **TASK-029** (P2, READY): Go pay runtime — pure-stdlib `map-go/pay`
+     (codec byte-arbitrated by the frozen pay TVs; billing six-check parity;
+     credit-ledger `MAPLedgerEntry`; raw-aware pump FSMs for terms 0/1/3 —
+     the seams already exist: `Incoming.Raw` + `session.Send`'s sealed-bytes
+     return) + `pay-postpaid`/`pay-metered` libp2p cells BOTH orientations
+     (Rust side composes the existing pairs inside `libp2p_task`), matrix
+     22/22 → 26/26, `$SEED_OP = "04"*32`. Escrow/disputes Go port OUT.
+   - **TASK-030** (P2, blocked by 029): the headline paid demo —
+     `rfc-title-o-matic --price` prepaid gate (REUSES TASK-024
+     PrepaidProviderPayment; deferred-ASSIGN preferred; free path
+     byte-identical) × Go `map-requester --pay/--budget`; paid/unpaid/
+     over-budget transcripts pasted into DEMOS.md from a LIVE run. First
+     combined task+pay session loop on the demo path.
+   - **TASK-031** (P3, parallel-safe): I-D submission readiness — author
+     frontmatter (Jesse Larsen <jesselarsen@gmail.com>; ipr per xml2rfc's
+     independent-stream vocabulary, trust200902 fallback), pinned
+     `build/requirements.txt`, `build/nits.py` mechanical validation,
+     idempotent-render check, `map-spec/SUBMISSION.md` (ISE/RFC 8730 steps +
+     cover-note disclosures: CB-exporter stand-in, single author). md2rfc.py
+     stays the pipeline of record; NO normative text changes.
+   Also: retroactive tasks/README rows added for TASK-027/028 (ProVerif
+   P4/P5/P6, DONE in `ac9d4ce` but never registered). **Implementation order:
+   029 → 030, with 031 parallel to either.**
+
 ## 9. Working conventions
 
 - BCP 14 language, unweakened. Registry code points never reused.
