@@ -11,9 +11,9 @@ the scenario set below.
 - **Date:** 2026-07-17
 - **Result:** **16 / 16 core (TCP) PASS + 6 / 6 task (libp2p/QUIC) PASS**
 - **Implementations:** `map-rs` (Rust, impl #1) ↔ `map-go` (Go, impl #2)
-- **Commit:** `8fdc77f` (TASK-020 extension: task protocol over libp2p/QUIC,
-  both orientations; `discovery`/`dht` package split so the conformance
-  surface stays libp2p-free)
+- **Commit:** `a1c45c5` (post-review hardening: CB-exporter security note +
+  `map-cli` `libp2p-interop` feature gate — implementation/doc only, no wire
+  change; re-verified at the default `map-cli` build, feature ON)
 - **Toolchains:** Go 1.26.5 (windows/amd64); rustc 1.96.0
   (stable-x86_64-pc-windows-gnu)
 - **Transport:** framed TCP loopback (127.0.0.1), 4-byte big-endian length
