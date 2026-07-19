@@ -11,9 +11,9 @@ the scenario set below.
 - **Date:** 2026-07-17
 - **Result:** **16 / 16 core (TCP) + 6 / 6 task + 4 / 4 pay (libp2p/QUIC) PASS**
 - **Implementations:** `map-rs` (Rust, impl #1) ↔ `map-go` (Go, impl #2)
-- **Commit:** `a1c45c5` (post-review hardening: CB-exporter security note +
-  `map-cli` `libp2p-interop` feature gate — implementation/doc only, no wire
-  change; re-verified at the default `map-cli` build, feature ON)
+- **Commit:** `ed26742` (TASK-029: pay family over libp2p/QUIC — `map-go/pay`
+  runtime + `pay-postpaid`/`pay-metered` cells both orientations; matrix
+  22→26, no wire change)
 - **Toolchains:** Go 1.26.5 (windows/amd64); rustc 1.96.0
   (stable-x86_64-pc-windows-gnu)
 - **Transport:** framed TCP loopback (127.0.0.1), 4-byte big-endian length
