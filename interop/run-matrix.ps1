@@ -16,6 +16,7 @@ $interop = Join-Path $repo "interop"
 $SEED_A  = "01" * 32   # dialer (also the delegation ROOT / RIK)
 $SEED_B  = "02" * 32   # listener
 $SEED_DK = "03" * 32   # delegated leaf (dialer signs with this under --delegate)
+$SEED_OP = "04" * 32   # credit-ledger operator (pay-* scenarios)
 
 $scenarios = @("echo","replay","seqgap","tamper","relay","versiondisjoint","wrongsid","delegated")
 
@@ -136,18 +137,21 @@ Write-Host ($fmt2 -f "scenario", "rust->go", "go->rust")
 # --peer-seed = the listener's seed (so the authenticated AgentID matches).
 # The Go binary (map-interop) takes flags directly; the Rust binary (map-cli)
 # needs the `interop` subcommand first.
-function RunTaskCell($dialKind, $listenKind, $scen) {
+function RunTaskCell($dialKind, $listenKind, $scen, $extra) {
+  if ($null -eq $extra) { $extra = @() }
   $lbin = if ($listenKind -eq "go") { $GO } else { $RUST }
   $dbin = if ($dialKind   -eq "go") { $GO } else { $RUST }
+  # --operator-seed (and any other pay flags) are appended at the END so the
+  # --addr placeholder keeps its fixed index (5 for Go, 6 for Rust).
   $largs = if ($listenKind -eq "go") {
-    @("--transport","libp2p","--role","listen","--addr","x","--seed",$SEED_B,"--peer-seed",$SEED_A,"--scenario",$scen)
+    @("--transport","libp2p","--role","listen","--addr","x","--seed",$SEED_B,"--peer-seed",$SEED_A,"--scenario",$scen) + $extra
   } else {
-    @("interop","--transport","libp2p","--role","listen","--addr","x","--seed",$SEED_B,"--peer-seed",$SEED_A,"--scenario",$scen)
+    @("interop","--transport","libp2p","--role","listen","--addr","x","--seed",$SEED_B,"--peer-seed",$SEED_A,"--scenario",$scen) + $extra
   }
   $dargs = if ($dialKind -eq "go") {
-    @("--transport","libp2p","--role","dial","--addr",$null,"--seed",$SEED_A,"--peer-seed",$SEED_B,"--scenario",$scen)
+    @("--transport","libp2p","--role","dial","--addr",$null,"--seed",$SEED_A,"--peer-seed",$SEED_B,"--scenario",$scen) + $extra
   } else {
-    @("interop","--transport","libp2p","--role","dial","--addr",$null,"--seed",$SEED_A,"--peer-seed",$SEED_B,"--scenario",$scen)
+    @("interop","--transport","libp2p","--role","dial","--addr",$null,"--seed",$SEED_A,"--peer-seed",$SEED_B,"--scenario",$scen) + $extra
   }
   $lout = Join-Path $env:TEMP "task_l_$($scen)_$($dialKind)$($listenKind).txt"
   $dout = Join-Path $env:TEMP "task_d_$($scen)_$($dialKind)$($listenKind).txt"
@@ -194,11 +198,38 @@ foreach ($scen in $taskScenarios) {
   if (-not $gr.pass) { Write-Host ("    go->rust: {0}" -f $gr.detail) }
 }
 
+# --- libp2p pay matrix (pay protocol over libp2p/QUIC) ----------------------
+# The pay family (negotiation + credit-ledger settlement, pay §2-§5) run live
+# over libp2p/QUIC in both orientations, after the task transcript verifies on
+# the same session. pay-postpaid = one settlement; pay-metered = two
+# incremental watermark invoices. The requester hosts the in-process ledger
+# operator (--operator-seed), pre-credited.
+$payScenarios = @("pay-postpaid", "pay-metered")
+$payResults = @{}
+$payPass = $true
+$payExtra = @("--operator-seed", $SEED_OP)
 Write-Host ""
-if ($allPass -and $taskPass) {
-  Write-Host "RESULT: 16/16 core PASS + 6/6 task (libp2p, both orientations) PASS"
+Write-Host "=== Pay matrix (libp2p/QUIC) ==="
+Write-Host ($fmt2 -f "scenario", "rust->go", "go->rust")
+foreach ($scen in $payScenarios) {
+  $rg = RunTaskCell "rust" "go" $scen $payExtra
+  $gr = RunTaskCell "go" "rust" $scen $payExtra
+  $payResults["$scen|rust->go"] = $rg
+  $payResults["$scen|go->rust"] = $gr
+  if (-not $rg.pass) { $payPass = $false }
+  if (-not $gr.pass) { $payPass = $false }
+  $mark1 = if ($rg.pass) { "PASS" } else { "FAIL" }
+  $mark2 = if ($gr.pass) { "PASS" } else { "FAIL" }
+  Write-Host ($fmt2 -f $scen, $mark1, $mark2)
+  if (-not $rg.pass) { Write-Host ("    rust->go: {0}" -f $rg.detail) }
+  if (-not $gr.pass) { Write-Host ("    go->rust: {0}" -f $gr.detail) }
+}
+
+Write-Host ""
+if ($allPass -and $taskPass -and $payPass) {
+  Write-Host "RESULT: 16/16 core PASS + 6/6 task + 4/4 pay (libp2p, both orientations) PASS"
   exit 0
 } else {
-  Write-Host "RESULT: FAILURES PRESENT (core=$allPass task=$taskPass)"
+  Write-Host "RESULT: FAILURES PRESENT (core=$allPass task=$taskPass pay=$payPass)"
   exit 1
 }

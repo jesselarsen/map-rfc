@@ -2,6 +2,9 @@
 .idea/
 .opencode/
 
+# Interop peer build artifacts (the matrix driver builds these on demand).
+*.exe
+
 bin/
 obj/
 target/

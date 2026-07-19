@@ -8,6 +8,40 @@ version that carries it). No revision to date contains a breaking change.
 
 ---
 
+## Live interop matrix extended: pay family over libp2p/QUIC, both orientations (TASK-029) — 2026-07-18
+
+Additive change (ops §6.1): the live interop matrix now exercises the **pay
+family (negotiation + `pay:credit-ledger` settlement, pay §2–§5) over a real
+libp2p/QUIC session** in both orientations, closing the two-implementation gap
+for the family the drafts feature most. Implementation + harness only; no wire
+format, registry, or normative-text change (the pay codec is byte-verified
+against the existing frozen vectors).
+
+### Additive (implementation / harness; no spec change)
+
+- **`map-go/pay`** — new pure-stdlib package: the pay-family wire codecs
+  (Amount/AssetAmount/PayQuote/Agree/Invoice/Proof/Receipt/UsageWatermark),
+  exact metered billing (`Billed`/`VerifyWatermark`), the `pay:credit-ledger`
+  method (`LedgerOperator`/`EntryProof`/`VerifyEntry`), and the terms-0/1/3
+  pump runtimes (postpaid / prepaid / metered). Byte-arbitrated by the frozen
+  conformance vectors (TV-010b/013/016/017/018). Terms-2 escrow + pay §6
+  disputes are NOT ported (future work). Kept libp2p-free — the conformance
+  surface stays dependency-clean (independence marker; `go list -deps ./pay`
+  links no libp2p).
+- **`map-go/cmd/map-interop`** — `pay-postpaid` / `pay-metered` libp2p
+  scenarios (payee = listener, payer = dialer hosting the ledger operator via
+  `--operator-seed`), run after the task transcript verifies on the same
+  session.
+- **`map-rs` `map-cli`** — the same two scenarios in the gated `libp2p_task`
+  interop module, composing the existing `map-taskrun::{payments,metered}`
+  pairs (the first live task+pay single-session loop on the Rust side);
+  `map-pay` added as an optional dep under `libp2p-interop`.
+- **`interop/run-matrix.ps1`** — `$SEED_OP`; a pay matrix (2 scenarios × 2
+  orientations) appended. Result: **16/16 core + 6/6 task + 4/4 pay PASS**.
+- **`interop/MATRIX.md`** — Pay matrix section + Latest-run re-stamp.
+
+---
+
 ## Post-review hardening: CB-exporter security note + map-cli feature gate — 2026-07-17
 
 Editorial + implementation follow-ups from the preserve-the-work review; no

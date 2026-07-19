@@ -988,6 +988,29 @@ O. **ARCHITECT SESSION 2026-07-18 — D-milestones PLANNED; TASK-029/030/031
    P4/P5/P6, DONE in `ac9d4ce` but never registered). **Implementation order:
    029 → 030, with 031 parallel to either.**
 
+P. **TASK-029 DONE 2026-07-18 — pay family interoperates cross-impl LIVE.**
+   New pure-stdlib `map-go/pay` package: pay codec (Amount/AssetAmount/
+   PayQuote/Agree/Invoice/Proof/Receipt/UsageWatermark, fail-closed phase/kind),
+   exact `Billed`/`VerifyWatermark` (six-check, big.Int intermediates),
+   `pay:credit-ledger` (`LedgerOperator`/`EntryProof`/`VerifyEntry`, ed25519),
+   and raw-aware pump FSMs for terms 0/1/3 (postpaid/prepaid/metered) mirroring
+   Rust `payments.rs`/`escrow.rs`(prepaid)/`metered.rs`. Codec byte-verified vs
+   frozen TV-010b/013/016/017/018 + NV-010/011; runtime legs mirror the Rust
+   test matrices. **Escrow terms-2 + disputes NOT ported (future).** Boundary:
+   `map-go/pay` links no libp2p — the `go list -deps` check now includes `./pay`
+   (README updated). Live cells: `map-go/cmd/map-interop` + Rust gated
+   `libp2p_task` (interop.rs) got `pay-postpaid`/`pay-metered` scenarios
+   (payee=listener; payer=dialer hosts the in-process operator via
+   `--operator-seed = "04"*32`), run after the task transcript verifies on the
+   same session. Rust side REUSES `map-taskrun::{payments,metered}` (first live
+   task+pay single-session loop Rust-side); `map-pay` added optional under
+   `libp2p-interop`; `operator_seed` Flags field is `allow(dead_code)` in the
+   minimal build. **Matrix 26/26** (16 core TCP + 6 task + 4 pay, both
+   orientations); MATRIX.md Pay-matrix section added. Rust workspace 33 suites +
+   `-p map-cli --no-default-features` zero warnings; map-go green, gofmt/vet
+   clean, frozen vectors untouched. Commits: `60828f3` (pay package) + the
+   interop-cells commit. **TASK-030 (paid demo) is now unblocked.**
+
 ## 9. Working conventions
 
 - BCP 14 language, unweakened. Registry code points never reused.

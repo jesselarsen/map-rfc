@@ -56,6 +56,6 @@ default = ["libp2p-interop"]
 # (TASK-020). Default-ON so the interop matrix and workspace build are
 # unchanged; turn OFF (`--no-default-features`) for a minimal, libp2p-free
 # map-cli.
-libp2p-interop = ["dep:map-net", "dep:map-taskrun", "dep:map-discovery", "dep:map-mesh", "dep:libp2p"]
+libp2p-interop = ["dep:map-net", "dep:map-taskrun", "dep:map-discovery", "dep:map-mesh", "dep:map-pay", "dep:libp2p"]
 real-backend = ["dep:ollama-provider", "ollama-provider/real-backend"]
 real-x402 = ["dep:x402-adapter", "dep:map-pay", "dep:gateway", "x402-adapter/real-x402"]

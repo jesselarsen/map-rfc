@@ -21,8 +21,11 @@ not a library. Verify it — this MUST print nothing:
 
 ```
 go list -deps ./cbor ./envelope ./identity ./session ./hello ./receipt \
-  ./discovery ./conformance | grep -E 'libp2p|multiformats|mr-tron'
+  ./discovery ./conformance ./pay | grep -E 'libp2p|multiformats|mr-tron'
 ```
+
+The `pay` package (pay-family codec/billing/credit-ledger + the terms-0/1/3
+runtimes, TASK-029) is protocol core and is included in the clean set.
 
 External dependencies (`go-libp2p`, Kademlia DHT, multiformats) are
 confined to the **transport binding and demo layer** added in the

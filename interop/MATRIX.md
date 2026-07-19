@@ -9,7 +9,7 @@ the scenario set below.
 ## Latest run
 
 - **Date:** 2026-07-17
-- **Result:** **16 / 16 core (TCP) PASS + 6 / 6 task (libp2p/QUIC) PASS**
+- **Result:** **16 / 16 core (TCP) + 6 / 6 task + 4 / 4 pay (libp2p/QUIC) PASS**
 - **Implementations:** `map-rs` (Rust, impl #1) ↔ `map-go` (Go, impl #2)
 - **Commit:** `a1c45c5` (post-review hardening: CB-exporter security note +
   `map-cli` `libp2p-interop` feature gate — implementation/doc only, no wire
@@ -83,6 +83,25 @@ by each side match byte-for-byte.
 | task-stream | PASS | PASS | OFFER→QUOTE→ASSIGN→ACCEPT + 1 CHUNK→COMPLETE, transcript root verified on requester |
 | task-multichunk | PASS | PASS | 20 CHUNK transcript, flow-credit streaming + requester re-grant, root verified |
 | task-transcript | PASS | PASS | mixed-kind (text/byte/text) transcript root verified end-to-end |
+
+## Pay matrix (libp2p/QUIC, both orientations)
+
+The pay family (negotiation + `pay:credit-ledger` settlement, pay §2–§5) runs
+live over the same libp2p/QUIC session in both orientations, after the task
+transcript verifies. This closes the ops §6.1 gate for the pay family — the
+codec is cross-impl byte-verified by the frozen pay vectors (TV-010b / TV-013 /
+TV-016 / TV-017 / TV-018), and both implementations settle the same flows.
+
+- **Date added:** 2026-07-18
+- **Result:** **4 / 4 PASS** (pay-postpaid, pay-metered × rust→go and go→rust)
+- **Runtimes:** Rust `map-taskrun::{payments,metered}` ↔ Go `map-go/pay`
+  (pure-stdlib port, TASK-029). Requester hosts the in-process credit-ledger
+  operator (`--operator-seed`), pre-credited.
+
+| scenario | rust→go | go→rust | what it proves |
+|---|---|---|---|
+| pay-postpaid | PASS | PASS | PAY_QUOTE→AGREE→INVOICE→PROOF(credit-ledger entry)→RECEIPT; exactly one settlement, cross-impl `verify_entry` |
+| pay-metered | PASS | PASS | 2 incremental watermark invoices (kind-3 usage CHUNK + PAY_INVOICE), six §4.1 checks, monotonic watermarks, delta settlement |
 
 ## Notes / findings
 

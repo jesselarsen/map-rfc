@@ -22,6 +22,7 @@ import (
 	"github.com/jesselarsen/map-rfc/map-go/envelope"
 	"github.com/jesselarsen/map-rfc/map-go/identity"
 	mapnet "github.com/jesselarsen/map-rfc/map-go/net"
+	"github.com/jesselarsen/map-rfc/map-go/pay"
 	"github.com/jesselarsen/map-rfc/map-go/session"
 	"github.com/jesselarsen/map-rfc/map-go/tasks"
 )
@@ -29,13 +30,14 @@ import (
 const testMsgType = 0xF000
 
 type flags struct {
-	role       string
-	addr       string
-	seed       []byte
-	peerSeed   []byte
-	issuerSeed []byte // optional; delegated scenario
-	scenario   string
-	transport  string // "tcp" (default) or "libp2p"
+	role         string
+	addr         string
+	seed         []byte
+	peerSeed     []byte
+	issuerSeed   []byte // optional; delegated scenario
+	operatorSeed []byte // optional; pay-* scenarios (credit-ledger operator)
+	scenario     string
+	transport    string // "tcp" (default) or "libp2p"
 }
 
 func die(scenario string, err error) {
@@ -76,6 +78,8 @@ func parseArgs(args []string) (flags, error) {
 			f.peerSeed = mustHex(val())
 		case "--issuer-seed":
 			f.issuerSeed = mustHex(val())
+		case "--operator-seed":
+			f.operatorSeed = mustHex(val())
 		case "--scenario":
 			f.scenario = val()
 		case "--transport":
@@ -520,7 +524,14 @@ func runLibp2pListen(f flags) error {
 	if err := tasks.RunProvider(sess, provider); err != nil {
 		return err
 	}
-	// Await the requester's CLOSE before tearing down, so the COMPLETE frame is
+	// pay-* scenarios: after the task's transcript is verified, run the pay
+	// exchange over the same reliable stream (the provider is the payee).
+	if isPayScenario(f.scenario) {
+		if err := providerPayExchange(sess, f); err != nil {
+			return err
+		}
+	}
+	// Await the requester's CLOSE before tearing down, so the last frame is
 	// fully flushed and the requester has verified before the stream closes.
 	_, _ = sess.Recv()
 	_ = sess.Close(0, "done")
@@ -528,8 +539,10 @@ func runLibp2pListen(f flags) error {
 }
 
 func runLibp2pDial(f flags) error {
-	if f.scenario != "task-stream" && f.scenario != "task-multichunk" && f.scenario != "task-transcript" {
-		return fmt.Errorf("libp2p transport only supports task-* scenarios, got %q", f.scenario)
+	switch f.scenario {
+	case "task-stream", "task-multichunk", "task-transcript", "pay-postpaid", "pay-metered":
+	default:
+		return fmt.Errorf("libp2p transport only supports task-*/pay-* scenarios, got %q", f.scenario)
 	}
 	expected := aidOf(key(f.peerSeed))
 	hello := session.Hello{Versions: []uint16{0x0100}, Suites: []uint16{1}, MaxMessageSize: 262144}
@@ -550,10 +563,247 @@ func runLibp2pDial(f flags) error {
 	if err != nil {
 		return err
 	}
-	_ = sess.Close(0, "done")
 	if ver == nil {
 		return fmt.Errorf("task did not verify")
 	}
+	// pay-* scenarios: after the transcript verifies, run the pay exchange
+	// over the same stream (the requester is the payer + ledger operator host).
+	if isPayScenario(f.scenario) {
+		if err := requesterPayExchange(sess, f); err != nil {
+			return err
+		}
+	}
+	_ = sess.Close(0, "done")
 	fmt.Printf("OK transcript-root: %x\n", root)
+	return nil
+}
+
+// --- pay scenarios (over libp2p, after the task transcript verifies) --------
+
+const (
+	payQuoteID = 0x10
+	payExpiry  = uint64(1) << 62
+	payNow     = uint64(1)
+)
+
+func isPayScenario(s string) bool { return s == "pay-postpaid" || s == "pay-metered" }
+
+func id16(b byte) [16]byte { var x [16]byte; x[0] = b; return x }
+
+// payErr extracts the wire code from an ERROR outgoing for a diagnostic.
+func payErr(where string, out []tasks.Outgoing) error {
+	if len(out) == 1 && out[0].MsgType == 0x0006 {
+		if m, ok := out[0].Content.(cbor.Map); ok {
+			for _, p := range m {
+				if k, ok := p.K.(cbor.Uint); ok && uint64(k) == 1 {
+					if c, ok := p.V.(cbor.Uint); ok {
+						return fmt.Errorf("pay %s: ERROR %d", where, uint64(c))
+					}
+				}
+			}
+		}
+	}
+	return fmt.Errorf("pay %s: unexpected output", where)
+}
+
+func meteredQuote(task [32]byte) pay.PayQuote {
+	terms := pay.TermsMetered
+	total := pay.AssetAmount{Asset: "iso4217:USD", Amount: pay.Amount{Exponent: -6, Mantissa: 10_000_000}}
+	tb := task
+	micro := func(m int64) pay.AssetAmount {
+		return pay.AssetAmount{Asset: "iso4217:USD", Amount: pay.Amount{Exponent: -6, Mantissa: m}}
+	}
+	return pay.PayQuote{
+		QuoteID: id16(payQuoteID), PricingModel: 1,
+		RateTable: []pay.RateEntry{{Unit: pay.UnitTokenIn, Amount: micro(3000)}, {Unit: pay.UnitTokenOut, Amount: micro(5000)}},
+		Total:     &total,
+		Methods:   []pay.MethodOffer{{URI: pay.CreditLedgerMethod, Params: []byte{}}},
+		ExpiryMs:  payExpiry, Terms: &terms, TaskBinding: &tb,
+	}
+}
+
+// providerPayExchange runs the payee side of a pay-* scenario.
+func providerPayExchange(sess *session.Session, f flags) error {
+	if len(f.operatorSeed) != 32 {
+		return fmt.Errorf("pay scenario needs --operator-seed")
+	}
+	provAID := aidOf(key(f.seed))
+	reqAID := aidOf(key(f.peerSeed))
+	opAID := aidOf(key(f.operatorSeed))
+	task := [32]byte(sha256.Sum256([]byte(f.scenario)))
+
+	if f.scenario == "pay-metered" {
+		q := meteredQuote(task)
+		mp := pay.NewMeteredProviderPayment(provAID, reqAID, opAID, task, q)
+		raw, err := sess.Send(pay.MsgPayQuote, q.ToValue())
+		if err != nil {
+			return err
+		}
+		mp.BindQuoteEnvelope(raw)
+		inc, err := sess.Recv()
+		if err != nil {
+			return err
+		}
+		if out := mp.OnAgree(inc.Content); len(out) != 0 {
+			return payErr("metered on_agree", out)
+		}
+		usages := []tasks.Usage{{TokensIn: 100, TokensOut: 40, WallMs: 1000}, {TokensIn: 200, TokensOut: 80, WallMs: 2000}}
+		seqs := []uint64{4, 9}
+		ids := []byte{0x21, 0x22}
+		for i := 0; i < 2; i++ {
+			for _, o := range mp.Bill(usages[i], seqs[i], id16(ids[i]), payNow) {
+				if _, err := sess.Send(o.MsgType, o.Content); err != nil {
+					return err
+				}
+			}
+			inc, err := sess.Recv() // PAY_PROOF
+			if err != nil {
+				return err
+			}
+			rout := mp.OnProof(inc.Content, payNow)
+			if len(rout) != 1 || rout[0].MsgType != pay.MsgPayReceipt {
+				return payErr("metered on_proof", rout)
+			}
+			if _, err := sess.Send(rout[0].MsgType, rout[0].Content); err != nil {
+				return err
+			}
+		}
+		if len(mp.Receipts()) != 2 {
+			return fmt.Errorf("metered: want 2 settlements, got %d", len(mp.Receipts()))
+		}
+		return nil
+	}
+
+	// pay-postpaid.
+	pp := pay.NewProviderPayment(provAID, reqAID, opAID)
+	total := pay.AssetAmount{Asset: "iso4217:USD", Amount: pay.Amount{Exponent: -2, Mantissa: 500}}
+	qout := pp.IssueQuote(id16(payQuoteID), task, total, payExpiry)
+	raw, err := sess.Send(qout[0].MsgType, qout[0].Content)
+	if err != nil {
+		return err
+	}
+	pp.BindQuoteEnvelope(raw)
+	inc, err := sess.Recv() // PAY_AGREE
+	if err != nil {
+		return err
+	}
+	if out := pp.OnAgree(inc.Content); len(out) != 0 {
+		return payErr("on_agree", out)
+	}
+	iout := pp.Invoice(id16(0x20), payNow)
+	if _, err := sess.Send(iout[0].MsgType, iout[0].Content); err != nil {
+		return err
+	}
+	inc, err = sess.Recv() // PAY_PROOF
+	if err != nil {
+		return err
+	}
+	rout := pp.OnProof(inc.Content, payNow)
+	if len(rout) != 1 || rout[0].MsgType != pay.MsgPayReceipt {
+		return payErr("on_proof", rout)
+	}
+	if _, err := sess.Send(rout[0].MsgType, rout[0].Content); err != nil {
+		return err
+	}
+	if pp.State() != pay.ProvSettled {
+		return fmt.Errorf("postpaid: provider not settled")
+	}
+	return nil
+}
+
+// requesterPayExchange runs the payer side (and hosts the credit-ledger
+// operator, pre-credited) of a pay-* scenario.
+func requesterPayExchange(sess *session.Session, f flags) error {
+	if len(f.operatorSeed) != 32 {
+		return fmt.Errorf("pay scenario needs --operator-seed")
+	}
+	myAID := aidOf(key(f.seed))
+	provAID := aidOf(key(f.peerSeed))
+	task := [32]byte(sha256.Sum256([]byte(f.scenario)))
+
+	if f.scenario == "pay-metered" {
+		op, err := pay.NewLedgerOperator(f.operatorSeed, -6)
+		if err != nil {
+			return err
+		}
+		op.Credit(myAID, 2_000_000)
+		mr := pay.NewMeteredRequesterPayment(task, myAID, provAID)
+		inc, err := sess.Recv() // PAY_QUOTE
+		if err != nil {
+			return err
+		}
+		aout := mr.OnQuote(inc.Content, inc.Raw, payNow)
+		if len(aout) != 1 || aout[0].MsgType != pay.MsgPayAgree {
+			return payErr("metered on_quote", aout)
+		}
+		if _, err := sess.Send(aout[0].MsgType, aout[0].Content); err != nil {
+			return err
+		}
+		for i := 0; i < 2; i++ {
+			cinc, err := sess.Recv() // CHUNK (kind-3 usage)
+			if err != nil {
+				return err
+			}
+			mr.OnChunk(cinc.Content)
+			iinc, err := sess.Recv() // PAY_INVOICE
+			if err != nil {
+				return err
+			}
+			pout := mr.OnInvoice(iinc.Content, op, payNow)
+			if len(pout) != 1 || pout[0].MsgType != pay.MsgPayProof {
+				return payErr("metered on_invoice", pout)
+			}
+			if _, err := sess.Send(pout[0].MsgType, pout[0].Content); err != nil {
+				return err
+			}
+			rinc, err := sess.Recv() // PAY_RECEIPT
+			if err != nil {
+				return err
+			}
+			mr.OnReceipt(rinc.Content)
+		}
+		if len(mr.Receipts()) != 2 {
+			return fmt.Errorf("metered: want 2 receipts, got %d", len(mr.Receipts()))
+		}
+		return nil
+	}
+
+	// pay-postpaid.
+	op, err := pay.NewLedgerOperator(f.operatorSeed, -2)
+	if err != nil {
+		return err
+	}
+	op.Credit(myAID, 1000)
+	rp := pay.NewRequesterPayment(&task, myAID, provAID)
+	inc, err := sess.Recv() // PAY_QUOTE
+	if err != nil {
+		return err
+	}
+	aout := rp.OnQuote(inc.Content, inc.Raw, payNow)
+	if len(aout) != 1 || aout[0].MsgType != pay.MsgPayAgree {
+		return payErr("on_quote", aout)
+	}
+	if _, err := sess.Send(aout[0].MsgType, aout[0].Content); err != nil {
+		return err
+	}
+	iinc, err := sess.Recv() // PAY_INVOICE
+	if err != nil {
+		return err
+	}
+	pout := rp.OnInvoice(iinc.Content, op, payNow)
+	if len(pout) != 1 || pout[0].MsgType != pay.MsgPayProof {
+		return payErr("on_invoice", pout)
+	}
+	if _, err := sess.Send(pout[0].MsgType, pout[0].Content); err != nil {
+		return err
+	}
+	rinc, err := sess.Recv() // PAY_RECEIPT
+	if err != nil {
+		return err
+	}
+	rp.OnReceipt(rinc.Content)
+	if len(rp.ReceiptBytes()) == 0 {
+		return fmt.Errorf("postpaid: no receipt received")
+	}
 	return nil
 }
