@@ -7,23 +7,46 @@
 //!
 //! Usage:
 //!   rfc-title-o-matic --seed <hex> --listen "/ip4/0.0.0.0/udp/0/quic-v1" \
-//!                     --cap map:cap:demo/rfc-title
+//!                     --cap map:cap:demo/rfc-title \
+//!                     [--price <cents> --operator-seed <hex>]
+//!
+//! Free (default): answers any task, no payment. Priced (`--price N`): the
+//! "no pay, no work" prepaid gate (pay §5.2.2) — the provider runs the
+//! terms-1 prepaid exchange FIRST and refuses to do any work until the
+//! PAY_RECEIPT settles. This is a SEQUENTIAL pay-then-task composition (not
+//! the deferred-ASSIGN interleave TASK-030 §FR-1 offered as an alternative):
+//! it is strictly stronger for "no work before pay" (zero task messages are
+//! exchanged before settlement) and it composes with the Go `map-requester`
+//! whose `RunRequester` is a task-only loop that cannot interleave a payment
+//! pump. The gate itself is TASK-024's `PrepaidProviderPayment`, unchanged.
 
 use map_core::hello::Hello;
 use map_discovery::{valid_cap_uri, Descriptor};
-use map_identity::Keypair;
+use map_identity::{AgentId, Keypair};
 use map_mesh::publish::publish_descriptor;
 use map_net::{MapNode, NetError};
 use map_session::{SessionError, SystemClock, RandomMsgIds};
 use map_net::Libp2pTransport;
-use map_taskrun::{Executor, ProviderTask, ProviderState};
+use map_taskrun::{Executor, PrepaidProviderPayment, ProviderTask, ProviderState};
 use map_tasks::ChunkKind;
+use map_core::msg_type;
+use map_pay::codec::{MethodOffer, PayQuote};
+use map_pay::{Amount, Asset};
+use map_pay::codec::AssetAmount;
 use std::process::exit;
 
 const CAP: &str = "map:cap:demo/rfc-title";
 const LISTEN: &str = "/ip4/0.0.0.0/udp/0/quic-v1";
 const MAX_MESSAGE_SIZE: u32 = 262_144;
 const PROTOCOL_VERSION: u16 = 0x0100;
+
+/// The demo TaskID, shared with the Go `map-requester` (`task[0] = 0x01`), so
+/// the prepaid quote's task binding matches the task the requester will run.
+fn demo_task() -> [u8; 32] {
+    let mut t = [0u8; 32];
+    t[0] = 0x01;
+    t
+}
 
 /// The RFC-title capability executor: deterministic output from the prompt.
 struct TitleExecutor;
@@ -72,6 +95,8 @@ fn main() {
     let mut seed_hex = String::new();
     let mut listen = LISTEN.to_string();
     let mut cap = CAP.to_string();
+    let mut price: u64 = 0;
+    let mut operator_hex = String::new();
     let mut i = 1;
     let args: Vec<String> = std::env::args().collect();
     while i < args.len() {
@@ -91,6 +116,16 @@ fn main() {
                     cap = v.clone();
                 }
             }
+            "--price" => {
+                if let Some(v) = args.get(i + 1) {
+                    price = v.parse().unwrap_or_else(|_| die("serve", "--price must be a whole number of cents"));
+                }
+            }
+            "--operator-seed" => {
+                if let Some(v) = args.get(i + 1) {
+                    operator_hex = v.clone();
+                }
+            }
             other => die("serve", format!("unknown flag {other}")),
         }
         i += 2;
@@ -102,8 +137,18 @@ fn main() {
     if !valid_cap_uri(&cap) {
         die("serve", format!("invalid cap uri {cap}"));
     }
+    // Priced mode needs the operator identity (to verify the ledger entry).
+    let operator_aid: Option<AgentId> = if price > 0 {
+        if operator_hex.is_empty() {
+            die("serve", "--price requires --operator-seed");
+        }
+        Some(Keypair::from_seed(parse_seed(&operator_hex)).agent_id())
+    } else {
+        None
+    };
 
     let seed = parse_seed(&seed_hex);
+    let provider_aid = Keypair::from_seed(seed).agent_id();
     let hello = Hello {
         versions: vec![PROTOCOL_VERSION],
         suites: vec![1],
@@ -166,11 +211,89 @@ fn main() {
                 return;
             }
         };
-        std::thread::spawn(move || run_one(sess));
+        let op = operator_aid.clone();
+        let prov = provider_aid.clone();
+        std::thread::spawn(move || run_one(sess, price, prov, op));
     }
 }
 
-fn run_one(mut s: LpSession) {
+/// The terms-1 prepaid gate (pay §5.2.2), run BEFORE any task work. Returns
+/// `true` when settled (execution permitted); `false` when the gate holds
+/// (unpaid / wrong first message), having printed a diagnostic. Reuses
+/// `PrepaidProviderPayment` — the semantics are TASK-024's, unchanged.
+fn prepaid_gate(s: &mut LpSession, price: u64, provider: AgentId, operator_aid: &AgentId) -> bool {
+    let requester = s.accountable_peer().clone();
+    let total = AssetAmount { asset: Asset::new("iso4217:USD").unwrap(), amount: Amount::new(-2, price as i64) };
+    let terms = 1u64;
+    let quote = PayQuote {
+        quote_id: [0x10; 16],
+        pricing_model: 0,
+        rate_table: vec![(0, total.clone())],
+        total: Some(total),
+        methods: vec![MethodOffer { uri: "pay:credit-ledger".into(), params: vec![] }],
+        expiry_ms: 1u64 << 62,
+        terms: Some(terms),
+        ext: None,
+        task_binding: Some(demo_task()),
+    };
+    let mut pp = PrepaidProviderPayment::new(provider, requester, operator_aid.clone(), quote.clone());
+    let sealed = match s.send(msg_type::PAY_QUOTE, quote.to_value()) {
+        Ok(b) => b,
+        Err(e) => {
+            eprintln!("GATE-HELD (unpaid): send quote failed: {e:?}");
+            return false;
+        }
+    };
+    pp.bind_quote_envelope(&sealed);
+    let inc = match s.recv() {
+        Ok(m) => m,
+        Err(e) => {
+            eprintln!("GATE-HELD (unpaid): no PAY_AGREE ({e:?})");
+            return false;
+        }
+    };
+    if inc.msg_type != msg_type::PAY_AGREE {
+        eprintln!("GATE-HELD (unpaid): first message was {:#06x}, not PAY_AGREE — no work done", inc.msg_type);
+        return false;
+    }
+    if !pp.on_agree(&inc).is_empty() {
+        eprintln!("GATE-HELD: PAY_AGREE rejected");
+        return false;
+    }
+    let iout = pp.invoice([0x60; 16], now_ms());
+    if s.send(iout[0].0, iout[0].1.clone()).is_err() {
+        return false;
+    }
+    let inc = match s.recv() {
+        Ok(m) => m,
+        Err(_) => {
+            eprintln!("GATE-HELD (unpaid): no PAY_PROOF");
+            return false;
+        }
+    };
+    let rout = pp.on_proof(&inc, now_ms());
+    if rout.first().map(|o| o.0) != Some(msg_type::PAY_RECEIPT) {
+        eprintln!("GATE-HELD: proof rejected — no work done");
+        return false;
+    }
+    let _ = s.send(rout[0].0, rout[0].1.clone());
+    if !pp.execution_permitted() {
+        return false;
+    }
+    println!("SETTLED {price} (iso4217:USD, -2)");
+    println!("RECEIPT {}", hex::encode([0x60u8; 16]));
+    true
+}
+
+fn run_one(mut s: LpSession, price: u64, provider_aid: AgentId, operator_aid: Option<AgentId>) {
+    // Priced mode: enforce the prepaid gate before any task work.
+    if price > 0 {
+        let op = operator_aid.expect("priced mode requires operator");
+        if !prepaid_gate(&mut s, price, provider_aid, &op) {
+            let _ = s.close(0, "unpaid");
+            return;
+        }
+    }
     let mut provider = ProviderTask::new(TitleExecutor);
     while !matches!(
         provider.state(),

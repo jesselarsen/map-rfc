@@ -3,11 +3,11 @@
 Two real task-answerers prove the MAP task protocol (tasks §1–§13) over a
 live session, in both implementations:
 
-| agent | impl | capability | transport |
-|---|---|---|---|
-| `MAP-Excuse-As-A-Service` (`map-go/cmd/map-excuse`) | Go (impl #2) | `map:cap:demo/excuse` | libp2p/QUIC |
-| `rfc-title-o-matic` (`map-rs`, bin of `map-cli`) | Rust (impl #1) | `map:cap:demo/rfc-title` | libp2p/QUIC |
-| `map-cli interop --transport libp2p` (Rust `map-rs`) | Rust (impl #1) | `map:cap:demo/excuse` | libp2p/QUIC |
+| agent | impl | capability | transport | payment |
+|---|---|---|---|---|
+| `MAP-Excuse-As-A-Service` (`map-go/cmd/map-excuse`) | Go (impl #2) | `map:cap:demo/excuse` | libp2p/QUIC | free |
+| `rfc-title-o-matic` (`map-rs`, bin of `map-cli`) | Rust (impl #1) | `map:cap:demo/rfc-title` | libp2p/QUIC | free, or **terms-1 prepaid** (`--price`, `pay:credit-ledger`) |
+| `map-cli interop --transport libp2p` (Rust `map-rs`) | Rust (impl #1) | `map:cap:demo/excuse` | libp2p/QUIC | free |
 
 Both peers serve the same capability (`map:cap:demo/excuse`) with a
 deterministic executor, so the live interop matrix (`run-matrix.ps1`) exercises
@@ -67,6 +67,82 @@ $addr = (Select-String -Path rust-listener.txt -Pattern 'LISTENING\s+(\S+)').Mat
 # prints: OK result: map:cap:demo/rfc-title
 #         OK transcript-root: f1752ebae4594c2f0415694143bf881f53230d7669b4ebbb17545ab58218b7d4
 ```
+
+## Run the paid demo (cross-impl): "no pay, no work"
+
+`rfc-title-o-matic --price <cents>` turns on the **terms-1 prepaid gate**
+(pay §5.2.2): the provider quotes up front and does *zero* task work until a
+`PAY_RECEIPT` settles over `pay:credit-ledger`. The Go `map-requester --pay`
+is the payer and hosts the in-process ledger operator (pre-credited to
+`--budget`). This is a real cross-implementation payment: Rust payee ↔ Go
+payer, the same pay codec both sides byte-verify (TASK-029).
+
+The gate is TASK-024's `PrepaidProviderPayment`, unchanged. Sequencing is
+**pay-then-task** (sequential): no task message is exchanged before
+settlement — strictly stronger than a deferred-ASSIGN interleave, and it
+composes with the Go requester's task-only `RunRequester`.
+
+Seeds below are arbitrary 32-byte hex; the operator seed is shared by both
+peers (the provider needs only the operator's AgentID to verify the ledger
+entry). Amounts are integer cents (`iso4217:USD`, exponent −2).
+
+```powershell
+$PROV = "map-rs\target\debug\rfc-title-o-matic.exe"   # cargo build --bin rfc-title-o-matic
+$REQ  = "$env:TEMP\map-requester.exe"                  # go build -o ... ./cmd/map-requester
+$SP = "0a"*32; $SR = "0b"*32; $OP = "04"*32           # provider / requester / operator
+
+# Priced provider: 500 cents (=$5.00) per task.
+Start-Process $PROV -ArgumentList `
+  "--seed",$SP,"--listen","/ip4/127.0.0.1/udp/0/quic-v1","--cap","map:cap:demo/rfc-title",`
+  "--price","500","--operator-seed",$OP `
+  -RedirectStandardOutput prov.txt -NoNewWindow
+$addr = (Select-String prov.txt -Pattern 'LISTENING\s+(\S+)').Matches[0].Groups[1].Value
+```
+
+**(a) Paid run — settles, then delivers the title.** The requester's budget
+(1000) covers the price (500):
+
+```powershell
+& $REQ --seed $SR --addr $addr --cap map:cap:demo/rfc-title --input paid-agents `
+       --pay --operator-seed $OP --budget 1000
+# requester prints:
+#   OK paid: 500 cents (iso4217:USD)
+#   OK receipt: 60606060606060606060606060606060
+#   OK result: map:cap:demo/rfc-title
+#   OK transcript-root: 7bd63860f000814f09af736e658d94d7e8c1d3a2624db145c16f8f09ee615137
+#   OK chunks: 1 credits-granted: 0
+# provider prints:
+#   SETTLED 500 (iso4217:USD, -2)
+#   RECEIPT 60606060606060606060606060606060
+```
+
+**(b) Over-budget run — clean refusal, no work, no money moved.** Budget
+(300) is below the price (500):
+
+```powershell
+& $REQ --seed $SR --addr $addr --cap map:cap:demo/rfc-title --input paid-agents `
+       --pay --operator-seed $OP --budget 300
+# requester prints (exit 1):
+#   FAIL request: OVER-BUDGET: quote 500 cents > budget 300 cents - refusing, no work, no payment
+# provider prints only LISTENING — no SETTLED, no task ran.
+```
+
+**(c) Unpaid run — the gate holds.** A plain `map-requester` (no `--pay`)
+against a priced provider gets no work:
+
+```powershell
+& $REQ --seed $SR --addr $addr --cap map:cap:demo/rfc-title --input paid-agents
+# requester prints (exit 1):
+#   FAIL request: session: peer_closed [0] unpaid
+# provider prints (stderr):
+#   GATE-HELD (unpaid): first message was 0x0200, not PAY_AGREE - no work done
+# No output chunks, no transcript, no money moved.
+```
+
+**Free path unchanged.** With no `--price`, `rfc-title-o-matic` constructs no
+payment object and sends no `0x04xx` frame; a plain `map-requester` gets the
+title exactly as before (byte-identical transcript root `7bd6…5137` for the
+same input) — the paid path is purely additive.
 
 ## Run the full interop matrix
 

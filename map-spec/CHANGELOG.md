@@ -8,6 +8,34 @@ version that carries it). No revision to date contains a breaking change.
 
 ---
 
+## Paid demo: prepaid-gated rfc-title-o-matic × paying map-requester (TASK-030) — 2026-07-18
+
+Additive change (implementation/demo only; no wire, registry, or normative
+change). The headline demo — an agent that will not work until it is paid —
+cross-implementation: Rust payee, Go payer, over `pay:credit-ledger`.
+
+- **`map-rs` `rfc-title-o-matic`** — new `--price <cents>` / `--operator-seed`
+  flags. Priced mode runs the terms-1 prepaid gate (pay §5.2.2, reusing
+  TASK-024's `PrepaidProviderPayment`) BEFORE any task work: no task message
+  is exchanged until the `PAY_RECEIPT` settles. Prints `SETTLED`/`RECEIPT`.
+  Sequencing is sequential pay-then-task (TASK-030 §FR-1 allowed the
+  deferred-ASSIGN interleave as an alternative; sequential is strictly
+  stronger for "no work before pay" and composes with the Go requester's
+  task-only `RunRequester`). Free path (no `--price`) is byte-identical to
+  before — no payment object, no `0x04xx` frame.
+- **`map-go/cmd/map-requester`** — new `--pay` / `--operator-seed` /
+  `--budget` flags. When paying, hosts the in-process credit-ledger operator
+  (pre-credited to the budget), pays the prepaid invoice, then runs the task;
+  refuses over-budget quotes cleanly before agreeing (no money moved).
+- **`interop/DEMOS.md`** — "Run the paid demo" section with the live paid /
+  over-budget / unpaid transcripts.
+
+Live-verified cross-impl: paid run settles 500¢ and delivers the title
+(transcript root `7bd6…5137`); over-budget and unpaid runs do no work and
+move no money.
+
+---
+
 ## Live interop matrix extended: pay family over libp2p/QUIC, both orientations (TASK-029) — 2026-07-18
 
 Additive change (ops §6.1): the live interop matrix now exercises the **pay

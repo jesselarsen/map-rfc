@@ -19,6 +19,7 @@ import (
 
 	"github.com/jesselarsen/map-rfc/map-go/identity"
 	"github.com/jesselarsen/map-rfc/map-go/net"
+	"github.com/jesselarsen/map-rfc/map-go/pay"
 	"github.com/jesselarsen/map-rfc/map-go/session"
 	"github.com/jesselarsen/map-rfc/map-go/tasks"
 	"github.com/libp2p/go-libp2p/core/peer"
@@ -35,6 +36,9 @@ func main() {
 	capURI := flag.String("cap", "map:cap:demo/excuse", "capability URI requested")
 	input := flag.String("input", "the demo", "inline task input")
 	direct := flag.Bool("direct", false, "skip OFFER/QUOTE, send ASSIGN directly")
+	payFlag := flag.Bool("pay", false, "pay the provider's prepaid quote before running the task")
+	operatorHex := flag.String("operator-seed", "", "32-byte hex seed of the credit-ledger operator (with --pay)")
+	budget := flag.Int64("budget", 0, "max cents willing to prepay (with --pay); 0 = unlimited")
 	flag.Parse()
 
 	if *seedHex == "" || *addr == "" {
@@ -69,8 +73,27 @@ func main() {
 
 	var task tasks.TaskID
 	task[0] = 0x01
-	req := tasks.NewRequesterTask(task, *capURI, tasks.TaskConstraints{}, []byte(*input))
 
+	// Prepaid gate (pay §5.2.2): pay the provider's terms-1 quote BEFORE the
+	// task, so a priced provider does no work until settlement.
+	if *payFlag {
+		if len(*operatorHex) != 64 {
+			die("request", fmt.Errorf("--pay requires --operator-seed <32-byte hex>"))
+		}
+		opSeed, e := hex.DecodeString(*operatorHex)
+		if e != nil || len(opSeed) != 32 {
+			die("request", fmt.Errorf("bad --operator-seed"))
+		}
+		myAID, e := identity.FromPub(ed25519.NewKeyFromSeed(seed).Public().(ed25519.PublicKey))
+		if e != nil {
+			die("request", e)
+		}
+		if e := payProvider(sess, task, myAID, expected, opSeed, *budget); e != nil {
+			die("request", e)
+		}
+	}
+
+	req := tasks.NewRequesterTask(task, *capURI, tasks.TaskConstraints{}, []byte(*input))
 	ver, root, err := tasks.RunRequester(sess, req, *direct)
 	if err != nil {
 		die("request", err)
@@ -78,6 +101,72 @@ func main() {
 	fmt.Printf("OK result: %s\n", ver.Capability)
 	fmt.Printf("OK transcript-root: %x\n", root)
 	fmt.Printf("OK chunks: %d credits-granted: %d\n", req.ChunksReceived(), req.CreditsGranted())
+}
+
+// payProvider runs the terms-1 prepaid payer exchange over the dialed session,
+// hosting the in-process credit-ledger operator (pre-credited to --budget). It
+// refuses cleanly, before agreeing and before any money moves, if the quoted
+// total exceeds the budget.
+func payProvider(sess *session.Session, task tasks.TaskID, me, provider identity.AgentID, opSeed []byte, budget int64) error {
+	inc, err := sess.Recv() // PAY_QUOTE
+	if err != nil {
+		return fmt.Errorf("no prepaid quote (provider free/unreachable?): %w", err)
+	}
+	if inc.MsgType != pay.MsgPayQuote {
+		return fmt.Errorf("expected PAY_QUOTE, got %#06x", inc.MsgType)
+	}
+	q, err := pay.PayQuoteFromValue(inc.Content)
+	if err != nil {
+		return fmt.Errorf("bad quote: %w", err)
+	}
+	priced := int64(0)
+	if q.Total != nil {
+		priced = q.Total.Amount.Mantissa
+	}
+	if budget > 0 && priced > budget {
+		return fmt.Errorf("OVER-BUDGET: quote %d cents > budget %d cents — refusing, no work, no payment", priced, budget)
+	}
+	credit := priced
+	if budget > 0 {
+		credit = budget
+	}
+	op, err := pay.NewLedgerOperator(opSeed, -2)
+	if err != nil {
+		return err
+	}
+	op.Credit(me, credit)
+	rp := pay.NewPrepaidRequesterPayment([32]byte(task), me, provider)
+
+	aout := rp.OnQuote(inc.Content, inc.Raw, 1)
+	if len(aout) != 1 || aout[0].MsgType != pay.MsgPayAgree {
+		return fmt.Errorf("quote rejected")
+	}
+	if _, err := sess.Send(aout[0].MsgType, aout[0].Content); err != nil {
+		return err
+	}
+	iinc, err := sess.Recv() // PAY_INVOICE
+	if err != nil {
+		return err
+	}
+	pout := rp.OnInvoice(iinc.Content, op, 1)
+	if len(pout) != 1 || pout[0].MsgType != pay.MsgPayProof {
+		return fmt.Errorf("invoice rejected / could not pay")
+	}
+	if _, err := sess.Send(pout[0].MsgType, pout[0].Content); err != nil {
+		return err
+	}
+	rinc, err := sess.Recv() // PAY_RECEIPT
+	if err != nil {
+		return err
+	}
+	rp.OnReceipt(rinc.Content)
+	rcpts := rp.Receipts()
+	if len(rcpts) != 1 {
+		return fmt.Errorf("no receipt received")
+	}
+	fmt.Printf("OK paid: %d cents (iso4217:USD)\n", priced)
+	fmt.Printf("OK receipt: %x\n", rcpts[0].InvoiceID)
+	return nil
 }
 
 func lastIndex(s, sub string) int {

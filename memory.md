@@ -1011,6 +1011,34 @@ P. **TASK-029 DONE 2026-07-18 — pay family interoperates cross-impl LIVE.**
    clean, frozen vectors untouched. Commits: `60828f3` (pay package) + the
    interop-cells commit. **TASK-030 (paid demo) is now unblocked.**
 
+Q. **TASK-030 DONE 2026-07-18 — the paid demo ("no pay, no work") works
+   cross-impl LIVE.** `rfc-title-o-matic --price <cents> --operator-seed <hex>`
+   runs the terms-1 prepaid gate (REUSES TASK-024 `PrepaidProviderPayment`,
+   unchanged) BEFORE any task work — SEQUENTIAL pay-then-task, chosen over the
+   deferred-ASSIGN interleave TASK-030 §FR-1 offered (sequential is strictly
+   stronger for "no work before pay" — zero task frames before settlement —
+   AND composes with the Go requester's task-only `RunRequester`, which can't
+   interleave a payment pump). Provider derives its own AgentID from the seed
+   and the requester's via `s.accountable_peer()`; prints `SETTLED`/`RECEIPT`.
+   Go `map-requester --pay --operator-seed --budget` hosts the in-process
+   credit-ledger operator (pre-credited to budget), pays the invoice, then
+   runs the task; over-budget → clean refusal BEFORE agreeing (demo-layer
+   check on quote total vs budget, no money moved). Shared demo TaskID =
+   `[0x01,0…]` (both sides). **Live-verified 4 ways** (real transcripts in
+   DEMOS.md): (a) paid → `OK paid: 500 cents` + `OK receipt` + title root
+   `7bd6…5137`, provider `SETTLED 500`+`RECEIPT`; (b) over-budget (300<500) →
+   `FAIL OVER-BUDGET … no work, no payment`; (c) unpaid (no `--pay`) → provider
+   `GATE-HELD (unpaid): first message was 0x0200, not PAY_AGREE`, requester
+   `peer_closed unpaid`; (d) free (no `--price`) → byte-identical title, no
+   `0x04xx` frame (paid path is purely additive — structural: `if price>0` /
+   `if *payFlag`). Stretch pay-prepaid MATRIX cell SKIPPED + noted (demo's
+   pay-first flow ≠ the interop cells' task-first flow; not trivial; matrix
+   stays 26/26). Harness gotcha found: PowerShell `Start-Process` splits a
+   spaced `--input "a b"` arg, silently truncating Go flag parsing — use
+   single-word inputs in demo scripts. Rust default+`--no-default-features` +
+   map-go all green, zero warnings, gofmt/vet clean.
+   **TASK-031 (I-D submission readiness) is the last open D milestone.**
+
 ## 9. Working conventions
 
 - BCP 14 language, unweakened. Registry code points never reused.
