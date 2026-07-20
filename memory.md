@@ -1039,6 +1039,41 @@ Q. **TASK-030 DONE 2026-07-18 — the paid demo ("no pay, no work") works
    map-go all green, zero warnings, gofmt/vet clean.
    **TASK-031 (I-D submission readiness) is the last open D milestone.**
 
+R. **TASK-031 DONE 2026-07-18 — I-D submission readiness (editorial only).**
+   All 11 drafts got `author: Jesse Larsen` / `email` / `ipr: trust200902`
+   front-matter. **`build/md2rfc.py` hardened** (render-only, no draft
+   mutation): UTF-8 read (was cp1252 — mojibaked every §/—/arrow); author from
+   front-matter (was hardcoded "M. Architect"); drop the H1 past leading blanks
+   AND the hand-written "Status of This Memo" preamble (xml2rfc regenerates the
+   correct boilerplate — else the whole doc nested under a spurious section 1);
+   route `## Abstract` into RFC front-matter; strip author-written `N.` section
+   numbers (was "1.16. 14. Security Considerations"); emit `version="3"`
+   (WITHOUT it xml2rfc renders an EMPTY Author's Address — key gotcha); declare
+   `submissionType="independent"` only for info/exp/historic categories
+   (xml2rfc ERRORS on std+independent — the ISE publishes only info/exp/
+   historic per RFC 7841). Normalized Security/IANA heading casing to Title
+   Case; added Security+IANA sections to index/intro/wire and IANA to arch/ops
+   (concise pointer sections) → `build/nits.py` green (every draft has all
+   required sections). New: `build/{nits.py,requirements.txt (xml2rfc==3.34.0),
+   README.md}`, `map-spec/SUBMISSION.md` (ISE/Datatracker checklist + cover-
+   note disclosures [CB-exporter stand-in; single-author preprint] + 3 tracked
+   pre-submission items: (1) the std/bcp-category vs independent-stream
+   conflict — AUTHOR DECISION: retarget protocol drafts to IETF stream or
+   recategorize Informational for ISE; (2) 192 lines >72 chars — diagram/CDDL/
+   wide-table reformatting; (3) References → structured normative/informative
+   `<back>` split). Render is idempotent (fixed date). Frozen vectors
+   byte-stable, no CDDL touched. **build/ was inadvertently gitignored (blanket
+   `build/`) and never tracked — narrowed the ignore to transient artifacts
+   only; the render pipeline + 33 rendered `.xml/.txt/.html` are now tracked.**
+   **All D milestones (029/030/031) DONE.**
+
+S. **REPO PATH MOVED 2026-07-18: OneDrive relocated the working tree from
+   `…/Documents/Code/MP2P RFC` to `…/Documents/Projects/MP2P RFC`** (the old
+   `Documents\Code` folder is gone; nothing lost — all work was pushed). Use
+   `C:\Users\Master\OneDrive\Documents\Projects\MP2P RFC` from now on. Watch for
+   OneDrive dehydration of this path; if Bash reports "No such file or
+   directory" for the repo, re-locate it (it may move again).
+
 ## 9. Working conventions
 
 - BCP 14 language, unweakened. Registry code points never reused.

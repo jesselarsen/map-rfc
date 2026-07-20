@@ -18,7 +18,14 @@ node_modules/
 *.tmp
 
 dist/
-build/
+
+# build/ holds the I-D render pipeline (render.py / md2rfc.py / nits.py,
+# requirements.txt, README.md) and the rendered drafts (.xml/.txt/.html) —
+# all tracked deliverables. Only transient artifacts are ignored.
+build/__pycache__/
+build/*.err
+build/draft-map-*.md
+build/test-*
 
 __pycache__/
 

@@ -1,0 +1,1784 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta content="Common,Latin" name="scripts">
+<meta content="initial-scale=1.0" name="viewport">
+<title>MAP Tasks: Negotiation, Streaming Inference, Tools, Checkpoints, and Delegation</title>
+<meta content="Jesse Larsen" name="author">
+<meta content="
+       Defines the task layer of MAP: offer/quote/assign negotiation (with an optional bidding extension), streaming inference with credit-based flow control, tool invocation gated by requester-issued capability tokens, Merkle-committed transcripts with countersigned checkpoints, failure recovery by transcript replay, task delegation with budget and zone propagation, distributed memory/context retrieval, cancellation, and the task state machines for both roles. 
+    " name="description">
+<meta content="xml2rfc 3.34.0" name="generator">
+<meta content="draft-map-tasks-01" name="ietf.draft">
+<!-- Generator version information:
+  xml2rfc 3.34.0
+    Python 3.12.10
+    ConfigArgParse 1.7.5
+    google-i18n-address 3.1.1
+    intervaltree 3.2.1
+    Jinja2 3.1.6
+    lxml 6.1.1
+    natsort 8.4.0
+    platformdirs 4.10.0
+    pycountry 26.2.16
+    PyYAML 6.0.3
+    requests 2.34.2
+    wcwidth 0.8.2
+-->
+<link href="draft-map-tasks-01.xml" rel="alternate" type="application/rfc+xml">
+<link href="#copyright" rel="license">
+<style type="text/css">/*
+
+  NOTE: Changes at the bottom of this file overrides some earlier settings.
+
+  Once the style has stabilized and has been adopted as an official RFC style,
+  this can be consolidated so that style settings occur only in one place, but
+  for now the contents of this file consists first of the initial CSS work as
+  provided to the RFC Formatter (xml2rfc) work, followed by itemized and
+  commented changes found necessary during the development of the v3
+  formatters.
+
+*/
+
+/* fonts */
+@import url('https://static.ietf.org/fonts/noto-sans/import.css'); /* Sans-serif */
+@import url('https://static.ietf.org/fonts/noto-serif/import.css'); /* Serif (print) */
+@import url('https://static.ietf.org/fonts/roboto-mono/import.css'); /* Monospace */
+
+:root {
+  --font-sans: 'Noto Sans', Arial, Helvetica, sans-serif;
+  --font-serif: 'Noto Serif', 'Times', 'Times New Roman', serif;
+  --font-mono: 'Roboto Mono', Courier, 'Courier New', monospace;
+}
+
+@viewport {
+  zoom: 1.0;
+}
+@-ms-viewport {
+  width: extend-to-zoom;
+  zoom: 1.0;
+}
+/* general and mobile first */
+html {
+}
+body {
+  max-width: 90%;
+  margin: 1.5em auto;
+  color: #222;
+  background-color: #fff;
+  font-size: 14px;
+  font-family: var(--font-sans);
+  line-height: 1.6;
+  scroll-behavior: smooth;
+  overflow-wrap: break-word;
+}
+.ears {
+  display: none;
+}
+
+/* headings */
+#title, h1, h2, h3, h4, h5, h6 {
+  margin: 1em 0 0.5em;
+  font-weight: bold;
+  line-height: 1.3;
+}
+#title {
+  clear: both;
+  border-bottom: 1px solid #ddd;
+  margin: 0 0 0.5em 0;
+  padding: 1em 0 0.5em;
+}
+.author {
+  padding-bottom: 4px;
+}
+h1 {
+  font-size: 26px;
+  margin: 1em 0;
+}
+h2 {
+  font-size: 22px;
+  margin-top: -20px;  /* provide offset for in-page anchors */
+  padding-top: 33px;
+}
+h3 {
+  font-size: 18px;
+  margin-top: -36px;  /* provide offset for in-page anchors */
+  padding-top: 42px;
+}
+h4 {
+  font-size: 16px;
+  margin-top: -36px;  /* provide offset for in-page anchors */
+  padding-top: 42px;
+}
+h5, h6 {
+  font-size: 14px;
+}
+#n-copyright-notice {
+  border-bottom: 1px solid #ddd;
+  padding-bottom: 1em;
+  margin-bottom: 1em;
+}
+/* general structure */
+p {
+  padding: 0;
+  margin: 0 0 1em 0;
+  text-align: left;
+}
+div, span {
+  position: relative;
+}
+div {
+  margin: 0;
+}
+.alignRight.art-text {
+  background-color: #f9f9f9;
+  border: 1px solid #eee;
+  border-radius: 3px;
+  padding: 1em 1em 0;
+  margin-bottom: 1.5em;
+}
+.alignRight.art-text pre {
+  padding: 0;
+}
+.alignRight {
+  margin: 1em 0;
+}
+.alignRight > *:first-child {
+  border: none;
+  margin: 0;
+  float: right;
+  clear: both;
+}
+.alignRight > *:nth-child(2) {
+  clear: both;
+  display: block;
+  border: none;
+}
+svg {
+  display: block;
+}
+@media print {
+  svg {
+    max-height: 850px;
+    max-width: 660px;
+  }
+}
+svg[font-family~="serif" i], svg [font-family~="serif" i] {
+  font-family: var(--font-serif);
+}
+svg[font-family~="sans-serif" i], svg [font-family~="sans-serif" i] {
+  font-family: var(--font-sans);
+}
+svg[font-family~="monospace" i], svg [font-family~="monospace" i] {
+  font-family: var(--font-mono);
+}
+.alignCenter.art-text {
+  background-color: #f9f9f9;
+  border: 1px solid #eee;
+  border-radius: 3px;
+  padding: 1em 1em 0;
+  margin-bottom: 1.5em;
+}
+.alignCenter.art-text pre {
+  padding: 0;
+}
+.alignCenter {
+  margin: 1em 0;
+}
+.alignCenter > *:first-child {
+  display: table;
+  border: none;
+  margin: 0 auto;
+}
+
+/* lists */
+ol, ul {
+  padding: 0;
+  margin: 0 0 1em 2em;
+}
+ol ol, ul ul, ol ul, ul ol {
+  margin-left: 1em;
+}
+li {
+  margin: 0 0 0.25em 0;
+}
+.ulCompact li {
+  margin: 0;
+}
+ul.empty, .ulEmpty {
+  list-style-type: none;
+}
+ul.empty li, .ulEmpty li {
+  margin-top: 0.5em;
+}
+ul.ulBare, li.ulBare {
+  margin-left: 0em !important;
+}
+ul.compact, .ulCompact,
+ol.compact, .olCompact {
+  line-height: 100%;
+  margin: 0 0 0 2em;
+}
+
+/* definition lists */
+dl {
+}
+dl > dt {
+  float: left;
+  margin-right: 1em;
+}
+/* 
+dl.nohang > dt {
+  float: none;
+}
+*/
+dl > dd {
+  margin-bottom: .8em;
+  min-height: 1.3em;
+}
+dl.compact > dd, .dlCompact > dd {
+  margin-bottom: 0em;
+}
+dl > dd > dl {
+  margin-top: 0.5em;
+  margin-bottom: 0em;
+}
+
+/* links */
+a {
+  text-decoration: none;
+}
+a[href] {
+  color: #22e; /* Arlen: WCAG 2019 */
+}
+a[href]:hover {
+  background-color: #f2f2f2;
+}
+figcaption a[href],
+a[href].selfRef {
+  color: #222;
+}
+/* XXX probably not this:
+a.selfRef:hover {
+  background-color: transparent;
+  cursor: default;
+} */
+
+/* Figures */
+tt, code, pre {
+  background-color: #f9f9f9;
+  font-family: var(--font-mono);
+}
+pre {
+  border: 1px solid #eee;
+  margin: 0;
+  padding: 1em;
+}
+img {
+  max-width: 100%;
+}
+figure {
+  margin: 0;
+}
+figure blockquote {
+  margin: 0.8em 0.4em 0.4em;
+}
+figcaption {
+  font-style: italic;
+  margin: 0 0 1em 0;
+}
+@media screen {
+  pre {
+    overflow-x: auto;
+    max-width: 100%;
+    max-width: calc(100% - 22px);
+  }
+}
+
+/* aside, blockquote */
+aside, blockquote {
+  margin-left: 0;
+  padding: 1.2em 2em;
+}
+blockquote {
+  background-color: #f9f9f9;
+  color: #111; /* Arlen: WCAG 2019 */
+  border: 1px solid #ddd;
+  border-radius: 3px;
+  margin: 1em 0;
+}
+blockquote > *:last-child {
+  margin-bottom: 0;
+}
+cite {
+  display: block;
+  text-align: right;
+  font-style: italic;
+}
+.xref {
+  overflow-wrap: normal;
+}
+
+/* tables */
+table {
+  width: 100%;
+  margin: 0 0 1em;
+  border-collapse: collapse;
+  border: 1px solid #eee;
+}
+th, td {
+  text-align: left;
+  vertical-align: top;
+  padding: 0.5em 0.75em;
+}
+th {
+  text-align: left;
+  background-color: #e9e9e9;
+}
+tr:nth-child(2n+1) > td {
+  background-color: #f5f5f5;
+}
+table caption {
+  font-style: italic;
+  margin: 0;
+  padding: 0;
+  text-align: left;
+}
+table p {
+  /* XXX to avoid bottom margin on table row signifiers. If paragraphs should
+     be allowed within tables more generally, it would be far better to select on a class. */
+  margin: 0;
+}
+
+/* pilcrow */
+a.pilcrow {
+  color: #666; /* Arlen: AHDJ 2019 */
+  text-decoration: none;
+  visibility: hidden;
+  user-select: none;
+  -ms-user-select: none;
+  -o-user-select:none;
+  -moz-user-select: none;
+  -khtml-user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+@media screen {
+  aside:hover > a.pilcrow,
+  p:hover > a.pilcrow,
+  blockquote:hover > a.pilcrow,
+  div:hover > a.pilcrow,
+  li:hover > a.pilcrow,
+  pre:hover > a.pilcrow {
+    visibility: visible;
+  }
+  a.pilcrow:hover {
+    background-color: transparent;
+  }
+}
+
+/* misc */
+hr {
+  border: 0;
+  border-top: 1px solid #eee;
+}
+.bcp14 {
+  font-variant: small-caps;
+}
+
+.role {
+  font-variant: all-small-caps;
+}
+
+/* info block */
+#identifiers {
+  margin: 0;
+  font-size: 0.9em;
+}
+#identifiers dt {
+  width: 3em;
+  clear: left;
+}
+#identifiers dd {
+  float: left;
+  margin-bottom: 0;
+}
+/* Fix PDF info block run off issue */
+@media print {
+  #identifiers dd {
+    max-width: 100%;
+  }
+}
+#identifiers .authors .author {
+  display: inline-block;
+  margin-right: 1.5em;
+}
+#identifiers .authors .org {
+  font-style: italic;
+}
+
+/* The prepared/rendered info at the very bottom of the page */
+.docInfo {
+  color: #666; /* Arlen: WCAG 2019 */
+  font-size: 0.9em;
+  font-style: italic;
+  margin-top: 2em;
+}
+.docInfo .prepared {
+  float: left;
+}
+.docInfo .prepared {
+  float: right;
+}
+
+/* table of contents */
+#toc  {
+  padding: 0.75em 0 2em 0;
+  margin-bottom: 1em;
+}
+nav.toc ul {
+  margin: 0 0.5em 0 0;
+  padding: 0;
+  list-style: none;
+}
+nav.toc li {
+  line-height: 1.3em;
+  margin: 0.75em 0;
+  padding-left: 1.2em;
+  text-indent: -1.2em;
+}
+/* references */
+.references dt {
+  text-align: right;
+  font-weight: bold;
+  min-width: 7em;
+}
+.references dd {
+  margin-left: 8em;
+  overflow: auto;
+}
+
+.refInstance {
+  margin-bottom: 1.25em;
+}
+
+.refSubseries {
+  margin-bottom: 1.25em;
+}
+
+.references .ascii {
+  margin-bottom: 0.25em;
+}
+
+/* index */
+.index ul {
+  margin: 0 0 0 1em;
+  padding: 0;
+  list-style: none;
+}
+.index ul ul {
+  margin: 0;
+}
+.index li {
+  margin: 0;
+  text-indent: -2em;
+  padding-left: 2em;
+  padding-bottom: 5px;
+}
+.indexIndex {
+  margin: 0.5em 0 1em;
+}
+.index a {
+  font-weight: 700;
+}
+/* make the index two-column on all but the smallest screens */
+@media (min-width: 600px) {
+  .index ul {
+    -moz-column-count: 2;
+    -moz-column-gap: 20px;
+  }
+  .index ul ul {
+    -moz-column-count: 1;
+    -moz-column-gap: 0;
+  }
+}
+
+/* authors */
+address.vcard {
+  font-style: normal;
+  margin: 1em 0;
+}
+
+address.vcard .nameRole {
+  font-weight: 700;
+  margin-left: 0;
+}
+address.vcard .label {
+  font-family: var(--font-sans);
+  margin: 0.5em 0;
+}
+address.vcard .type {
+  display: none;
+}
+.alternative-contact {
+  margin: 1.5em 0 1em;
+}
+hr.addr {
+  border-top: 1px dashed;
+  margin: 0;
+  color: #ddd;
+  max-width: calc(100% - 16px);
+}
+
+/* temporary notes */
+.rfcEditorRemove::before {
+  position: absolute;
+  top: 0.2em;
+  right: 0.2em;
+  padding: 0.2em;
+  content: "The RFC Editor will remove this note";
+  color: #9e2a00; /* Arlen: WCAG 2019 */
+  background-color: #ffd; /* Arlen: WCAG 2019 */
+}
+.rfcEditorRemove {
+  position: relative;
+  padding-top: 1.8em;
+  background-color: #ffd; /* Arlen: WCAG 2019 */
+  border-radius: 3px;
+}
+.cref {
+  background-color: #ffd; /* Arlen: WCAG 2019 */
+  padding: 2px 4px;
+}
+.crefSource {
+  font-style: italic;
+}
+/* alternative layout for smaller screens */
+@media screen and (max-width: 1023px) {
+  body {
+    padding-top: 2em;
+  }
+  #title {
+    padding: 1em 0;
+  }
+  h1 {
+    font-size: 24px;
+  }
+  h2 {
+    font-size: 20px;
+    margin-top: -18px;  /* provide offset for in-page anchors */
+    padding-top: 38px;
+  }
+  #identifiers dd {
+    max-width: 60%;
+  }
+  #toc {
+    position: fixed;
+    z-index: 2;
+    top: 0;
+    right: 0;
+    padding: 0;
+    margin: 0;
+    background-color: inherit;
+    border-bottom: 1px solid #ccc;
+  }
+  #toc h2 {
+    margin: -1px 0 0 0;
+    padding: 4px 0 4px 6px;
+    padding-right: 1em;
+    min-width: 190px;
+    font-size: 1.1em;
+    text-align: right;
+    background-color: #444;
+    color: white;
+    cursor: pointer;
+  }
+  #toc h2::before { /* css hamburger */
+    float: right;
+    position: relative;
+    width: 1em;
+    height: 1px;
+    left: -164px;
+    margin: 6px 0 0 0;
+    background: white none repeat scroll 0 0;
+    box-shadow: 0 4px 0 0 white, 0 8px 0 0 white;
+    content: "";
+  }
+  #toc nav {
+    display: none;
+    padding: 0.5em 1em 1em;
+    overflow: auto;
+    height: calc(100vh - 48px);
+    border-left: 1px solid #ddd;
+  }
+}
+
+/* alternative layout for wide screens */
+@media screen and (min-width: 1024px) {
+  body {
+    max-width: 724px;
+    margin: 42px auto;
+    padding-left: 1.5em;
+    padding-right: 29em;
+  }
+  #toc {
+    position: fixed;
+    top: 42px;
+    right: 42px;
+    width: 25%;
+    margin: 0;
+    padding: 0 1em;
+    z-index: 1;
+  }
+  #toc h2 {
+    border-top: none;
+    border-bottom: 1px solid #ddd;
+    font-size: 1em;
+    font-weight: normal;
+    margin: 0;
+    padding: 0.25em 1em 1em 0;
+  }
+  #toc nav {
+    display: block;
+    height: calc(90vh - 84px);
+    bottom: 0;
+    padding: 0.5em 0 0;
+    overflow: auto;
+  }
+  img { /* future proofing */
+    max-width: 100%;
+    height: auto;
+  }
+}
+
+/* pagination */
+@media print {
+  body {
+    width: 100%;
+  }
+  p {
+    orphans: 3;
+    widows: 3;
+  }
+  #n-copyright-notice {
+    border-bottom: none;
+  }
+  #toc, #n-introduction {
+    page-break-before: always;
+  }
+  #toc {
+    border-top: none;
+    padding-top: 0;
+  }
+  figure, pre {
+    page-break-inside: avoid;
+  }
+  figure {
+    overflow: scroll;
+  }
+  .breakable pre {
+    break-inside: auto;
+  }
+  h1, h2, h3, h4, h5, h6 {
+    page-break-after: avoid;
+  }
+  h2+*, h3+*, h4+*, h5+*, h6+* {
+    page-break-before: avoid;
+  }
+  pre {
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    font-size: 10pt;
+  }
+  table {
+    border: 1px solid #ddd;
+  }
+  td {
+    border-top: 1px solid #ddd;
+  }
+}
+
+/* This is commented out here, as the string-set: doesn't
+   pass W3C validation currently */
+/*
+.ears thead .left {
+  string-set: ears-top-left content();
+}
+
+.ears thead .center {
+  string-set: ears-top-center content();
+}
+
+.ears thead .right {
+  string-set: ears-top-right content();
+}
+
+.ears tfoot .left {
+  string-set: ears-bottom-left content();
+}
+
+.ears tfoot .center {
+  string-set: ears-bottom-center content();
+}
+
+.ears tfoot .right {
+  string-set: ears-bottom-right content();
+}
+*/
+
+@page :first {
+  padding-top: 0;
+  @top-left {
+    content: normal;
+    border: none;
+  }
+  @top-center {
+    content: normal;
+    border: none;
+  }
+  @top-right {
+    content: normal;
+    border: none;
+  }
+}
+
+@page {
+  size: A4;
+  margin-bottom: 45mm;
+  padding-top: 20px;
+  /* The following is commented out here, but set appropriately by in code, as
+     the content depends on the document */
+  /*
+  @top-left {
+    content: 'Internet-Draft';
+    vertical-align: bottom;
+    border-bottom: solid 1px #ccc;
+  }
+  @top-left {
+    content: string(ears-top-left);
+    vertical-align: bottom;
+    border-bottom: solid 1px #ccc;
+  }
+  @top-center {
+    content: string(ears-top-center);
+    vertical-align: bottom;
+    border-bottom: solid 1px #ccc;
+  }
+  @top-right {
+    content: string(ears-top-right);
+    vertical-align: bottom;
+    border-bottom: solid 1px #ccc;
+  }
+  @bottom-left {
+    content: string(ears-bottom-left);
+    vertical-align: top;
+    border-top: solid 1px #ccc;
+  }
+  @bottom-center {
+    content: string(ears-bottom-center);
+    vertical-align: top;
+    border-top: solid 1px #ccc;
+  }
+  @bottom-right {
+      content: '[Page ' counter(page) ']';
+      vertical-align: top;
+      border-top: solid 1px #ccc;
+  }
+  */
+
+}
+
+/* Changes introduced to fix issues found during implementation */
+/* Make sure links are clickable even if overlapped by following H* */
+a {
+  z-index: 2;
+}
+/* Separate body from document info even without intervening H1 */
+section {
+  clear: both;
+}
+
+
+/* Top align author divs, to avoid names without organization dropping level with org names */
+.author {
+  vertical-align: top;
+}
+
+/* Leave room in document info to show Internet-Draft on one line */
+#identifiers dt {
+  width: 8em;
+}
+
+/* Don't waste quite as much whitespace between label and value in doc info */
+#identifiers dd {
+  margin-left: 1em;
+}
+
+/* Give floating toc a background color (needed when it's a div inside section */
+#toc {
+  background-color: white;
+}
+
+/* Make the collapsed ToC header render white on gray also when it's a link */
+@media screen and (max-width: 1023px) {
+  #toc h2 a,
+  #toc h2 a:link,
+  #toc h2 a:focus,
+  #toc h2 a:hover,
+  #toc a.toplink,
+  #toc a.toplink:hover {
+    color: white;
+    background-color: #444;
+    text-decoration: none;
+  }
+}
+
+/* Give the bottom of the ToC some whitespace */
+@media screen and (min-width: 1024px) {
+  #toc {
+    padding: 0 0 1em 1em;
+  }
+}
+
+/* Style section numbers with more space between number and title */
+.section-number {
+  padding-right: 0.5em;
+}
+
+/* prevent monospace from becoming overly large */
+tt, code, pre {
+  font-size: 95%;
+}
+
+/* Fix the height/width aspect for ascii art*/
+.sourcecode pre,
+.art-text pre {
+  line-height: 1.12;
+}
+
+
+/* Add styling for a link in the ToC that points to the top of the document */
+a.toplink {
+  float: right;
+  margin-right: 0.5em;
+}
+
+/* Fix the dl styling to match the RFC 7992 attributes */
+dl > dt,
+dl.dlParallel > dt {
+  float: left;
+  margin-right: 1em;
+}
+dl.dlNewline > dt {
+  float: none;
+}
+
+/* Provide styling for table cell text alignment */
+table td.text-left,
+table th.text-left {
+  text-align: left;
+}
+table td.text-center,
+table th.text-center {
+  text-align: center;
+}
+table td.text-right,
+table th.text-right {
+  text-align: right;
+}
+
+/* Make the alternative author contact information look less like just another
+   author, and group it closer with the primary author contact information */
+.alternative-contact {
+  margin: 0.5em 0 0.25em 0;
+}
+address .non-ascii {
+  margin: 0 0 0 2em;
+}
+
+/* With it being possible to set tables with alignment
+  left, center, and right, { width: 100%; } does not make sense */
+table {
+  width: auto;
+}
+
+/* Avoid reference text that sits in a block with very wide left margin,
+   because of a long floating dt label.*/
+.references dd {
+  overflow: visible;
+}
+
+/* Control caption placement */
+caption {
+  caption-side: bottom;
+}
+
+/* Limit the width of the author address vcard, so names in right-to-left
+   script don't end up on the other side of the page. */
+
+address.vcard {
+  max-width: 30em;
+  margin-right: auto;
+}
+
+/* For address alignment dependent on LTR or RTL scripts */
+address div.left {
+  text-align: left;
+}
+address div.right {
+  text-align: right;
+}
+
+/* Provide table alignment support.  We can't use the alignX classes above
+   since they do unwanted things with caption and other styling. */
+table.right {
+ margin-left: auto;
+ margin-right: 0;
+}
+table.center {
+ margin-left: auto;
+ margin-right: auto;
+}
+table.left {
+ margin-left: 0;
+ margin-right: auto;
+}
+
+/* Give the table caption label the same styling as the figcaption */
+caption a[href] {
+  color: #222;
+}
+
+@media print {
+  .toplink {
+    display: none;
+  }
+
+  /* avoid overwriting the top border line with the ToC header */
+  #toc {
+    padding-top: 1px;
+  }
+
+  /* Avoid page breaks inside dl and author address entries */
+  .vcard {
+    page-break-inside: avoid;
+  }
+
+}
+/* Tweak the bcp14 keyword presentation */
+.bcp14 {
+  font-variant: small-caps;
+  font-weight: bold;
+  font-size: 0.9em;
+}
+/* Tweak the invisible space above H* in order not to overlay links in text above */
+ h2 {
+  margin-top: -18px;  /* provide offset for in-page anchors */
+  padding-top: 31px;
+ }
+ h3 {
+  margin-top: -18px;  /* provide offset for in-page anchors */
+  padding-top: 24px;
+ }
+ h4 {
+  margin-top: -18px;  /* provide offset for in-page anchors */
+  padding-top: 24px;
+ }
+/* Float artwork pilcrow to the right */
+@media screen {
+  .artwork a.pilcrow {
+    display: block;
+    line-height: 0.7;
+    margin-top: 0.15em;
+  }
+}
+/* Make pilcrows on dd visible */
+@media screen {
+  dd:hover > a.pilcrow {
+    visibility: visible;
+  }
+}
+/* Make the placement of figcaption match that of a table's caption
+   by removing the figure's added bottom margin */
+.alignLeft.art-text,
+.alignCenter.art-text,
+.alignRight.art-text {
+   margin-bottom: 0;
+}
+.alignLeft,
+.alignCenter,
+.alignRight {
+  margin: 1em 0 0 0;
+}
+/* In print, the pilcrow won't show on hover, so prevent it from taking up space,
+   possibly even requiring a new line */
+@media print {
+  a.pilcrow {
+    display: none;
+  }
+}
+/* Styling for the external metadata */
+div#external-metadata {
+  background-color: #eee;
+  padding: 0.5em;
+  margin-bottom: 0.5em;
+  display: none;
+}
+div#internal-metadata {
+  padding: 0.5em;                       /* to match the external-metadata padding */
+}
+/* Styling for title RFC Number */
+h1#rfcnum {
+  clear: both;
+  margin: 0 0 -1em;
+  padding: 1em 0 0 0;
+}
+/* Make .olPercent look the same as <ol><li> */
+dl.olPercent > dd {
+  margin-bottom: 0.25em;
+  min-height: initial;
+}
+/* Give aside some styling to set it apart */
+aside {
+  border-left: 1px solid #ddd;
+  margin: 1em 0 1em 2em;
+  padding: 0.2em 2em;
+}
+aside > dl,
+aside > ol,
+aside > ul,
+aside > table,
+aside > p {
+  margin-bottom: 0.5em;
+}
+/* Additional page break settings */
+@media print {
+  figcaption, table caption {
+    page-break-before: avoid;
+  }
+}
+/* Font size adjustments for print */
+@media print {
+  body  { font-size: 10pt;      line-height: normal; max-width: 96%; }
+  h1    { font-size: 1.72em;    padding-top: 1.5em; } /* 1*1.2*1.2*1.2 */
+  h2    { font-size: 1.44em;    padding-top: 1.5em; } /* 1*1.2*1.2 */
+  h3    { font-size: 1.2em;     padding-top: 1.5em; } /* 1*1.2 */
+  h4    { font-size: 1em;       padding-top: 1.5em; }
+  h5, h6 { font-size: 1em;      margin: initial; padding: 0.5em 0 0.3em; }
+}
+/* Sourcecode margin in print, when there's no pilcrow */
+@media print {
+  .artwork,
+  .artwork > pre,
+  .sourcecode {
+    margin-bottom: 1em;
+  }
+}
+/* Avoid narrow tables forcing too narrow table captions, which may render badly */
+table {
+  min-width: 20em;
+}
+/* ol type a */
+ol.type-a { list-style-type: lower-alpha; }
+ol.type-A { list-style-type: upper-alpha; }
+ol.type-i { list-style-type: lower-roman; }
+ol.type-I { list-style-type: upper-roman; }
+/* Apply the print table and row borders in general, on request from the RPC,
+and increase the contrast between border and odd row background slightly */
+table {
+  border: 1px solid #ddd;
+}
+td {
+  border-top: 1px solid #ddd;
+}
+tr {
+  break-inside: avoid;
+}
+tr:nth-child(2n+1) > td {
+  background-color: #f8f8f8;
+}
+/* Use style rules to govern display of the TOC. */
+@media screen and (max-width: 1023px) {
+  #toc nav { display: none; }
+  #toc.active nav { display: block; }
+}
+/* Add support for keepWithNext */
+.keepWithNext {
+  break-after: avoid-page;
+  break-after: avoid-page;
+}
+/* Add support for keepWithPrevious */
+.keepWithPrevious {
+  break-before: avoid-page;
+}
+/* Change the approach to avoiding breaks inside artwork etc. */
+figure, pre, table, .artwork, .sourcecode  {
+  break-before: auto;
+  break-after: auto;
+}
+/* Avoid breaks between <dt> and <dd> */
+dl {
+  break-before: auto;
+  break-inside: auto;
+}
+dt {
+  break-before: auto;
+  break-after: avoid-page;
+}
+dd {
+  break-before: avoid-page;
+  break-after: auto;
+  orphans: 3;
+  widows: 3
+}
+span.break, dd.break {
+  margin-bottom: 0;
+  min-height: 0;
+  break-before: auto;
+  break-inside: auto;
+  break-after: auto;
+}
+/* Undo break-before ToC */
+@media print {
+  #toc {
+    break-before: auto;
+  }
+}
+/* Text in compact lists should not get extra bottom margin space,
+   since that would makes the list not compact */
+ul.compact p, .ulCompact p,
+ol.compact p, .olCompact p {
+ margin: 0;
+}
+/* But the list as a whole needs the extra space at the end */
+section ul.compact,
+section .ulCompact,
+section ol.compact,
+section .olCompact {
+  margin-bottom: 1em;                    /* same as p not within ul.compact etc. */
+}
+/* The tt and code background above interferes with for instance table cell
+   backgrounds.  Changed to something a bit more selective. */
+tt, code {
+  background-color: transparent;
+}
+p tt, p code, li tt, li code, dt tt, dt code {
+  background-color: #f8f8f8;
+}
+/* Tweak the pre margin -- 0px doesn't come out well */
+pre {
+   margin-top: 0.5px;
+}
+/* Tweak the compact list text */
+ul.compact, .ulCompact,
+ol.compact, .olCompact,
+dl.compact, .dlCompact {
+  line-height: normal;
+}
+/* Don't add top margin for nested lists */
+li > ul, li > ol, li > dl,
+dd > ul, dd > ol, dd > dl,
+dl > dd > dl {
+  margin-top: initial;
+}
+/* Elements that should not be rendered on the same line as a <dt> */
+/* This should match the element list in writer.text.TextWriter.render_dl() */
+dd > div.artwork:first-child,
+dd > aside:first-child,
+dd > blockquote:first-child,
+dd > figure:first-child,
+dd > ol:first-child,
+dd > div.sourcecode:first-child,
+dd > table:first-child,
+dd > ul:first-child {
+  clear: left;
+}
+/* fix for weird browser behaviour when <dd/> is empty */
+dt+dd:empty::before{
+  content: "\00a0";
+}
+/* Make paragraph spacing inside <li> smaller than in body text, to fit better within the list */
+li > p {
+  margin-bottom: 0.5em
+}
+/* Don't let p margin spill out from inside list items */
+li > p:last-of-type:only-child {
+  margin-bottom: 0;
+}
+</style>
+<link href="rfc-local.css" rel="stylesheet" type="text/css">
+</head>
+<body class="xml2rfc">
+<table class="ears">
+<thead><tr>
+<td class="left">Internet-Draft</td>
+<td class="center">draft-map-tasks-01</td>
+<td class="right">July 2026</td>
+</tr></thead>
+<tfoot><tr>
+<td class="left">Larsen</td>
+<td class="center">Expires 18 January 2027</td>
+<td class="right">[Page]</td>
+</tr></tfoot>
+</table>
+<div id="external-metadata" class="document-information"></div>
+<div id="internal-metadata" class="document-information">
+<dl id="identifiers">
+<dt class="label-workgroup">Workgroup:</dt>
+<dd class="workgroup">Network Working Group</dd>
+<dt class="label-published">Published:</dt>
+<dd class="published">
+<time datetime="2026-07-17" class="published">17 July 2026</time>
+    </dd>
+<dt class="label-intended-status">Intended Status:</dt>
+<dd class="intended-status">Standards Track</dd>
+<dt class="label-expires">Expires:</dt>
+<dd class="expires"><time datetime="2027-01-18">18 January 2027</time></dd>
+<dt class="label-authors">Author:</dt>
+<dd class="authors">
+<div class="author">
+      <div class="author-name">J. Larsen</div>
+<div class="org">Independent</div>
+</div>
+</dd>
+</dl>
+</div>
+<h1 id="title">MAP Tasks: Negotiation, Streaming Inference, Tools, Checkpoints, and Delegation</h1>
+<section id="section-abstract">
+      <h2 id="abstract"><a href="#abstract" class="selfRef">Abstract</a></h2>
+<p id="section-abstract-1">Defines the task layer of MAP: offer/quote/assign negotiation (with an optional bidding extension), streaming inference with credit-based flow control, tool invocation gated by requester-issued capability tokens, Merkle-committed transcripts with countersigned checkpoints, failure recovery by transcript replay, task delegation with budget and zone propagation, distributed memory/context retrieval, cancellation, and the task state machines for both roles.<a href="#section-abstract-1" class="pilcrow">¶</a></p>
+</section>
+<div id="status-of-memo">
+<section id="section-boilerplate.1">
+        <h2 id="name-status-of-this-memo">
+<a href="#name-status-of-this-memo" class="section-name selfRef">Status of This Memo</a>
+        </h2>
+<p id="section-boilerplate.1-1">
+        This Internet-Draft is submitted in full conformance with the
+        provisions of BCP 78 and BCP 79.<a href="#section-boilerplate.1-1" class="pilcrow">¶</a></p>
+<p id="section-boilerplate.1-2">
+        Internet-Drafts are working documents of the Internet Engineering Task
+        Force (IETF). Note that other groups may also distribute working
+        documents as Internet-Drafts. The list of current Internet-Drafts is
+        at <span><a href="https://datatracker.ietf.org/drafts/current/">https://datatracker.ietf.org/drafts/current/</a></span>.<a href="#section-boilerplate.1-2" class="pilcrow">¶</a></p>
+<p id="section-boilerplate.1-3">
+        Internet-Drafts are draft documents valid for a maximum of six months
+        and may be updated, replaced, or obsoleted by other documents at any
+        time. It is inappropriate to use Internet-Drafts as reference
+        material or to cite them other than as "work in progress."<a href="#section-boilerplate.1-3" class="pilcrow">¶</a></p>
+<p id="section-boilerplate.1-4">
+        This Internet-Draft will expire on 18 January 2027.<a href="#section-boilerplate.1-4" class="pilcrow">¶</a></p>
+</section>
+</div>
+<div id="copyright">
+<section id="section-boilerplate.2">
+        <h2 id="name-copyright-notice">
+<a href="#name-copyright-notice" class="section-name selfRef">Copyright Notice</a>
+        </h2>
+<p id="section-boilerplate.2-1">
+            Copyright (c) 2026 IETF Trust and the persons identified as the
+            document authors. All rights reserved.<a href="#section-boilerplate.2-1" class="pilcrow">¶</a></p>
+<p id="section-boilerplate.2-2">
+            This document is subject to BCP 78 and the IETF Trust's Legal
+            Provisions Relating to IETF Documents
+            (<span><a href="https://trustee.ietf.org/license-info">https://trustee.ietf.org/license-info</a></span>) in effect on the date of
+            publication of this document. Please review these documents
+            carefully, as they describe your rights and restrictions with
+            respect to this document. Code Components extracted from this
+            document must include Revised BSD License text as described in
+            Section 4.e of the Trust Legal Provisions and are provided without
+            warranty as described in the Revised BSD License.<a href="#section-boilerplate.2-2" class="pilcrow">¶</a></p>
+</section>
+</div>
+<div id="toc">
+<section id="section-toc.1">
+        <a href="#" onclick="scroll(0,0)" class="toplink">▲</a><h2 id="name-table-of-contents">
+<a href="#name-table-of-contents" class="section-name selfRef">Table of Contents</a>
+        </h2>
+<nav class="toc"><ul class="compact toc ulBare ulEmpty">
+<li class="compact toc ulBare ulEmpty" id="section-toc.1-1.1">
+            <p id="section-toc.1-1.1.1" class="keepWithNext"><a href="#section-1" class="auto internal xref">1</a>.  <a href="#name-requirements-language" class="internal xref">Requirements Language</a></p>
+</li>
+          <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.2">
+            <p id="section-toc.1-1.2.1" class="keepWithNext"><a href="#section-2" class="auto internal xref">2</a>.  <a href="#name-model" class="internal xref">Model</a></p>
+</li>
+          <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.3">
+            <p id="section-toc.1-1.3.1"><a href="#section-3" class="auto internal xref">3</a>.  <a href="#name-negotiation" class="internal xref">Negotiation</a></p>
+<ul class="compact toc ulBare ulEmpty">
+<li class="compact toc ulBare ulEmpty" id="section-toc.1-1.3.2.1">
+                <p id="section-toc.1-1.3.2.1.1" class="keepWithNext"><a href="#section-3.1" class="auto internal xref">3.1</a>.  <a href="#name-assign-and-payload-transpor" class="internal xref">ASSIGN and payload transport</a></p>
+</li>
+              <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.3.2.2">
+                <p id="section-toc.1-1.3.2.2.1"><a href="#section-3.2" class="auto internal xref">3.2</a>.  <a href="#name-bidding-extension-optional-" class="internal xref">Bidding extension (OPTIONAL, extension key 1 = `ext-bid`)</a></p>
+</li>
+            </ul>
+</li>
+          <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.4">
+            <p id="section-toc.1-1.4.1"><a href="#section-4" class="auto internal xref">4</a>.  <a href="#name-streaming-chunk" class="internal xref">Streaming: CHUNK</a></p>
+</li>
+          <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.5">
+            <p id="section-toc.1-1.5.1"><a href="#section-5" class="auto internal xref">5</a>.  <a href="#name-complete-and-output-commitm" class="internal xref">COMPLETE and output commitment</a></p>
+</li>
+          <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.6">
+            <p id="section-toc.1-1.6.1"><a href="#section-6" class="auto internal xref">6</a>.  <a href="#name-ranking-guidance-informativ" class="internal xref">Ranking guidance (informative)</a></p>
+</li>
+          <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.7">
+            <p id="section-toc.1-1.7.1"><a href="#section-7" class="auto internal xref">7</a>.  <a href="#name-reservations-capability-map" class="internal xref">Reservations (capability `map:cap:schedule/reservation`)</a></p>
+</li>
+          <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.8">
+            <p id="section-toc.1-1.8.1"><a href="#section-8" class="auto internal xref">8</a>.  <a href="#name-tool-invocation" class="internal xref">Tool invocation</a></p>
+</li>
+          <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.9">
+            <p id="section-toc.1-1.9.1"><a href="#section-9" class="auto internal xref">9</a>.  <a href="#name-checkpoints-transcripts-and" class="internal xref">Checkpoints, transcripts, and resumption</a></p>
+<ul class="compact toc ulBare ulEmpty">
+<li class="compact toc ulBare ulEmpty" id="section-toc.1-1.9.2.1">
+                <p id="section-toc.1-1.9.2.1.1"><a href="#section-9.1" class="auto internal xref">9.1</a>.  <a href="#name-transcript-commitment" class="internal xref">Transcript commitment</a></p>
+</li>
+              <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.9.2.2">
+                <p id="section-toc.1-1.9.2.2.1"><a href="#section-9.2" class="auto internal xref">9.2</a>.  <a href="#name-checkpoint-checkpoint_ack" class="internal xref">CHECKPOINT / CHECKPOINT_ACK</a></p>
+</li>
+              <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.9.2.3">
+                <p id="section-toc.1-1.9.2.3.1"><a href="#section-9.3" class="auto internal xref">9.3</a>.  <a href="#name-resumption" class="internal xref">Resumption</a></p>
+</li>
+              <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.9.2.4">
+                <p id="section-toc.1-1.9.2.4.1"><a href="#section-9.4" class="auto internal xref">9.4</a>.  <a href="#name-opaque-state-kv-cache-exten" class="internal xref">Opaque state / KV-cache (extension key 2 = `ext-kvx`)</a></p>
+</li>
+            </ul>
+</li>
+          <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.10">
+            <p id="section-toc.1-1.10.1"><a href="#section-10" class="auto internal xref">10</a>. <a href="#name-zone-enforcement-normative" class="internal xref">Zone enforcement (normative)</a></p>
+</li>
+          <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.11">
+            <p id="section-toc.1-1.11.1"><a href="#section-11" class="auto internal xref">11</a>. <a href="#name-delegation-of-tasks" class="internal xref">Delegation of tasks</a></p>
+</li>
+          <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.12">
+            <p id="section-toc.1-1.12.1"><a href="#section-12" class="auto internal xref">12</a>. <a href="#name-cancellation" class="internal xref">Cancellation</a></p>
+</li>
+          <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.13">
+            <p id="section-toc.1-1.13.1"><a href="#section-13" class="auto internal xref">13</a>. <a href="#name-memory-context-retrieval" class="internal xref">Memory / context retrieval</a></p>
+</li>
+          <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.14">
+            <p id="section-toc.1-1.14.1"><a href="#section-14" class="auto internal xref">14</a>. <a href="#name-task-state-machines" class="internal xref">Task state machines</a></p>
+</li>
+          <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.15">
+            <p id="section-toc.1-1.15.1"><a href="#section-15" class="auto internal xref">15</a>. <a href="#name-error-handling-and-retries" class="internal xref">Error handling and retries</a></p>
+</li>
+          <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.16">
+            <p id="section-toc.1-1.16.1"><a href="#section-16" class="auto internal xref">16</a>. <a href="#name-security-considerations" class="internal xref">Security Considerations</a></p>
+</li>
+          <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.17">
+            <p id="section-toc.1-1.17.1"><a href="#section-17" class="auto internal xref">17</a>. <a href="#name-iana-style-considerations" class="internal xref">IANA-Style Considerations</a></p>
+</li>
+          <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.18">
+            <p id="section-toc.1-1.18.1"><a href="#section-18" class="auto internal xref">18</a>. <a href="#name-references-selected" class="internal xref">References (selected)</a></p>
+</li>
+          <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.19">
+            <p id="section-toc.1-1.19.1"><a href="#appendix-A" class="auto internal xref"></a><a href="#name-authors-address" class="internal xref">Author's Address</a></p>
+</li>
+        </ul>
+</nav>
+</section>
+</div>
+<div id="requirements-language-1">
+<section id="section-1">
+      <h2 id="name-requirements-language">
+<a href="#section-1" class="section-number selfRef">1. </a><a href="#name-requirements-language" class="section-name selfRef">Requirements Language</a>
+      </h2>
+<p id="section-1-1">The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT", "SHOULD", "SHOULD NOT", "RECOMMENDED", "NOT RECOMMENDED", "MAY", and "OPTIONAL" in this document family are to be interpreted as described in BCP 14 [RFC2119] [RFC8174] when, and only when, they appear in all capitals, as shown here. No adaptation or weakening of these terms applies.<a href="#section-1-1" class="pilcrow">¶</a></p>
+</section>
+</div>
+<div id="model-2">
+<section id="section-2">
+      <h2 id="name-model">
+<a href="#section-2" class="section-number selfRef">2. </a><a href="#name-model" class="section-name selfRef">Model</a>
+      </h2>
+<p id="section-2-1">A <strong>task</strong> is a unit of remote work bound to one (requester, provider) pair, one capability, and one TaskID. Orchestration — decomposing a goal into a DAG of tasks, merging results — is application logic; MAP sees only tasks and (optionally) their parent/child delegation links. This keeps the protocol small and leaves merge strategy, scoring, and scheduling as local policy (critique C5), while giving orchestrators everything they need: verifiable per-task evidence, deterministic error semantics, and resumability.<a href="#section-2-1" class="pilcrow">¶</a></p>
+<p id="section-2-2">TaskID = 32 random bytes chosen by the requester; it is the idempotency key: a provider receiving ASSIGN for a known TaskID MUST NOT start a second execution and SHOULD respond with current state.<a href="#section-2-2" class="pilcrow">¶</a></p>
+<p id="section-2-3">Data ownership (normative): the requester is the source of truth for task <em>terms</em> (constraints, grants, budget); the provider is the source of truth for <em>execution state</em>; the countersigned transcript commitment (§8) is the only <em>shared</em> durable fact, and every cross-party claim — completion, usage, dispute — MUST be expressible against it. Neither party's local view is authoritative for the other; there is no distributed transaction between them, only signed messages, idempotent retries, and compensations (cancel-and-pay-to-boundary, §11). Ordering guarantees are scoped, never global: <code>seq</code> per session direction, <code>chunk-seq</code> per task.<a href="#section-2-3" class="pilcrow">¶</a></p>
+</section>
+</div>
+<div id="negotiation-3">
+<section id="section-3">
+      <h2 id="name-negotiation">
+<a href="#section-3" class="section-number selfRef">3. </a><a href="#name-negotiation" class="section-name selfRef">Negotiation</a>
+      </h2>
+<div class="sourcecode" id="section-3-1">
+<pre>Requester                              Provider
+   | -- OFFER {task summary} ----------→ |    (may be skipped: direct ASSIGN
+   | ←-------------- QUOTE {terms} ----- |     under a standing agreement)
+   | -- ASSIGN {full task, terms ref} -→ |
+   | ←------------------- ACCEPT ------- |    (or REJECT{code})</pre><a href="#section-3-1" class="pilcrow">¶</a>
+</div>
+<div class="lang-cddl sourcecode" id="section-3-2">
+<pre>Offer = {
+  1 =&gt; TaskID,
+  2 =&gt; CapURI,
+  3 =&gt; TaskConstraints,
+  ? 4 =&gt; PayRef,            ; pricing expectation (pay §3.1)
+  ? 5 =&gt; Timestamp,         ; offer expiry
+  ? 6 =&gt; ExtMap             ; negotiated extensions (e.g. ext-bid, §2.2)
+}
+TaskConstraints = {
+  ? 1 =&gt; uint,              ; max-context-tokens (hard)
+  ? 2 =&gt; uint,              ; max-output-tokens
+  ? 3 =&gt; uint,              ; deadline: wall-clock ms budget (hard)
+  ? 4 =&gt; uint,              ; ttft-ms guarantee requested (hard)
+  ? 5 =&gt; ZoneLabel,         ; task zone label (hard; §9)
+  ? 6 =&gt; uint,              ; min sandbox class (hard)
+  ? 7 =&gt; Multihash,         ; required model weights digest (hard if set)
+  ? 8 =&gt; ExtMap
+}
+Quote = { 1 =&gt; TaskID, ? 2 =&gt; PayQuoteRef /*pay §3.1; absent = gratis or
+          settlement out of band — payment is optional at the protocol
+          layer*/,
+          3 =&gt; uint /*guaranteed ttft-ms*/,
+          4 =&gt; Timestamp /*expiry*/, ? 5 =&gt; ExtMap }
+Accept = { }                                 ; empty content map
+Reject = { 1 =&gt; uint /*reason-code, §14*/ }</pre><a href="#section-3-2" class="pilcrow">¶</a>
+</div>
+<p id="section-3-3">(Accept/Reject content maps assigned 2026-07-06 from TASK-007 FR-1; the negotiation diagram above showed them only inline.)<a href="#section-3-3" class="pilcrow">¶</a></p>
+<p id="section-3-4">Fields marked <em>hard</em> MUST be satisfiable or the provider MUST REJECT (3xxx/4xxx); accepting then violating them is receipt-recordable breach. The quoted <code>ttft-ms</code> adopts design3's guarantee discipline: if the first CHUNK does not arrive within guarantee × 1.1, the requester SHOULD CANCEL (5001, retryable at other peers), fail over, and record the miss.<a href="#section-3-4" class="pilcrow">¶</a></p>
+<div id="assign-and-payload-transport-1">
+<section id="section-3.1">
+        <h3 id="name-assign-and-payload-transpor">
+<a href="#section-3.1" class="section-number selfRef">3.1. </a><a href="#name-assign-and-payload-transpor" class="section-name selfRef">ASSIGN and payload transport</a>
+        </h3>
+<div class="lang-cddl sourcecode" id="section-3.1-1">
+<pre>Assign = {
+  1 =&gt; TaskID, 2 =&gt; CapURI, 3 =&gt; TaskConstraints,
+  4 =&gt; InputSpec, 5 =&gt; FlowInit, ? 6 =&gt; PayAgreeRef /*pay §3.1*/, ? 7 =&gt; ExtMap }
+InputSpec = {
+  ? 1 =&gt; bstr,              ; inline input (&lt;= negotiated size)
+  ? 2 =&gt; [+ Multihash],     ; content-addressed blocks to fetch (Zone&lt;=1
+  ? 3 =&gt; [+ ContextRef]     ;   for proprietary payloads; §9)
+}
+FlowInit = { 1 =&gt; uint /*msg credits*/, 2 =&gt; uint /*byte credits*/ }</pre><a href="#section-3.1-1" class="pilcrow">¶</a>
+</div>
+</section>
+</div>
+<div id="bidding-extension-optional-ext-1">
+<section id="section-3.2">
+        <h3 id="name-bidding-extension-optional-">
+<a href="#section-3.2" class="section-number selfRef">3.2. </a><a href="#name-bidding-extension-optional-" class="section-name selfRef">Bidding extension (OPTIONAL, extension key 1 = `ext-bid`)</a>
+        </h3>
+<p id="section-3.2-1">Where markets are wanted, OFFER MAY be broadcast to k candidates; QUOTEs compete; the requester's selection function is local policy. <code>ext-bid</code> (extension key 1, core §5.1) is negotiated in HELLO (core §6.1 key 3) before use; peers that did not negotiate it MUST ignore its ExtMap entry.<a href="#section-3.2-1" class="pilcrow">¶</a></p>
+<p id="section-3.2-2">The extension adds a single ExtMap entry (Offer key 6 / Quote key 5) keyed by the extension code point:<a href="#section-3.2-2" class="pilcrow">¶</a></p>
+<div class="lang-cddl sourcecode" id="section-3.2-3">
+<pre>BidExt = {                            ; ExtMap value under ext key 1
+  1 =&gt; Timestamp,                     ; bid-deadline (QUOTEs after are late)
+  ? 2 =&gt; uint                         ; queue-wait-ms (advertised backlog)
+}</pre><a href="#section-3.2-3" class="pilcrow">¶</a>
+</div>
+<p id="section-3.2-4"><code>bid-deadline</code> (in an OFFER) bounds how long the requester collects QUOTEs; a provider's QUOTE received after it MAY be dropped. <code>queue-wait-ms</code> (in a QUOTE) is the provider's advertised current backlog, an input to the requester's local selection function only.<a href="#section-3.2-4" class="pilcrow">¶</a></p>
+<p id="section-3.2-5">No auction clearing rules are standardized: selection stays local policy (they were dimensionally incoherent in the source designs — critique C5), so this extension defines fields, never a mechanism.<a href="#section-3.2-5" class="pilcrow">¶</a></p>
+<p id="section-3.2-6">Security Considerations. <code>queue-wait-ms</code> is self-reported and therefore untrusted (critique C1): a provider can under-report backlog to win bids ("bid-sniping"). The requester's only defense is the trust projection — persistent under-delivery against advertised wait surfaces as poorer outcomes in dual-signed ExecutionReceipts (trust §8), so the lie is checkable ex post and repricing is local policy. <code>bid-deadline</code> is not a commitment device; it does not bind the provider.<a href="#section-3.2-6" class="pilcrow">¶</a></p>
+</section>
+</div>
+</section>
+</div>
+<div id="streaming-chunk-4">
+<section id="section-4">
+      <h2 id="name-streaming-chunk">
+<a href="#section-4" class="section-number selfRef">4. </a><a href="#name-streaming-chunk" class="section-name selfRef">Streaming: CHUNK</a>
+      </h2>
+<div class="lang-cddl sourcecode" id="section-4-1">
+<pre>Chunk = {
+  1 =&gt; TaskID,
+  2 =&gt; uint,                ; chunk-seq, from 0, dense
+  3 =&gt; uint,                ; kind: 0 output-text, 1 output-bytes,
+                            ;  2 log, 3 usage-update, 4 tool-io
+  4 =&gt; bstr,                ; content
+  ? 5 =&gt; bool               ; fin — last chunk of this kind
+}</pre><a href="#section-4-1" class="pilcrow">¶</a>
+</div>
+<p id="section-4-2">Chunks flow under FLOW_CREDIT (core §8.1). A <code>usage-update</code> (kind 3) chunk's <code>content</code> is the deterministic CBOR encoding (core §4.2) of a <code>Usage</code> map — the §4 Complete key 4 shape <code>{1 tokens-in, 2 tokens-out, 3 ttft-ms, 4 wall-ms}</code> — with counters CUMULATIVE since task start; these are the meter readings pay §4.1 verifies watermarked invoices against, so a metered provider MUST emit one at or before each watermark it bills. Ordering is per <code>chunk-seq</code>; the transcript (§8.1) is defined over output-kind chunks in seq order, making audits unambiguous.<a href="#section-4-2" class="pilcrow">¶</a></p>
+</section>
+</div>
+<div id="complete-and-output-commitment-5">
+<section id="section-5">
+      <h2 id="name-complete-and-output-commitm">
+<a href="#section-5" class="section-number selfRef">5. </a><a href="#name-complete-and-output-commitm" class="section-name selfRef">COMPLETE and output commitment</a>
+      </h2>
+<div class="lang-cddl sourcecode" id="section-5-1">
+<pre>Complete = {
+  1 =&gt; TaskID, 2 =&gt; uint /*outcome: 0 ok, 1 partial, 2 failed*/,
+  3 =&gt; Multihash,           ; transcript-root (§8.1) — output commitment
+  4 =&gt; { 1 =&gt; uint, 2 =&gt; uint, 3 =&gt; uint, 4 =&gt; uint },
+                            ; tokens-in/out, ttft-ms, wall-ms (claimed)
+  ? 5 =&gt; ExtMap }</pre><a href="#section-5-1" class="pilcrow">¶</a>
+</div>
+<p id="section-5-2">The requester verifies the transcript root against received chunks; match ⇒ it SHOULD issue/countersign the RECEIPT (trust §3) and settle (pay §5). Mismatch ⇒ 5000 + dispute path (pay §6). The signed COMPLETE is the provider's non-repudiable claim of what it produced (TH6, TH9).<a href="#section-5-2" class="pilcrow">¶</a></p>
+</section>
+</div>
+<div id="ranking-guidance-informative-6">
+<section id="section-6">
+      <h2 id="name-ranking-guidance-informativ">
+<a href="#section-6" class="section-number selfRef">6. </a><a href="#name-ranking-guidance-informativ" class="section-name selfRef">Ranking guidance (informative)</a>
+      </h2>
+<p id="section-6-1">Requesters typically shortlist via stable-plane constraints, refresh with STATUS, then rank by a local utility over: own-measured RTT/TTFT history, evidence-based trust per capability (trust §7), quoted price, and current queue. Weights are yours; publishing them invites gaming. Hard constraints are protocol; utility is not.<a href="#section-6-1" class="pilcrow">¶</a></p>
+</section>
+</div>
+<div id="reservations-capability-mapca-7">
+<section id="section-7">
+      <h2 id="name-reservations-capability-map">
+<a href="#section-7" class="section-number selfRef">7. </a><a href="#name-reservations-capability-map" class="section-name selfRef">Reservations (capability `map:cap:schedule/reservation`)</a>
+      </h2>
+<p id="section-7-1">Optional lease primitive for scarce resources: a requester sends RESERVE for a capability during a time window; the provider answers with a LEASE (granted / rejected / revoked). A granted lease is referenced by an ASSIGN's PayAgreeRef-adjacent flow (the lease id) and obliges the provider as below. Providers MAY require reservations by advertising <code>accepting = 2</code> in STATUS. Leases are soft state with expiry; no distributed scheduler is defined (Kubernetes-style global scheduling is a non-goal — the mesh converges via prices and queues).<a href="#section-7-1" class="pilcrow">¶</a></p>
+<p id="section-7-2">Message types: RESERVE <code>0x020F</code>, LEASE <code>0x0210</code>, LEASE_RELEASE <code>0x0211</code> (core §5).<a href="#section-7-2" class="pilcrow">¶</a></p>
+<div class="lang-cddl sourcecode" id="section-7-3">
+<pre>Reserve = {                           ; msg-type 0x020F
+  1 =&gt; bstr .size 16,                 ; rsv-id (requester-chosen, unique)
+  2 =&gt; CapURI,                        ; reserved capability
+  3 =&gt; Timestamp,                     ; window start (from)
+  4 =&gt; Timestamp,                     ; window end (until)
+  ? 5 =&gt; TaskConstraints,             ; the work the lease will admit
+  ? 6 =&gt; PayRef,                      ; holding-cost expectation (pay §3.1)
+  ? 7 =&gt; ExtMap
+}
+Lease = {                             ; msg-type 0x0210
+  1 =&gt; bstr .size 16,                 ; rsv-id (echoes the Reserve)
+  2 =&gt; uint,                          ; status: 0 granted, 1 rejected, 2 revoked
+  ? 3 =&gt; [Timestamp, Timestamp],      ; granted window [from, until]
+  ? 4 =&gt; PayQuoteRef,                 ; price of the hold (pay §3.1)
+  ? 5 =&gt; ExtMap
+}
+LeaseRelease = {                      ; msg-type 0x0211
+  1 =&gt; bstr .size 16,                 ; rsv-id
+  ? 2 =&gt; uint                         ; reason code (informational)
+}</pre><a href="#section-7-3" class="pilcrow">¶</a>
+</div>
+<p id="section-7-4">State machine (per rsv-id): <strong>Requested</strong> (RESERVE sent) → <strong>Granted</strong> (LEASE status 0) → <strong>Active</strong> (during <code>[from, until]</code>) → <strong>Released</strong> (LEASE_RELEASE) / <strong>Expired</strong> (past <code>until</code>) / <strong>Revoked</strong> (LEASE status 2). A RESERVE MAY instead be answered with LEASE status 1 (<strong>Rejected</strong>), a terminal state.<a href="#section-7-4" class="pilcrow">¶</a></p>
+<p id="section-7-5">Normative rules:<a href="#section-7-5" class="pilcrow">¶</a></p>
+<ul class="normal">
+<li class="normal" id="section-7-6.1">The rsv-id is the idempotency key: a repeated RESERVE with the same<a href="#section-7-6.1" class="pilcrow">¶</a>
+</li>
+      </ul>
+<p id="section-7-7">rsv-id and an identical window MUST be treated as a retransmission (the same LEASE re-sent), and a RESERVE reusing an rsv-id with a <em>different</em> window MUST be rejected (LEASE status 1) — silently re-scoping a live lease is forbidden.<a href="#section-7-7" class="pilcrow">¶</a></p>
+<ul class="normal">
+<li class="normal" id="section-7-8.1">A granted LEASE's window (key 3, when present) MUST fall within the<a href="#section-7-8.1" class="pilcrow">¶</a>
+</li>
+      </ul>
+<p id="section-7-9">RESERVE's requested <code>[from, until]</code>; a grant outside it is invalid and the requester MUST treat it as a rejection.<a href="#section-7-9" class="pilcrow">¶</a></p>
+<ul class="normal">
+<li class="normal" id="section-7-10.1">While a lease is Active, the provider MUST ACCEPT a conforming ASSIGN<a href="#section-7-10.1" class="pilcrow">¶</a>
+</li>
+      </ul>
+<p id="section-7-11">that references it (a task within the reserved capability and window and the RESERVE's constraints). A provider that fails to admit conforming work inside the window has missed the lease; the miss is receipt-recordable as a Failed outcome (outcome 1, trust §3) so the broken commitment is scored.<a href="#section-7-11" class="pilcrow">¶</a></p>
+<ul class="normal">
+<li class="normal" id="section-7-12.1">A LEASE for an rsv-id whose requested window already lies entirely in<a href="#section-7-12.1" class="pilcrow">¶</a>
+</li>
+      </ul>
+<p id="section-7-13">the past MUST be status 1 (rejected).<a href="#section-7-13" class="pilcrow">¶</a></p>
+<ul class="normal">
+<li class="normal" id="section-7-14.1">LEASE_RELEASE is idempotent by rsv-id and voluntary; a released or<a href="#section-7-14.1" class="pilcrow">¶</a>
+</li>
+      </ul>
+<p id="section-7-15">expired lease confers no obligation.<a href="#section-7-15" class="pilcrow">¶</a></p>
+<p id="section-7-16">Overlapping reservations for the same resource are provider policy, not protocol — a provider MAY reject (status 1) or admit them at its own risk.<a href="#section-7-16" class="pilcrow">¶</a></p>
+<p id="section-7-17">Security Considerations. The abuse is <strong>reservation squatting</strong>: cheaply holding scarce capacity to deny it to others. The mitigation is economic, not protocol-structural — RESERVE carries a <code>PayRef</code> (key 6) so the provider MAY price the hold (a non-refundable or escrowed holding cost via the pay layer, pay §3), making squatting cost money. A provider under sustained lease-DoS SHOULD fall back to shorter windows and higher holding costs; both are local policy. Because a missed lease is receipt-recordable, a provider that grants leases it cannot honor accrues negative trust (trust §8), which bounds over-committing.<a href="#section-7-17" class="pilcrow">¶</a></p>
+</section>
+</div>
+<div id="tool-invocation-8">
+<section id="section-8">
+      <h2 id="name-tool-invocation">
+<a href="#section-8" class="section-number selfRef">8. </a><a href="#name-tool-invocation" class="section-name selfRef">Tool invocation</a>
+      </h2>
+<p id="section-8-1">Direction inversion is the crux: during execution the <em>provider</em> asks the <em>requester</em> for permission to run a tool. Authorization is a capability token — a DelegationCert (identity §4) issued by the requester, pinned to this TaskID, naming allowed tool URIs and caveats:<a href="#section-8-1" class="pilcrow">¶</a></p>
+<div class="sourcecode" id="section-8-2">
+<pre>Provider                              Requester
+   | -- TOOL_CALL {task, tool-uri,  --→ |  policy check (allowlist, zone,
+   |               args-digest}         |  sandbox class, budget)
+   | ←- TOOL_GRANT {DelegationCert  --- |  caveats: task-id, tool-uri,
+   |               w/ caveats} -------- |  args-digest, expiry (&lt;=60s),
+   | -- TOOL_RESULT {output, digest} -→ |  max-invocations</pre><a href="#section-8-2" class="pilcrow">¶</a>
+</div>
+<p id="section-8-3">Rules: providers MUST NOT execute tools absent a valid unexpired grant whose caveats cover the exact call (args-digest binds the arguments); grants are single-task, non-redelegable by default; Zone-2 execution additionally requires SecurityProfile sandbox ≥ container and the tool on the provider's advertised allowlist (TH7, TH15). Tool I/O appears in the transcript as kind-4 chunks — auditable end to end.<a href="#section-8-3" class="pilcrow">¶</a></p>
+</section>
+</div>
+<div id="checkpoints-transcripts-and-re-9">
+<section id="section-9">
+      <h2 id="name-checkpoints-transcripts-and">
+<a href="#section-9" class="section-number selfRef">9. </a><a href="#name-checkpoints-transcripts-and" class="section-name selfRef">Checkpoints, transcripts, and resumption</a>
+      </h2>
+<div id="transcript-commitment-1">
+<section id="section-9.1">
+        <h3 id="name-transcript-commitment">
+<a href="#section-9.1" class="section-number selfRef">9.1. </a><a href="#name-transcript-commitment" class="section-name selfRef">Transcript commitment</a>
+        </h3>
+<p id="section-9.1-1"><code>transcript-root</code> = the Merkle root (suite hash H) over the output/tool chunks (kinds 0, 1, 4) in <code>chunk-seq</code> order, constructed as follows:<a href="#section-9.1-1" class="pilcrow">¶</a></p>
+<div class="sourcecode" id="section-9.1-2">
+<pre>leaf(c)        = H(0x00 || enc([c.chunk-seq, c.kind, c.content]))
+                 ; enc = deterministic CBOR (core §4.2) of the triple —
+                 ; bare concatenation would be ambiguous across
+                 ; variable-length fields
+parent(l, r)   = H(0x01 || l || r)      ; domain-separated from leaves
+odd node       = promoted unchanged to the next level
+empty root     = H(0x00 || enc([]))     ; zero output chunks</pre><a href="#section-9.1-2" class="pilcrow">¶</a>
+</div>
+<p id="section-9.1-3">Incremental, streaming-friendly, and shared by checkpoints, COMPLETE, receipts, and disputes — one commitment structure everywhere. The 0x00/ 0x01 domain separation prevents leaf/interior confusion attacks; the CBOR leaf encoding makes leaves injective in (seq, kind, content).<a href="#section-9.1-3" class="pilcrow">¶</a></p>
+</section>
+</div>
+<div id="checkpoint--checkpointack-1">
+<section id="section-9.2">
+        <h3 id="name-checkpoint-checkpoint_ack">
+<a href="#section-9.2" class="section-number selfRef">9.2. </a><a href="#name-checkpoint-checkpoint_ack" class="section-name selfRef">CHECKPOINT / CHECKPOINT_ACK</a>
+        </h3>
+<div class="lang-cddl sourcecode" id="section-9.2-1">
+<pre>Checkpoint = {
+  1 =&gt; TaskID, 2 =&gt; uint /*through chunk-seq*/,
+  3 =&gt; Multihash /*transcript-root so far*/,
+  ? 4 =&gt; bstr /*opaque engine state — Zone&lt;=1 or attested only*/,
+  ? 5 =&gt; { usage as in Complete.4 } }</pre><a href="#section-9.2-1" class="pilcrow">¶</a>
+</div>
+<p id="section-9.2-2">Providers SHOULD checkpoint every N output tokens (default 512) or at tool boundaries. The requester replies CHECKPOINT_ACK containing its <em>own signature over (TaskID, chunk-seq, root)</em> — the countersignature that makes a checkpoint a valid resumption point (critique C11: never resume from state attested only by the party that just failed or may be malicious).<a href="#section-9.2-2" class="pilcrow">¶</a></p>
+</section>
+</div>
+<div id="resumption-1">
+<section id="section-9.3">
+        <h3 id="name-resumption">
+<a href="#section-9.3" class="section-number selfRef">9.3. </a><a href="#name-resumption" class="section-name selfRef">Resumption</a>
+        </h3>
+<p id="section-9.3-1">On provider loss, the requester selects a successor and sends RESUME: {TaskID, last countersigned checkpoint, the output transcript so far (inline or content-addressed), original ASSIGN terms}. The successor re-warms by <strong>transcript replay</strong> — reprocessing prompt + prior output as context — and continues from chunk-seq+1. Determinism across heterogeneous engines is not assumed; the seam at the resumption point is permitted and visible in the transcript (marked by a kind-2 log chunk).<a href="#section-9.3-1" class="pilcrow">¶</a></p>
+</section>
+</div>
+<div id="opaque-state--kv-cache-extensi-1">
+<section id="section-9.4">
+        <h3 id="name-opaque-state-kv-cache-exten">
+<a href="#section-9.4" class="section-number selfRef">9.4. </a><a href="#name-opaque-state-kv-cache-exten" class="section-name selfRef">Opaque state / KV-cache (extension key 2 = `ext-kvx`)</a>
+        </h3>
+<p id="section-9.4-1">Engine-state blobs (Checkpoint.4) MAY shortcut re-warm <strong>only</strong> between peers running the identical engine+model+quantization, and only within Zone ≤1 or with TEE attestation — normative resumption remains replay (critique C10). <code>ext-kvx</code> (extension key 2, core §5.1) is HELLO-negotiated (core §6.1 key 3) and never required for conformance.<a href="#section-9.4-1" class="pilcrow">¶</a></p>
+<p id="section-9.4-2">Payload container (the only structure this revision fixes):<a href="#section-9.4-2" class="pilcrow">¶</a></p>
+<div class="lang-cddl sourcecode" id="section-9.4-3">
+<pre>KvxExt = {                            ; ExtMap value under ext key 2
+  1 =&gt; uint,                          ; container version
+  2 =&gt; bstr                           ; opaque engine-state blob
+}</pre><a href="#section-9.4-3" class="pilcrow">¶</a>
+</div>
+<p id="section-9.4-4">A receiver MUST reject a <code>KvxExt</code> outside Zone ≤1 unless the sender is TEE-attested (zone enforcement, §9). Engine-fingerprint matching (which engine+model+quantization tuples are interchangeable) and the blob's internal format are <strong>deferred</strong>: this section reserves the code point and the container; full semantics are future work. An implementation that does not understand a received <code>KvxExt</code> MUST fall back to replay resumption.<a href="#section-9.4-4" class="pilcrow">¶</a></p>
+</section>
+</div>
+</section>
+</div>
+<div id="zone-enforcement-normative-10">
+<section id="section-10">
+      <h2 id="name-zone-enforcement-normative">
+<a href="#section-10" class="section-number selfRef">10. </a><a href="#name-zone-enforcement-normative" class="section-name selfRef">Zone enforcement (normative)</a>
+      </h2>
+<p id="section-10-1">The task zone label (Constraints.5) governs everything attached to the task: ASSIGN MUST NOT go to a peer whose zone level exceeds the label (arch Z1); InputSpec content-addressed fetches of proprietary blocks are Zone ≤1; TOOL_GRANTs inherit the label; DELEGATE (§10) propagates it and MAY only tighten it (Z2). Violations: 2004, non-retryable, receiptable. The Git-workspace extension (<code>ext-git</code>, extension key 3, core §5.1, from design3) — shallow, path-scoped, token-gated clone/push over a dedicated stream — is defined for Zone ≤1 only and MUST be rejected in Zone ≥2. <code>ext-git</code> is HELLO-negotiated (core §6.1 key 3). Payload container:<a href="#section-10-1" class="pilcrow">¶</a></p>
+<div class="lang-cddl sourcecode" id="section-10-2">
+<pre>GitExt = {                            ; ExtMap value under ext key 3
+  1 =&gt; uint,                          ; container version
+  2 =&gt; bstr                           ; opaque git-workspace parameters
+}</pre><a href="#section-10-2" class="pilcrow">¶</a>
+</div>
+<p id="section-10-3">A receiver MUST reject a <code>GitExt</code> in Zone ≥2 (2004, non-retryable, receiptable). The clone/push protocol details (shallow depth, path scoping, token gating, stream framing) are <strong>deferred</strong>: this reserves the code point, the container, and the zone restriction; full semantics are future work. Peers that did not negotiate <code>ext-git</code> MUST ignore its ExtMap entry.<a href="#section-10-3" class="pilcrow">¶</a></p>
+</section>
+</div>
+<div id="delegation-of-tasks-11">
+<section id="section-11">
+      <h2 id="name-delegation-of-tasks">
+<a href="#section-11" class="section-number selfRef">11. </a><a href="#name-delegation-of-tasks" class="section-name selfRef">Delegation of tasks</a>
+      </h2>
+<p id="section-11-1">A provider MAY subcontract via DELEGATE-linked child tasks when the ASSIGN carries caveat <code>delegable ≥ 1</code>. The child ASSIGN embeds the parent chain (delegation depth decrements; budget caveats split; zone tightens-only). The root requester's receipt evidence names the whole chain, so accountability survives subcontracting. Default is non-delegable.<a href="#section-11-1" class="pilcrow">¶</a></p>
+</section>
+</div>
+<div id="cancellation-12">
+<section id="section-12">
+      <h2 id="name-cancellation">
+<a href="#section-12" class="section-number selfRef">12. </a><a href="#name-cancellation" class="section-name selfRef">Cancellation</a>
+      </h2>
+<p id="section-12-1">CANCEL content <code>{ 1 =&gt; TaskID, 2 =&gt; uint /<em>reason-code, §14</em>/ }</code> (field numbers assigned 2026-07-06 from TASK-007 FR-1) from either side; provider stops within one chunk boundary, emits a final CHECKPOINT and COMPLETE(outcome=partial). Usage to the countersigned boundary is payable (pay §4); this makes cancellation cheap to honor and removes the incentive to ignore it.<a href="#section-12-1" class="pilcrow">¶</a></p>
+</section>
+</div>
+<div id="memory--context-retrieval-13">
+<section id="section-13">
+      <h2 id="name-memory-context-retrieval">
+<a href="#section-13" class="section-number selfRef">13. </a><a href="#name-memory-context-retrieval" class="section-name selfRef">Memory / context retrieval</a>
+      </h2>
+<p id="section-13-1">Peers advertising MemoryTopics (discovery §2) serve:<a href="#section-13-1" class="pilcrow">¶</a></p>
+<div class="lang-cddl sourcecode" id="section-13-2">
+<pre>CtxQuery = { 1 =&gt; tstr /*domain*/, 2 =&gt; tstr /*embedding-model id*/,
+             3 =&gt; [+ float16/float32 as bstr] /*query vector(s)*/,
+             4 =&gt; uint /*top-k*/, ? 5 =&gt; float-as-decimal /*min-sim*/ }
+CtxResult = { 1 =&gt; [+ { 1 =&gt; bstr /*text*/, 2 =&gt; int /*sim milli*/ ,
+             ? 3 =&gt; Multihash /*provenance*/ } ] }</pre><a href="#section-13-2" class="pilcrow">¶</a>
+</div>
+<p id="section-13-3">The embedding-model id MUST match an advertised MemoryTopic (similarity across embedding spaces is undefined — critique). Thresholds are query parameters, not protocol constants. Retrieved context enters InputSpec as ContextRefs with provenance, so poisoned context is attributable (TH6/TH7).<a href="#section-13-3" class="pilcrow">¶</a></p>
+</section>
+</div>
+<div id="task-state-machines-14">
+<section id="section-14">
+      <h2 id="name-task-state-machines">
+<a href="#section-14" class="section-number selfRef">14. </a><a href="#name-task-state-machines" class="section-name selfRef">Task state machines</a>
+      </h2>
+<p id="section-14-1">Requester view:<a href="#section-14-1" class="pilcrow">¶</a></p>
+<div class="sourcecode" id="section-14-2">
+<pre>CREATED -OFFER→ QUOTED -ASSIGN→ PENDING -ACCEPT→ ACTIVE
+   |               |               |‐REJECT→ FAILED(f)      ACTIVE -CHUNK*→ ACTIVE
+   |               └-expiry→ FAILED(f)                      ACTIVE -CHECKPOINT/ACK→ ACTIVE
+   └(direct ASSIGN)→ PENDING                                ACTIVE -provider loss→ SUSPENDED
+SUSPENDED -RESUME(new peer)→ ACTIVE        ACTIVE -COMPLETE(ok)→ DELIVERED
+ACTIVE|SUSPENDED -CANCEL→ CANCELLED        DELIVERED -verify root→ SETTLING -pay/receipt→ CLOSED
+any -unrecoverable 2xxx/5xxx→ FAILED       DELIVERED -root mismatch→ DISPUTED (pay §6)</pre><a href="#section-14-2" class="pilcrow">¶</a>
+</div>
+<p id="section-14-3">Provider view: IDLE → QUOTING → COMMITTED (on ACCEPT; resources reserved) → EXECUTING ⇄ CHECKPOINTING → DELIVERED → SETTLED, with CANCELLED and FAILED exits mirroring the above. Providers MUST bound COMMITTED-without- ASSIGN-traffic by the quote expiry.<a href="#section-14-3" class="pilcrow">¶</a></p>
+</section>
+</div>
+<div id="error-handling-and-retries-15">
+<section id="section-15">
+      <h2 id="name-error-handling-and-retries">
+<a href="#section-15" class="section-number selfRef">15. </a><a href="#name-error-handling-and-retries" class="section-name selfRef">Error handling and retries</a>
+      </h2>
+<p id="section-15-1">Retryable-at-same-peer: 4000/4001 (backoff per <code>retry-after-ms</code>), 1005. Retry-elsewhere: 5001 TTFT miss, 4002, 3001. Non-retryable without change: 2xxx, 3002, 5004, 5005. Idempotent re-ASSIGN with the same TaskID is always safe (§1). Orchestrator fallback chains (local → trusted mesh → gateway) are thereby deterministic — the property design3 wanted from "aggressive fallbacks", now grounded in error semantics.<a href="#section-15-1" class="pilcrow">¶</a></p>
+</section>
+</div>
+<div id="security-considerations-16">
+<section id="section-16">
+      <h2 id="name-security-considerations">
+<a href="#section-16" class="section-number selfRef">16. </a><a href="#name-security-considerations" class="section-name selfRef">Security Considerations</a>
+      </h2>
+<p id="section-16-1">Tool gating (§7) and zone rules (§9) are the primary injection/exfiltration controls; transcripts+countersigned checkpoints give attributable execution and safe resumption; flow credit bounds provider exposure; TaskID idempotency prevents replayed ASSIGN double-execution (with core §7). Providers remain exposed to semantically malicious <em>inputs</em> — sandboxing requirements are the floor, not a guarantee; meshes SHOULD gate Zone-2 tool execution behind stricter sandbox classes than the default.<a href="#section-16-1" class="pilcrow">¶</a></p>
+</section>
+</div>
+<div id="iana-style-considerations-17">
+<section id="section-17">
+      <h2 id="name-iana-style-considerations">
+<a href="#section-17" class="section-number selfRef">17. </a><a href="#name-iana-style-considerations" class="section-name selfRef">IANA-Style Considerations</a>
+      </h2>
+<p id="section-17-1">Registers: chunk kinds; reservation/lease fields; caveat keys <code>delegable</code>, <code>budget</code>, <code>args-digest</code>; extensions <code>ext-bid</code> (key 1, complete, §2.2), <code>ext-kvx</code> (key 2, stub, §8.4), <code>ext-git</code> (key 3, stub, §9) — assigned in core §5.1. The assigned values and the family-wide index are in <code>draft-map-wire-01.md</code> §3.13, §3.14, and §3.15 (extension keys in §3.4); in case of divergence the normative definitions in §3, §6, §7, §8, and §9 govern.<a href="#section-17-1" class="pilcrow">¶</a></p>
+</section>
+</div>
+<div id="references-selected-18">
+<section id="section-18">
+      <h2 id="name-references-selected">
+<a href="#section-18" class="section-number selfRef">18. </a><a href="#name-references-selected" class="section-name selfRef">References (selected)</a>
+      </h2>
+<p id="section-18-1">[RFC2119] [RFC8174] BCP 14 requirement levels.<a href="#section-18-1" class="pilcrow">¶</a></p>
+</section>
+</div>
+<div id="authors-addresses">
+<section id="appendix-A">
+      <h2 id="name-authors-address">
+<a href="#name-authors-address" class="section-name selfRef">Author's Address</a>
+      </h2>
+<address class="vcard">
+        <div dir="auto" class="left"><span class="fn nameRole">Jesse Larsen</span></div>
+<div dir="auto" class="left"><span class="org">Independent</span></div>
+<div class="email">
+<span>Email:</span>
+<a href="mailto:jesselarsen@gmail.com" class="email">jesselarsen@gmail.com</a>
+</div>
+</address>
+</section>
+</div>
+<script>const toc = document.getElementById("toc");
+toc.querySelector("h2").addEventListener("click", e => {
+  toc.classList.toggle("active");
+});
+toc.querySelector("nav").addEventListener("click", e => {
+  toc.classList.remove("active");
+});
+</script>
+</body>
+</html>

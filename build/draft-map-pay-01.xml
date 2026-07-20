@@ -1,0 +1,340 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rfc docName="draft-map-pay-01" category="std" ipr="trust200902" version="3">
+  <front>
+    <title abbrev="draft-map-pay-01">MAP Payments: Negotiation, Settlement-Method Abstraction, Metering, and Disputes</title>
+    <author initials="J." surname="Larsen" fullname="Jesse Larsen"><organization>Independent</organization><address><email>jesselarsen@gmail.com</email></address></author>
+    <date year="2026" month="July" day="17"/>
+    <abstract><t>Defines payment <em>negotiation and evidence</em> for MAP: quotes, agreements, invoices, settlement proofs, payment receipts, and a dispute-evidence protocol &#8212; over a registry of pluggable settlement methods (Lightning, card-processor intents, stablecoins, ACH, Interledger, private credit ledgers). MAP mandates no currency, token, chain, or processor; it standardizes how parties agree on price, prove settlement occurred on the chosen rail, and exchange evidence when they disagree. This replaces the orchestrator-minted-credit designs rejected in the critique (C9).</t></abstract>
+  </front>
+  <middle>
+<section anchor="requirements-language-1" numbered="true">
+<name>Requirements Language</name>
+<t>The key words &quot;MUST&quot;, &quot;MUST NOT&quot;, &quot;REQUIRED&quot;, &quot;SHALL&quot;, &quot;SHALL NOT&quot;, &quot;SHOULD&quot;, &quot;SHOULD NOT&quot;, &quot;RECOMMENDED&quot;, &quot;NOT RECOMMENDED&quot;, &quot;MAY&quot;, and &quot;OPTIONAL&quot; in this document family are to be interpreted as described in BCP 14 [RFC2119] [RFC8174] when, and only when, they appear in all capitals, as shown here. No adaptation or weakening of these terms applies.</t>
+</section>
+<section anchor="model-and-data-semantics-2" numbered="true">
+<name>Model and data semantics</name>
+<t>Money moves on an external <strong>settlement rail</strong>; MAP moves <strong>signed statements about</strong> that movement. Ownership is explicit:</t>
+<ul><li>The <strong>rail</strong> is the sole source of truth for whether value moved. MAP</li></ul>
+<t>proofs are <em>pointers into</em> the rail&#x27;s truth, verifiable under the method&#x27;s own rules.</t>
+<ul><li>Each party owns its local payment-state view; there is no shared</li></ul>
+<t>payment state machine, no distributed transaction spanning rail and task, and no exactly-once assumption about rail operations &#8212; rails duplicate, delay, and fail-after-success, and every flow below is retry-safe under those conditions.</t>
+<ul><li>The dual-referenced pair (ExecutionReceipt.payment-ref &#8596; PayReceipt)</li></ul>
+<t>is the durable cross-context fact linking work to money; both are append-only events, deduplicated by content address.</t>
+<t>Distinguish three moments explicitly (never conflate them): <strong>agreed</strong> (PAY_AGREE exchanged), <strong>submitted</strong> (payer initiated on the rail), <strong>settled</strong> (proof verifies under the method). Delivery obligations key off <em>settled</em> or off negotiated credit terms &#8212; never off <em>submitted</em>.</t>
+<t>Amounts: CBOR decimal fractions (tag 4, integer mantissa/exponent) plus an asset identifier &#8212; never floats (core &#167;4.2).</t>
+<sourcecode type="cddl">Amount = #6.4([int, int])            ; [exponent, mantissa]
+Asset  = tstr                        ; &quot;iso4217:USD&quot;, &quot;asset:sat&quot;,
+                                     ; &quot;erc20:&lt;chain&gt;:&lt;addr&gt;&quot;, &quot;credit:&lt;mesh&gt;&quot;</sourcecode>
+</section>
+<section anchor="message-flow-3" numbered="true">
+<name>Message flow</name>
+<sourcecode>Requester(payer)                          Provider(payee)
+   | &#8592;------------- PAY_QUOTE ----------- |   (solicited by OFFER, tasks &#167;2)
+   | -- PAY_AGREE {quote-id, method} ---&#8594; |
+   |            ... task executes; usage-update chunks ...
+   | &#8592;------------- PAY_INVOICE --------- |   (final or incremental)
+   |   pay on the rail (out of band)      |
+   | -- PAY_PROOF {invoice-id, proof} --&#8594; |   verify under method rules
+   | &#8592;------------- PAY_RECEIPT --------- |   signed &quot;settled&quot; statement</sourcecode>
+<t>Prepaid and escrowed variants reorder steps (&#167;5.2); credit terms (pay-after, net-N) collapse INVOICE/PROOF to post-delivery.</t>
+</section>
+<section anchor="quotes-and-agreements-4" numbered="true">
+<name>Quotes and agreements</name>
+<sourcecode type="cddl">PayQuote = {                          ; msg-type 0x0400
+  1 =&gt; bstr .size 16,                 ; quote-id
+  2 =&gt; uint,                          ; pricing model: 0 flat, 1 per-token
+                                      ;  (in/out rates), 2 per-second,
+                                      ;  3 per-invocation
+  3 =&gt; { * uint =&gt; [Asset, Amount] }, ; rate table keyed by unit code
+  ? 4 =&gt; [Asset, Amount],             ; estimated / maximum total
+  5 =&gt; [+ MethodOffer],
+  6 =&gt; Timestamp,                     ; expiry
+  ? 7 =&gt; uint,                        ; terms: 0 postpaid, 1 prepaid,
+                                      ;  2 escrow, 3 metered-incremental
+  ? 8 =&gt; ExtMap,
+  ? 9 =&gt; bstr .size 32                ; task binding: TaskID (tasks &#167;1)
+}
+MethodOffer = { 1 =&gt; tstr /*method URI, &#167;5*/, 2 =&gt; bstr /*opaque params*/ }
+
+PayAgree = {                          ; msg-type 0x0401
+  1 =&gt; bstr .size 16,                 ; quote-id (binds exact quote bytes
+  2 =&gt; Multihash,                     ;  via quote-envelope digest)
+  3 =&gt; tstr,                          ; chosen method URI
+  ? 4 =&gt; [Asset, Amount]              ; authorized cap (hard ceiling)
+}</sourcecode>
+<t>Rate-table <strong>unit codes</strong> (registry; Specification Required, ops &#167;3):</t>
+<table><thead><tr><th>unit</th><th>meaning</th><th>used by model</th></tr></thead><tbody><tr><td>0</td><td>flat total (the whole task)</td><td>0</td></tr><tr><td>1</td><td>per token in</td><td>1</td></tr><tr><td>2</td><td>per token out</td><td>1</td></tr><tr><td>3</td><td>per millisecond of wall time</td><td>2</td></tr><tr><td>4</td><td>per invocation</td><td>3</td></tr></tbody></table>
+<t>Units price a SINGLE counted unit (per token, per millisecond &#8212; not per-1k), so every billed amount is an exact <tt>uint counter &#215; Amount</tt> product: no rounding rule exists anywhere in this document, by construction. <strong>Same-exponent rule</strong>: all Amounts in one quote&#x27;s rate table MUST share one decimal exponent and MUST be in one Asset; <tt>cumulative-billed</tt> and invoice amounts derived from them carry that same exponent, so verifiers compare mantissas directly (an exponent mismatch is a rejection, never a conversion).</t>
+<t>A signed PAY_AGREE referencing the quote digest is the enforceable agreement both sides hold; ASSIGN carries its reference (tasks &#167;2.1). Quotes are binding until expiry (unlike descriptor PricingHints, which are advertisements only). The authorized cap is a hard constraint: usage beyond it without a fresh agreement is unbillable &#8212; the requester-side runaway-cost defense.</t>
+<t>Task binding (key 9): when a PAY_QUOTE answers an OFFER that carries a TaskID (tasks &#167;2), key 9 MUST be present and equal that TaskID, and the requester MUST treat a mismatching or absent binding as a quote for a different task (reject or re-quote). Quotes without key 9 are standing quotes: they MAY be agreed to and then bound to a task only via the ASSIGN&#x27;s PayAgreeRef. This closes quote replay across tasks; replay of the quote bytes themselves is already excluded by the envelope msg-id and the PAY_AGREE digest binding.</t>
+<section anchor="payment-references-exported-ref-1" numbered="true">
+<name>Payment references (exported reference types)</name>
+<t>Other documents refer to payment state by identity only (ops &#167;2). The following types are the canonical cross-context references; digests are computed over the <strong>received envelope bytes</strong> of the referenced message (core invariant I1 &#8212; never over a re-serialization):</t>
+<sourcecode type="cddl">PayQuoteRef = {                       ; reference to a PAY_QUOTE
+  1 =&gt; bstr .size 16,                 ; quote-id
+  2 =&gt; Multihash                      ; digest of received PAY_QUOTE envelope
+}
+PayAgreeRef = {                       ; reference to a PAY_AGREE
+  1 =&gt; bstr .size 16,                 ; quote-id
+  2 =&gt; Multihash                      ; digest of received PAY_AGREE envelope
+}
+PayRef = {                            ; pre-quote pricing expectation (OFFER)
+  ? 1 =&gt; uint,                        ; acceptable pricing model (as PayQuote.2)
+  ? 2 =&gt; [Asset, Amount],             ; maximum acceptable total
+  ? 3 =&gt; [+ tstr],                    ; acceptable settlement method URIs (&#167;5)
+  ? 4 =&gt; PayAgreeRef                  ; standing agreement to price under
+}                                     ; at least one member MUST be present</sourcecode>
+<t><tt>Quote.2</tt> (tasks &#167;2) is a <tt>PayQuoteRef</tt>; <tt>Assign.6</tt> (tasks &#167;2.1) is a <tt>PayAgreeRef</tt>; <tt>Offer.4</tt> (tasks &#167;2) is a <tt>PayRef</tt>. A <tt>PayRef</tt> is an expectation, not a commitment: a provider MAY quote outside it, and the requester&#x27;s remedy is simply not to agree.</t>
+</section>
+</section>
+<section anchor="metering-and-incremental-settlem-5" numbered="true">
+<name>Metering and incremental settlement</name>
+<t>For streaming work, usage-update chunks (tasks &#167;3, kind 3) carry running <tt>{tokens-in, tokens-out, ms}</tt>. Under terms 3 (metered-incremental) the provider MAY issue incremental PAY_INVOICEs at usage watermarks; the requester tops up with PAY_PROOFs. If credit is exhausted, the provider pauses the stream with ERROR 6001 (retryable) and a final unpaid watermark; the requester either pays or CANCELs, owing usage to the last <strong>countersigned checkpoint</strong> (tasks &#167;11) &#8212; the checkpoint is what makes &quot;pay for what was delivered&quot; well-defined for both sides. The exact pause/resume/cancel mechanics (no new message type; resume is the covering PAY_PROOF) are &#167;4.2. Invoices are idempotent by invoice-id: re-sending an invoice or a proof MUST NOT double-bill or double-settle (receivers dedup; rails are consulted by proof, not by count).</t>
+<sourcecode type="cddl">PayInvoice = { 1 =&gt; bstr .size 16 /*invoice-id*/, 2 =&gt; bstr /*quote-id*/,
+  3 =&gt; [Asset, Amount], ? 4 =&gt; UsageWatermark, 5 =&gt; bstr /*method
+  payload: e.g. BOLT12 offer, processor intent id*/, 6 =&gt; Timestamp,
+  ? 7 =&gt; uint /*escrow phase, terms 2 only: 1 hold, 2 release &#8212; &#167;5.2.1*/ }
+PayProof   = { 1 =&gt; bstr /*invoice-id*/, 2 =&gt; tstr /*method*/,
+  3 =&gt; bstr /*proof payload: preimage, intent confirmation, tx ref*/ }
+PayReceipt = { 1 =&gt; bstr /*invoice-id*/, 2 =&gt; [Asset, Amount],
+  3 =&gt; Timestamp, ? 4 =&gt; Multihash /*proof digest*/,
+  ? 5 =&gt; uint /*kind: 0 settled (default), 1 held, 2 released,
+               3 refunded &#8212; &#167;5.2.1; unknown values MUST be rejected*/ }
+
+UsageWatermark = {                    ; PayInvoice key 4 (terms 3 only)
+  1 =&gt; TaskID,                        ; the metered task this invoice bills
+  2 =&gt; uint,                          ; through-chunk-seq: highest chunk-seq
+                                      ;  covered by this invoice (inclusive)
+  3 =&gt; Usage,                         ; CUMULATIVE usage since task start at
+                                      ;  that point (tasks &#167;4 Complete key 4
+                                      ;  shape: {1 tokens-in, 2 tokens-out,
+                                      ;  3 ttft-ms, 4 wall-ms})
+  4 =&gt; [Asset, Amount]                ; cumulative-billed: total billed
+}                                     ;  through and including THIS invoice</sourcecode>
+<section anchor="watermark-semantics-and-verifica-1" numbered="true">
+<name>Watermark semantics and verification</name>
+<t>A watermark is <strong>cumulative since task start</strong>, never a delta: a re-sent invoice is byte-identical (idempotency falls out), each invoice is independently verifiable, and monotonicity is a component-wise <tt>&gt;=</tt>. All four keys are REQUIRED when the watermark is present. Under terms 3 (metered-incremental) every PAY_INVOICE MUST carry key 4; under any other terms key 4 MUST be absent.</t>
+<t><tt>cumulative-billed</tt> (key 4) MUST equal the agreed rate table applied to the cumulative usage (key 3) under the agreed pricing model (&#167;3):</t>
+<ul><li>model 1 (per-token):  <tt>tokens-in &#215; rate[1] + tokens-out &#215; rate[2]</tt></li><li>model 2 (per-second): <tt>wall-ms &#215; rate[3]</tt> (rate unit 3 is per</li></ul>
+<t>MILLISECOND &#8212; &#167;3 unit codes &#8212; so the product is exact)</t>
+<ul><li>model 3 (per-invocation): <tt>invocations &#215; rate[4]</tt> (one invocation per</li></ul>
+<t>task in this revision)</t>
+<t>All products are exact (uint counter &#215; decimal-fraction rate under the &#167;3 same-exponent rule); no rounding is defined or permitted. The invoice <tt>amount</tt> (key 3) MUST equal this invoice&#x27;s <tt>cumulative-billed</tt> minus the <tt>cumulative-billed</tt> of the last invoice the requester settled for this task (zero for the first).</t>
+<t>The requester MUST verify, in order, before paying:</t>
+<ol><li>presence: key 4 present iff terms 3 &#8212; else ERROR <strong>6009</strong> (core &#167;9,</li></ol>
+<t>invoice-watermark violation);</t>
+<ol><li>task binding: <tt>TaskID</tt> equals the task bound by the agreement &#8212; else</li></ol>
+<t>ERROR 6007;</t>
+<ol><li>monotonicity: <tt>through-chunk-seq</tt>, every <tt>Usage</tt> component, and</li></ol>
+<t><tt>cumulative-billed</tt> are <tt>&gt;=</tt> the last ACCEPTED watermark&#x27;s &#8212; else 6009;</t>
+<ol><li>meter consistency: the watermark&#x27;s <tt>Usage</tt> equals the usage carried by</li></ol>
+<t>the latest received usage-update chunk (tasks &#167;3, kind 3) with <tt>chunk-seq &lt;= through-chunk-seq</tt> &#8212; a provider MUST meter (emit the kind-3 chunk) before it bills &#8212; else 6009;</t>
+<ol><li>arithmetic: the model formula above and the amount-delta rule &#8212; else</li></ol>
+<t>6009;</t>
+<ol><li>cap: <tt>cumulative-billed</tt> does not exceed the PAY_AGREE authorized cap</li></ol>
+<t>(&#167;3) &#8212; else ERROR 6005.</t>
+<t>A rejected invoice is not settled and does not advance the accepted watermark.</t>
+</section>
+<section anchor="pause-resume-and-cancel-1" numbered="true">
+<name>Pause, resume, and cancel</name>
+<t>Metered settlement introduces <strong>no new message type</strong>: pause, resume, and cancel are expressed entirely with messages already defined (ERROR, PAY_PROOF, FLOW_CREDIT, CANCEL). The exhaustion signal is <em>proof absence</em>, exactly as in the postpaid flow &#8212; a requester that cannot or will not pay an invoice simply withholds its PAY_PROOF; there is no &quot;insufficient&quot; message.</t>
+<t><strong>Pause</strong> is a provider-local decision, not a wire handshake. A provider MAY pause the stream whenever it holds an unpaid outstanding watermark (billed minus settled), and it SIGNALS the pause with ERROR <strong>6001</strong> (retryable) whose detail map (core &#167;9 key 5) carries the final unpaid watermark as <tt>{1 =&gt; UsageWatermark}</tt>. RECOMMENDED policy: pause when the unpaid amount would exceed the stream&#x27;s granted flow credit (core &#167;8.1) or the provider&#x27;s own per-stream exposure limit &#8212; so that unpaid delivery is bounded by exactly the backpressure MAP already provides. While paused, the provider MUST NOT emit further billable CHUNKs, MUST NOT re-issue a new invoice-id for already-billed usage (the paused invoice stands, idempotent by id &#8212; the 6001 watermark merely restates the outstanding position so a requester that missed the invoice can reconstruct it), and MUST NOT advance the watermark.</t>
+<t><strong>Resume</strong> requires no marker: the covering <strong>PAY_PROOF</strong> IS the resume trigger. When the provider observes a PAY_PROOF that settles the outstanding invoice(s) which caused the pause, it settles (PAY_RECEIPT) and continues streaming from the exact watermark &#8212; no gap and no double-bill, since the watermark is cumulative and monotonic. The next CHUNK the requester receives is itself the observable resume. A metered stream also remains governed by FLOW_CREDIT throughout: a requester that wishes to stop receiving (and thus being billed) MAY simply stop granting credit, starving the stream through the existing core &#167;8.1 mechanism.</t>
+<t><strong>Cancel</strong>: on CANCEL (tasks &#167;2, msg-type 0x020C) instead of top-up, the amount owed anchors to the last countersigned checkpoint (tasks &#167;8.2 key 5 usage, billed under the same &#167;4.1 formula), which both sides hold signed &#8212; never to an unpaid watermark the requester never countersigned. The owed amount is therefore always &#8804; the final unpaid watermark: a dying or malicious stream can claim payment only for delivery the requester has already acknowledged at a checkpoint.</t>
+<t>PAY_RECEIPT is the payee&#x27;s signed past-tense fact &quot;this invoice settled&quot;; it feeds ExecutionReceipt.payment-ref and is the payer&#x27;s permanent proof of payment independent of rail-side record retention.</t>
+</section>
+</section>
+<section anchor="settlement-methods-6" numbered="true">
+<name>Settlement methods</name>
+<section anchor="registry-specification-required-1" numbered="true">
+<name>Registry (Specification Required; initial entries)</name>
+<table><thead><tr><th>URI</th><th>Rail</th><th>Proof semantics</th></tr></thead><tbody><tr><td><tt>pay:lightning-bolt12</tt></td><td>Lightning</td><td>invoice payment preimage</td></tr><tr><td><tt>pay:stripe-intent</tt></td><td>card processors</td><td>intent id + processor confirmation fetchable by payee</td></tr><tr><td><tt>pay:erc20-stablecoin</tt></td><td>EVM stablecoins</td><td>tx hash + chain/confirmations params</td></tr><tr><td><tt>pay:ach</tt></td><td>ACH</td><td>trace number; settled = rail-final (days)</td></tr><tr><td><tt>pay:interledger</tt></td><td>Interledger/Web Monetization</td><td>STREAM receipt</td></tr><tr><td><tt>pay:credit-ledger</tt></td><td>private mesh ledger</td><td>ledger-operator-signed entry</td></tr><tr><td><tt>pay:x402</tt></td><td>x402 (HTTP-native stablecoin; EIP-3009 authorizations, facilitator settle)</td><td>signed transfer authorization; settled = facilitator/chain settlement</td></tr></tbody></table>
+<t>Each entry&#x27;s defining document specifies: params schema, proof schema, verification procedure, finality/reversal model, and refund reference format. Reversibility is a <em>method property</em> the payee prices in (an ACH &quot;settled&quot; can still reverse; a preimage cannot) &#8212; MAP surfaces it, never hides it.</t>
+<t>Method definition &#8212; <tt>pay:credit-ledger</tt> (added 2026-07-06 from TASK-009). A named ledger operator (a mesh-configured AgentID, trusted BY DESIGN for this method &#8212; the payee prices that trust in). Params (MethodOffer.2): none required for the MVP. Proof payload (PayProof.3): CBOR <tt>[entry-bytes, sig]</tt> where</t>
+<sourcecode>entry-bytes = enc([&quot;MAPLedgerEntry&quot;, invoice-id, payer-AgentID,
+                   payee-AgentID, [Asset, Amount], ts])
+sig         = Ed25519 by the operator over entry-bytes</sourcecode>
+<t>Verification (payee): <tt>verify_strict</tt> <tt>sig</tt> against the operator AgentID, then the entry&#x27;s invoice-id / payer / payee / [Asset, Amount] MUST equal the invoice being settled. Finality: instant and irreversible within the ledger (no chargeback path); balances move exactly once per invoice-id (operator dedups). Refund reference: a fresh entry in the reverse direction (out of MVP scope).</t>
+<t>Method definition &#8212; <tt>pay:x402</tt> (added 2026-07-14, ARCHITECT DESIGN; see CHANGELOG). Settles via the x402 protocol (x402.org, Apache-2.0): the payer signs an exact-amount, time-boxed, single-use on-chain transfer authorization (EIP-3009 <tt>transferWithAuthorization</tt> for EVM stablecoins such as USDC) and the payee &#8212; directly or through a payee-chosen <strong>facilitator</strong> service&#x27;s <tt>/verify</tt> and <tt>/settle</tt> endpoints &#8212; executes it on chain. MAP adopts x402&#x27;s <em>settlement payload and facilitator model only</em>: x402&#x27;s own HTTP 402/<tt>X-PAYMENT</tt> request loop is NOT used between MAP peers (PAY_QUOTE / PAY_AGREE / PAY_INVOICE already carry the negotiation with stronger binding); it remains appropriate at a gateway (ops &#167;5) that fronts external x402-priced HTTP services as MAP capabilities.</t>
+<t>Asset/amount mapping: the quote&#x27;s <tt>Asset</tt> MUST be the <tt>erc20:&lt;chain&gt;:&lt;addr&gt;</tt> form (&#167;1) naming the token the scheme settles, and the Amount exponent MUST be the token&#x27;s decimals negated (USDC &#8658; &#8722;6), so the mantissa IS the atomic unit count &#8212; the &#167;3 exact-arithmetic rules apply unchanged.</t>
+<t>Params (MethodOffer.2, deterministic-CBOR map):</t>
+<sourcecode type="cddl">X402Params = {
+  1 =&gt; uint,            ; x402Version (1 in this revision)
+  2 =&gt; tstr,            ; scheme (&quot;exact&quot; in this revision)
+  3 =&gt; tstr,            ; network id (e.g. &quot;base&quot;, &quot;base-sepolia&quot;)
+  4 =&gt; tstr,            ; payTo: payee on-chain address
+  ? 5 =&gt; tstr,          ; facilitator base URL (informative &#8212; payee&#x27;s choice)
+  ? 6 =&gt; uint           ; max authorization validity the payee accepts (s)
+}</sourcecode>
+<t>Proof payload (PayProof.3, deterministic-CBOR map):</t>
+<sourcecode type="cddl">X402Proof = {
+  1 =&gt; bstr             ; the x402 PaymentPayload, verbatim (the JSON bytes
+                        ;   an X-PAYMENT header would carry, base64-decoded):
+                        ;   scheme/network + the signed EIP-3009 authorization
+}</sourcecode>
+<t><strong>Invoice binding (MAP-specific MUST):</strong> the authorization&#x27;s 32-byte nonce MUST be <tt>SHA-256(&quot;MAP-x402-nonce&quot; || invoice-id)</tt>; the payee MUST verify it. This binds the authorization to exactly one MAP invoice, and the chain&#x27;s single-use-nonce rule then enforces exactly-once settlement across retries (layered under MAP&#x27;s invoice-id idempotency, not replacing it).</t>
+<t>Verification (payee): decode the payload; check x402Version/scheme/network/ <tt>payTo</tt> against the offered params, the token contract against the quote&#x27;s Asset, <tt>value</tt> == the invoice Amount mantissa (atomic units), the nonce rule above, and a validity window covering now + expected settle latency; then settle (facilitator <tt>/settle</tt> or direct submission). <strong>A successful <tt>/verify</tt> alone is NOT settlement</strong> &#8212; the payee MUST NOT reply PAY_RECEIPT (or release anything priced) before the settlement succeeds/confirms per its params. Finality: reversal-resistant once the transfer confirms; the facilitator is a payee-chosen, payee-trusted intermediary (the payer&#x27;s exposure is bounded by the exact-amount, time-boxed, single-use authorization) &#8212; reversibility and facilitator trust are method properties the payee prices in, per this section&#x27;s doctrine. Refund reference: the tx hash of a reverse transfer (out of MVP scope).</t>
+</section>
+<section anchor="prepay-and-escrow-terms-1-and-2-1" numbered="true">
+<name>Prepay and escrow (terms 1 and 2)</name>
+<t>Both variants move settlement BEFORE delivery. Neither adds a message type (the same doctrine as &#167;4.2): they are reorderings of the &#167;2 flow plus two additive optional fields &#8212; the invoice <tt>phase</tt> and the receipt <tt>kind</tt> (&#167;5.2.1). What they demand of the rail differs: prepay needs nothing beyond &#167;5.1; escrow is a <strong>method capability</strong> &#8212; only methods that support conditional holds (hold-invoice Lightning, processor auth-then-capture, contract escrow, the &#167;5.2.4 credit-ledger extension) may be offered in a terms-2 quote, and including a MethodOffer in a terms-2 quote asserts that the offered instance supports it. MAP&#x27;s role is unchanged in kind: the rail holds and moves the money; MAP defines the signed statements, their ordering, and the canonical release trigger both parties can evaluate &#8212; <strong>COMPLETE + verified transcript-root</strong> (tasks &#167;4).</t>
+<t>A quote under terms 1 or 2 MUST carry key 4 (estimated/maximum total): it is the amount settled or held up front, under the &#167;3 same-exponent rule. Terms are exclusive; combined metered-escrow (a held ceiling drawn down by watermarks) is not defined in this revision.</t>
+<section anchor="receipt-kinds-and-invoice-phases-1" numbered="true">
+<name>Receipt kinds and invoice phases (additive fields)</name>
+<t><tt>PayReceipt</tt> key 5 <tt>kind</tt>: 0 settled (the default when absent &#8212; all pre-existing receipts are unchanged), 1 held, 2 released, 3 refunded. Receivers MUST reject a receipt with an unrecognized kind (fail-closed; ERROR 6010). Only kinds 0 and 2 are settlement statements and feed <tt>ExecutionReceipt.payment-ref</tt>; kind 1 is the payee&#x27;s signed statement that a conforming hold exists on the rail; kind 3 records a return of held funds to the payer.</t>
+<t><tt>PayInvoice</tt> key 7 <tt>phase</tt>: 1 hold, 2 release. Key 7 MUST be present iff the governing agreement&#x27;s terms are 2 (the mirror of the &#167;4.1 watermark presence rule); a violation is ERROR 6010 (escrow violation, core &#167;9).</t>
+</section>
+<section anchor="terms-1--prepaid-1" numbered="true">
+<name>Terms 1 &#8212; prepaid</name>
+<sourcecode>Requester(payer)                          Provider(payee)
+   | &#8592;---- PAY_QUOTE {terms 1} ---------- |
+   | -- PAY_AGREE ----------------------&#8594; |
+   | &#8592;---- PAY_INVOICE ------------------ |   amount = quote key 4 total
+   |   pay on the rail (out of band)      |
+   | -- PAY_PROOF ----------------------&#8594; |   verify under method rules
+   | &#8592;---- PAY_RECEIPT {settled} -------- |
+   |            ... task executes ...     |
+   | &#8592;------------- COMPLETE ------------ |</sourcecode>
+<t>Rules: the single PAY_INVOICE MUST equal the quote&#x27;s key 4 total and carries no watermark (&#167;4.1) and no phase key (&#167;5.2.1). The provider MUST NOT begin billable execution before the invoice is <em>settled</em> &#8212; delivery keys off settled (&#167;1), which is precisely what the payer buys with a prepay. An amount other than the quoted total is ERROR 6010. Excess of prepay over eventual usage is not overbilling (the payer agreed the total; dispute claim 3 does not apply); non-delivery after settlement is dispute claim 0, with the receipt and the absent COMPLETE as evidence, remedied by the method&#x27;s refund reference or the mesh&#x27;s &#167;6 process.</t>
+</section>
+<section anchor="terms-2--escrow-1" numbered="true">
+<name>Terms 2 &#8212; escrow</name>
+<t>Escrow adds a fourth moment to &#167;1&#x27;s three: <strong>held</strong> &#8212; value locked on the rail such that the payer cannot unilaterally reclaim it, the payee cannot unilaterally claim it, and a defined expiry returns it to the payer. Under terms 2, delivery obligations key off <em>held</em>; final settlement keys off <em>released</em>.</t>
+<sourcecode>Requester(payer)                          Provider(payee)
+   | &#8592;---- PAY_QUOTE {terms 2} ---------- |
+   | -- PAY_AGREE ----------------------&#8594; |
+   | &#8592;---- PAY_INVOICE {phase 1 hold} --- |   amount = quote key 4 total
+   |   place hold on the rail (oob)       |
+   | -- PAY_PROOF {hold proof} ---------&#8594; |   verify hold under method
+   | &#8592;---- PAY_RECEIPT {kind 1 held} ---- |
+   |            ... task executes ...     |
+   | &#8592;------------- COMPLETE ------------ |   transcript-root (tasks &#167;4)
+   |   verify COMPLETE + transcript-root  |
+   | &#8592;---- PAY_INVOICE {phase 2 release}- |   amount = final owed &#8804; held
+   |   authorize release on the rail (oob)|
+   | -- PAY_PROOF {release proof} ------&#8594; |
+   | &#8592;---- PAY_RECEIPT {kind 2 released}- |   remainder refunds to payer</sourcecode>
+<t>Escrow is <strong>two invoice rounds</strong>, each the standard invoice&#8594;proof&#8594;receipt unit: hold and release carry distinct invoice-ids, both bound to the same quote-id, and &#167;4&#x27;s idempotency rules apply per round unchanged (a re-sent hold or release invoice is byte-identical; a re-delivered proof settles nothing twice).</t>
+<t>The requester MUST verify, in order, before acting on a terms-2 invoice:</t>
+<ol><li>phase: key 7 present and &#8712; {1, 2}, per &#167;5.2.1 &#8212; else ERROR 6010;</li><li>task binding: as &#167;4.1 check 2 &#8212; else 6007;</li><li>hold invoices: amount equals the quote key 4 total, and no prior hold</li></ol>
+<t>exists for this agreement (one hold per agreement) &#8212; else 6010;</t>
+<ol><li>release invoices: a COMPLETE for the bound task has been received AND</li></ol>
+<t>its transcript-root verified (tasks &#167;4) &#8212; the canonical release trigger. A release invoice before that MUST NOT be paid: 6010;</t>
+<ol><li>release amount: &#8804; the held amount; and if the task ended by CANCEL,</li></ol>
+<t>exactly the &#167;4.1 formula applied to the last countersigned checkpoint&#x27;s usage (the &#167;4.2 cancel anchor) &#8212; else 6010;</t>
+<ol><li>cap: as &#167;4.1 check 6 &#8212; else 6005.</li></ol>
+<t><strong>Authorization symmetry</strong> (the property that makes a hold an escrow and not a transfer): the rail/operator MUST NOT move held funds to the payee without a payer-signed release authorization bound to (hold-invoice-id, release-invoice-id, amount) &#8212; the payee cannot self-release; and held funds MUST NOT return to the payer before expiry without a payee-signed refund authorization &#8212; the payer cannot unwind a hold it granted. At release, the remainder (held minus released) returns to the payer in the same rail operation. A payer that verifies COMPLETE and then withholds its release signature is dispute claim 2 (non-payment), with the kind-1 receipt, the signed COMPLETE, and the transcript as evidence &#8212; MAP makes the lie expensive to sustain (&#167;6); the method and mesh make it remediable.</t>
+<t><strong>Expiry</strong>: every hold MUST carry an expiry (method params); at expiry, unreleased funds return to the payer in full, and a release fails on the rail thereafter (ERROR 6002 at the MAP layer). Payees SHOULD price the expiry at deadline + expected release latency with margin &#8212; an expiry shorter than the task deadline is self-harm, not a protocol violation.</t>
+<t>Failure matrix (honest-party exposure is bounded in every row): COMPLETE never arrives &#8594; expiry refunds the payer (dispute claim 0 if a record matters); CANCEL &#8594; release invoice for the checkpoint-anchored amount, remainder refunded (a kind-3 receipt for the remainder is OPTIONAL); provider vanishes &#8594; expiry refund; payer vanishes after COMPLETE &#8594; dispute claim 2, and the payee&#x27;s loss is bounded by work it can prove it delivered. The payee&#x27;s exposure is bounded by the hold (it never works beyond held value); the payer&#x27;s by the expiry (money returns absent its own signature).</t>
+</section>
+<section anchor="paycredit-ledger-escrow-exten-1" numbered="true">
+<name>`pay:credit-ledger` escrow extension</name>
+<t>The &#167;5.1 credit-ledger method supports terms 2 with three additional operator-signed entry forms (same <tt>[entry-bytes, sig]</tt> proof envelope and verification rules as &#167;5.1). Params (MethodOffer.2) under terms 2: <tt>{? 1 =&gt; uint}</tt> &#8212; maximum hold validity the operator accepts, seconds.</t>
+<sourcecode>hold-entry    = enc([&quot;MAPLedgerHold&quot;, hold-invoice-id, payer, payee,
+                     [Asset, Amount], expiry-ts, ts])
+release-auth  = enc([&quot;MAPLedgerReleaseAuth&quot;, hold-invoice-id,
+                     release-invoice-id, [Asset, Amount]])
+                ; signed by the PAYER, presented to the operator
+refund-auth   = enc([&quot;MAPLedgerRefundAuth&quot;, hold-invoice-id])
+                ; signed by the PAYEE (pre-expiry refund)
+release-entry = enc([&quot;MAPLedgerRelease&quot;, hold-invoice-id,
+                     release-invoice-id, payer, payee,
+                     [Asset, Amount], ts])
+refund-entry  = enc([&quot;MAPLedgerRefund&quot;, hold-invoice-id, payer,
+                     [Asset, Amount], ts])</sourcecode>
+<t>Operator rules: a hold moves Amount from the payer&#x27;s balance into an escrow bucket keyed by hold-invoice-id (idempotent by that id; insufficient balance &#8594; no entry). A release requires a valid payer <tt>release-auth</tt> over exactly this (hold, release, amount) triple, amount &#8804; held, and now &lt; expiry; it atomically credits the amount to the payee, returns the remainder to the payer, and closes the hold (idempotent by release-invoice-id). A refund requires expiry passed OR a valid payee <tt>refund-auth</tt>, returns the held amount to the payer, and closes the hold. The hold entry is the PAY_PROOF payload for the phase-1 invoice; the release entry for the phase-2 invoice.</t>
+<t><tt>pay:credit-ledger</tt> deliberately accommodates community meshes running reputation-priced barter or operator-run tabs &#8212; with the ledger operator named and chosen, not smuggled in as protocol (the fix for C9&#x27;s accidental central bank).</t>
+</section>
+</section>
+</section>
+<section anchor="disputes-7" numbered="true">
+<name>Disputes</name>
+<t>Scope: MAP adjudicates <em>evidence availability</em>, not outcomes. The protocol&#x27;s whole job here is that each party can (a) state a precise claim bound to a precise agreement, (b) hand over the signed artifacts that bear on it, and (c) let ANY third party the disputants choose (mesh arbiter, method-level chargeback, court) check the claim mechanically without trusting either disputant. Timeboxes, arbiter selection, and remedies are mesh/method policy &#8212; deliberately outside this document. Design goal: make lying <em>expensive to sustain</em> &#8212; every step of a MAP payment leaves a signed artifact the liar must contradict.</t>
+<section anchor="messages-1" numbered="true">
+<name>Messages</name>
+<sourcecode type="cddl">PayDispute = {                        ; msg-type 0x0405; either party
+  1 =&gt; bstr .size 16,                 ; dispute-id (fresh)
+  2 =&gt; bstr .size 16,                 ; invoice-id under dispute
+  3 =&gt; uint,                          ; claim code (registry, &#167;8):
+                                      ;  0 non-delivery, 1 output-mismatch,
+                                      ;  2 non-payment, 3 overbilling,
+                                      ;  4 terms breach
+  4 =&gt; PayAgreeRef,                   ; the governing agreement (&#167;3.1) &#8212;
+                                      ;  anchors quote, terms, cap, task
+  ? 5 =&gt; bstr .size 32,               ; TaskID, if the agreement is bound
+  ? 6 =&gt; tstr .size (0..1024),        ; free-text statement (never evidence)
+  7 =&gt; Timestamp
+}
+
+PayDisputeEvidence = {                ; msg-type 0x0406; both parties
+  1 =&gt; bstr .size 16,                 ; dispute-id
+  2 =&gt; [+ EvidenceItem],
+  ? 3 =&gt; bool                         ; more available (chunk under
+}                                     ;  FLOW_CREDIT, core &#167;8.1)
+
+EvidenceItem = {
+  1 =&gt; uint,                          ; kind (registry, &#167;8):
+                                      ;  0 PAY_QUOTE envelope
+                                      ;  1 PAY_AGREE envelope
+                                      ;  2 PAY_INVOICE envelope
+                                      ;  3 PAY_PROOF envelope
+                                      ;  4 PAY_RECEIPT envelope
+                                      ;  5 countersigned checkpoint
+                                      ;     (Checkpoint + the requester
+                                      ;      countersignature, tasks &#167;8.2)
+                                      ;  6 COMPLETE envelope
+                                      ;  7 ExecutionReceipt (dual-signed,
+                                      ;     trust &#167;3)
+                                      ;  8 method artifact (ledger entry,
+                                      ;     release-auth, x402 payload,
+                                      ;     gateway upstream evidence &#8230;)
+                                      ;  9 CHUNK envelope (tasks &#167;3) &#8212;
+                                      ;     delivered-transcript evidence
+                                      ;     for claim 1
+  2 =&gt; bstr,                          ; the artifact VERBATIM: for envelope
+                                      ;  kinds, the received envelope bytes
+                                      ;  (core I1 &#8212; never re-serialized)
+  ? 3 =&gt; bstr .size 32                ; the session channel binding (CB)
+}                                     ;  under which an in-session envelope
+                                      ;  was signed &#8212; see &#167;6.2</sourcecode>
+<t>Unrecognized claim codes and evidence kinds MUST be rejected (fail-closed). Disputes are idempotent by dispute-id; re-sent evidence messages MUST NOT duplicate items in the verifier&#x27;s view (dedup by item content address). Opening a dispute does not suspend other machinery by itself; a party refusing to continue a flow pending resolution signals ERROR 6003 (dispute opened). A receipt with outcome 4 (disputed, trust &#167;3) records the event on the trust plane either way, whoever proves right.</t>
+</section>
+<section anchor="third-party-verifiability-and-cb-1" numbered="true">
+<name>Third-party verifiability and CB disclosure</name>
+<t>Inner-signed artifacts (ExecutionReceipts, checkpoint countersignatures &#8212; decision-9-style signatures over stated bytes) are verifiable by anyone from the bytes alone. Envelope artifacts are COSE_Sign1 over the received bytes with <tt>external_aad</tt> = the session channel binding (CB) when sent in-session (core &#167;7.3) &#8212; so a third party CANNOT verify them without the CB. Therefore: an EvidenceItem carrying an in-session envelope MUST include key 3 (the CB value); out-of-session envelopes (empty external_aad) omit it. Disclosing a CB post-hoc is safe &#8212; it is an HKDF output, not key material, and reveals nothing about session traffic keys &#8212; and it is <em>useful</em>: all in-session items verifying under the SAME disclosed CB are thereby proven to come from one session between the two disputants. A verifier MUST treat an in-session item whose CB is absent or fails verification as unavailable evidence, not as a verified artifact.</t>
+</section>
+<section anchor="mechanical-verification-procedur-1" numbered="true">
+<name>Mechanical verification procedure</name>
+<t>Given a PayDispute and both parties&#x27; evidence sets, a verifier (either disputant, or any third party) proceeds: authenticate every item per &#167;6.2 against the AgentIDs bound by the agreement (item signers MUST be the disputants or the method&#x27;s named operator; anything else is discarded); resolve the agreement (kind-1 item matching PayAgreeRef&#x27;s digest, and its kind-0 quote matching the agreement&#x27;s quote digest &#8212; the 6006 machinery); then evaluate the claim:</t>
+<ul><li><strong>0 non-delivery</strong> (payer claims): supported iff the payer&#x27;s evidence</li></ul>
+<t>shows value moved &#8212; a settled PAY_RECEIPT (kind 0/2) or verified proof &#8212; AND the payee&#x27;s evidence contains NO countersigned checkpoint and no COMPLETE for the bound task. This is rebuttal-shaped: absence is never proven, so the claim <em>stands unrebutted</em> if the payee, who by construction holds the countersigned artifacts if delivery happened, produces none.</t>
+<ul><li><strong>1 output-mismatch</strong> (payer claims): supported iff the COMPLETE&#x27;s</li></ul>
+<t>transcript-root does not equal the root recomputed (tasks &#167;8.1) over the delivered transcript the payer presents, at or before the COMPLETE&#x27;s chunk range. Fully mechanical.</t>
+<ul><li><strong>2 non-payment</strong> (payee claims): rebuttal-shaped dual of claim 0:</li></ul>
+<t>stands unless the payer produces a verifying PAY_PROOF / receipt / release-auth covering the invoice (escrow: the release round).</t>
+<ul><li><strong>3 overbilling</strong> (payer claims): supported iff an invoice&#x27;s</li></ul>
+<t>cumulative-billed (or a terms-1/2 amount) exceeds the &#167;4.1 formula applied to the highest COUNTERSIGNED usage (checkpoint key 5) in evidence, under the agreement&#x27;s rate table &#8212; exact arithmetic, no tolerance. (Watermarks the payer accepted but did not countersign bill validly under &#167;4.1; overbilling is measured against what the payer ACKNOWLEDGED, which is why checkpoints exist.)</t>
+<ul><li><strong>4 terms breach</strong> (either): supported iff the evidence itself</li></ul>
+<t>exhibits a violation of &#167;3&#8211;&#167;5.2 rules that existing verifiers detect mechanically: quote-digest mismatch (6006), cap breach (6005), watermark violation (6009), escrow-phase/prepaid violation (6010), invalid proof (6008). The claim names the rule; the verifier re-runs the corresponding check over the presented artifacts.</t>
+<t>The verdict vocabulary is three-valued: <strong>supported</strong>, <strong>rebutted</strong>, or <strong>insufficient evidence</strong> &#8212; MAP never emits remedies. Both rebuttal-shaped claims (0, 2) resolve against the party that withholds artifacts it must hold if honest; that asymmetry is the availability doctrine doing its work.</t>
+</section>
+<section anchor="griefing-bounds-1" numbered="true">
+<name>Griefing bounds</name>
+<t>A dispute is itself a signed artifact: frivolous disputants accumulate their own evidence trail (&#167;7), and outcome-4 receipts weigh against both parties&#x27; trust projections pending resolution (trust &#167;5). Evidence volume rides FLOW_CREDIT (&#167;6.1 <tt>more</tt> chunking) &#8212; a party cannot flood; a verifier MAY cap total evidence size as local policy and rule &quot;insufficient&quot; beyond it.</t>
+</section>
+</section>
+<section anchor="security-considerations-8" numbered="true">
+<name>Security Considerations</name>
+<t>Proof replay: proofs bind to invoice-ids; invoice-ids bind to quote digests; core replay rules (&#167;7) cover the envelopes &#8212; a captured proof re-settles nothing. Price-switch: quotes are bound by digest in PAY_AGREE, so a payee cannot substitute terms. Griefing via disputes: disputes are signed and receiptable; frivolous disputants accumulate their own evidence trail. Sanctions/AML/KYC obligations attach to settlement methods and their operators, not to the negotiation layer; gateways and method implementations MUST NOT be assumed compliance-free (ops &#167;9). Metadata: invoices reveal counterparties and amounts to rail operators per the chosen method &#8212; surface this in method definitions so zone policy can exclude rails inconsistent with the task&#x27;s sensitivity.</t>
+</section>
+<section anchor="iana-style-considerations-9" numbered="true">
+<name>IANA-Style Considerations</name>
+<t>Registers: settlement method URIs (Specification Required); pricing model codes; terms codes; dispute claim codes; dispute evidence-item kinds (&#167;6.1); unit codes for rate tables. The assigned values and the family-wide index are in <tt>draft-map-wire-01.md</tt> &#167;3.18, &#167;3.19, and &#167;3.20; in case of divergence the normative definitions in &#167;3, &#167;5.1, and &#167;6 govern.</t>
+</section>
+<section anchor="references-selected-10" numbered="true">
+<name>References (selected)</name>
+<t>[RFC2119] [RFC8174] BCP 14 requirement levels.</t>
+</section>
+  </middle>
+  <back></back>
+</rfc>

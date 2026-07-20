@@ -1,0 +1,1924 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta content="Common,Latin" name="scripts">
+<meta content="initial-scale=1.0" name="viewport">
+<title>MAP Operations: Governance, Registries, Federation, Interoperability, and Migration</title>
+<meta content="Jesse Larsen" name="author">
+<meta content="
+       This document is part of the MAP (Manolito Agent Protocol) specification family. See draft-map-index-01 for the family overview and reading order. 
+    " name="description">
+<meta content="xml2rfc 3.34.0" name="generator">
+<meta content="draft-map-ops-01" name="ietf.draft">
+<!-- Generator version information:
+  xml2rfc 3.34.0
+    Python 3.12.10
+    ConfigArgParse 1.7.5
+    google-i18n-address 3.1.1
+    intervaltree 3.2.1
+    Jinja2 3.1.6
+    lxml 6.1.1
+    natsort 8.4.0
+    platformdirs 4.10.0
+    pycountry 26.2.16
+    PyYAML 6.0.3
+    requests 2.34.2
+    wcwidth 0.8.2
+-->
+<link href="draft-map-ops-01.xml" rel="alternate" type="application/rfc+xml">
+<link href="#copyright" rel="license">
+<style type="text/css">/*
+
+  NOTE: Changes at the bottom of this file overrides some earlier settings.
+
+  Once the style has stabilized and has been adopted as an official RFC style,
+  this can be consolidated so that style settings occur only in one place, but
+  for now the contents of this file consists first of the initial CSS work as
+  provided to the RFC Formatter (xml2rfc) work, followed by itemized and
+  commented changes found necessary during the development of the v3
+  formatters.
+
+*/
+
+/* fonts */
+@import url('https://static.ietf.org/fonts/noto-sans/import.css'); /* Sans-serif */
+@import url('https://static.ietf.org/fonts/noto-serif/import.css'); /* Serif (print) */
+@import url('https://static.ietf.org/fonts/roboto-mono/import.css'); /* Monospace */
+
+:root {
+  --font-sans: 'Noto Sans', Arial, Helvetica, sans-serif;
+  --font-serif: 'Noto Serif', 'Times', 'Times New Roman', serif;
+  --font-mono: 'Roboto Mono', Courier, 'Courier New', monospace;
+}
+
+@viewport {
+  zoom: 1.0;
+}
+@-ms-viewport {
+  width: extend-to-zoom;
+  zoom: 1.0;
+}
+/* general and mobile first */
+html {
+}
+body {
+  max-width: 90%;
+  margin: 1.5em auto;
+  color: #222;
+  background-color: #fff;
+  font-size: 14px;
+  font-family: var(--font-sans);
+  line-height: 1.6;
+  scroll-behavior: smooth;
+  overflow-wrap: break-word;
+}
+.ears {
+  display: none;
+}
+
+/* headings */
+#title, h1, h2, h3, h4, h5, h6 {
+  margin: 1em 0 0.5em;
+  font-weight: bold;
+  line-height: 1.3;
+}
+#title {
+  clear: both;
+  border-bottom: 1px solid #ddd;
+  margin: 0 0 0.5em 0;
+  padding: 1em 0 0.5em;
+}
+.author {
+  padding-bottom: 4px;
+}
+h1 {
+  font-size: 26px;
+  margin: 1em 0;
+}
+h2 {
+  font-size: 22px;
+  margin-top: -20px;  /* provide offset for in-page anchors */
+  padding-top: 33px;
+}
+h3 {
+  font-size: 18px;
+  margin-top: -36px;  /* provide offset for in-page anchors */
+  padding-top: 42px;
+}
+h4 {
+  font-size: 16px;
+  margin-top: -36px;  /* provide offset for in-page anchors */
+  padding-top: 42px;
+}
+h5, h6 {
+  font-size: 14px;
+}
+#n-copyright-notice {
+  border-bottom: 1px solid #ddd;
+  padding-bottom: 1em;
+  margin-bottom: 1em;
+}
+/* general structure */
+p {
+  padding: 0;
+  margin: 0 0 1em 0;
+  text-align: left;
+}
+div, span {
+  position: relative;
+}
+div {
+  margin: 0;
+}
+.alignRight.art-text {
+  background-color: #f9f9f9;
+  border: 1px solid #eee;
+  border-radius: 3px;
+  padding: 1em 1em 0;
+  margin-bottom: 1.5em;
+}
+.alignRight.art-text pre {
+  padding: 0;
+}
+.alignRight {
+  margin: 1em 0;
+}
+.alignRight > *:first-child {
+  border: none;
+  margin: 0;
+  float: right;
+  clear: both;
+}
+.alignRight > *:nth-child(2) {
+  clear: both;
+  display: block;
+  border: none;
+}
+svg {
+  display: block;
+}
+@media print {
+  svg {
+    max-height: 850px;
+    max-width: 660px;
+  }
+}
+svg[font-family~="serif" i], svg [font-family~="serif" i] {
+  font-family: var(--font-serif);
+}
+svg[font-family~="sans-serif" i], svg [font-family~="sans-serif" i] {
+  font-family: var(--font-sans);
+}
+svg[font-family~="monospace" i], svg [font-family~="monospace" i] {
+  font-family: var(--font-mono);
+}
+.alignCenter.art-text {
+  background-color: #f9f9f9;
+  border: 1px solid #eee;
+  border-radius: 3px;
+  padding: 1em 1em 0;
+  margin-bottom: 1.5em;
+}
+.alignCenter.art-text pre {
+  padding: 0;
+}
+.alignCenter {
+  margin: 1em 0;
+}
+.alignCenter > *:first-child {
+  display: table;
+  border: none;
+  margin: 0 auto;
+}
+
+/* lists */
+ol, ul {
+  padding: 0;
+  margin: 0 0 1em 2em;
+}
+ol ol, ul ul, ol ul, ul ol {
+  margin-left: 1em;
+}
+li {
+  margin: 0 0 0.25em 0;
+}
+.ulCompact li {
+  margin: 0;
+}
+ul.empty, .ulEmpty {
+  list-style-type: none;
+}
+ul.empty li, .ulEmpty li {
+  margin-top: 0.5em;
+}
+ul.ulBare, li.ulBare {
+  margin-left: 0em !important;
+}
+ul.compact, .ulCompact,
+ol.compact, .olCompact {
+  line-height: 100%;
+  margin: 0 0 0 2em;
+}
+
+/* definition lists */
+dl {
+}
+dl > dt {
+  float: left;
+  margin-right: 1em;
+}
+/* 
+dl.nohang > dt {
+  float: none;
+}
+*/
+dl > dd {
+  margin-bottom: .8em;
+  min-height: 1.3em;
+}
+dl.compact > dd, .dlCompact > dd {
+  margin-bottom: 0em;
+}
+dl > dd > dl {
+  margin-top: 0.5em;
+  margin-bottom: 0em;
+}
+
+/* links */
+a {
+  text-decoration: none;
+}
+a[href] {
+  color: #22e; /* Arlen: WCAG 2019 */
+}
+a[href]:hover {
+  background-color: #f2f2f2;
+}
+figcaption a[href],
+a[href].selfRef {
+  color: #222;
+}
+/* XXX probably not this:
+a.selfRef:hover {
+  background-color: transparent;
+  cursor: default;
+} */
+
+/* Figures */
+tt, code, pre {
+  background-color: #f9f9f9;
+  font-family: var(--font-mono);
+}
+pre {
+  border: 1px solid #eee;
+  margin: 0;
+  padding: 1em;
+}
+img {
+  max-width: 100%;
+}
+figure {
+  margin: 0;
+}
+figure blockquote {
+  margin: 0.8em 0.4em 0.4em;
+}
+figcaption {
+  font-style: italic;
+  margin: 0 0 1em 0;
+}
+@media screen {
+  pre {
+    overflow-x: auto;
+    max-width: 100%;
+    max-width: calc(100% - 22px);
+  }
+}
+
+/* aside, blockquote */
+aside, blockquote {
+  margin-left: 0;
+  padding: 1.2em 2em;
+}
+blockquote {
+  background-color: #f9f9f9;
+  color: #111; /* Arlen: WCAG 2019 */
+  border: 1px solid #ddd;
+  border-radius: 3px;
+  margin: 1em 0;
+}
+blockquote > *:last-child {
+  margin-bottom: 0;
+}
+cite {
+  display: block;
+  text-align: right;
+  font-style: italic;
+}
+.xref {
+  overflow-wrap: normal;
+}
+
+/* tables */
+table {
+  width: 100%;
+  margin: 0 0 1em;
+  border-collapse: collapse;
+  border: 1px solid #eee;
+}
+th, td {
+  text-align: left;
+  vertical-align: top;
+  padding: 0.5em 0.75em;
+}
+th {
+  text-align: left;
+  background-color: #e9e9e9;
+}
+tr:nth-child(2n+1) > td {
+  background-color: #f5f5f5;
+}
+table caption {
+  font-style: italic;
+  margin: 0;
+  padding: 0;
+  text-align: left;
+}
+table p {
+  /* XXX to avoid bottom margin on table row signifiers. If paragraphs should
+     be allowed within tables more generally, it would be far better to select on a class. */
+  margin: 0;
+}
+
+/* pilcrow */
+a.pilcrow {
+  color: #666; /* Arlen: AHDJ 2019 */
+  text-decoration: none;
+  visibility: hidden;
+  user-select: none;
+  -ms-user-select: none;
+  -o-user-select:none;
+  -moz-user-select: none;
+  -khtml-user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+@media screen {
+  aside:hover > a.pilcrow,
+  p:hover > a.pilcrow,
+  blockquote:hover > a.pilcrow,
+  div:hover > a.pilcrow,
+  li:hover > a.pilcrow,
+  pre:hover > a.pilcrow {
+    visibility: visible;
+  }
+  a.pilcrow:hover {
+    background-color: transparent;
+  }
+}
+
+/* misc */
+hr {
+  border: 0;
+  border-top: 1px solid #eee;
+}
+.bcp14 {
+  font-variant: small-caps;
+}
+
+.role {
+  font-variant: all-small-caps;
+}
+
+/* info block */
+#identifiers {
+  margin: 0;
+  font-size: 0.9em;
+}
+#identifiers dt {
+  width: 3em;
+  clear: left;
+}
+#identifiers dd {
+  float: left;
+  margin-bottom: 0;
+}
+/* Fix PDF info block run off issue */
+@media print {
+  #identifiers dd {
+    max-width: 100%;
+  }
+}
+#identifiers .authors .author {
+  display: inline-block;
+  margin-right: 1.5em;
+}
+#identifiers .authors .org {
+  font-style: italic;
+}
+
+/* The prepared/rendered info at the very bottom of the page */
+.docInfo {
+  color: #666; /* Arlen: WCAG 2019 */
+  font-size: 0.9em;
+  font-style: italic;
+  margin-top: 2em;
+}
+.docInfo .prepared {
+  float: left;
+}
+.docInfo .prepared {
+  float: right;
+}
+
+/* table of contents */
+#toc  {
+  padding: 0.75em 0 2em 0;
+  margin-bottom: 1em;
+}
+nav.toc ul {
+  margin: 0 0.5em 0 0;
+  padding: 0;
+  list-style: none;
+}
+nav.toc li {
+  line-height: 1.3em;
+  margin: 0.75em 0;
+  padding-left: 1.2em;
+  text-indent: -1.2em;
+}
+/* references */
+.references dt {
+  text-align: right;
+  font-weight: bold;
+  min-width: 7em;
+}
+.references dd {
+  margin-left: 8em;
+  overflow: auto;
+}
+
+.refInstance {
+  margin-bottom: 1.25em;
+}
+
+.refSubseries {
+  margin-bottom: 1.25em;
+}
+
+.references .ascii {
+  margin-bottom: 0.25em;
+}
+
+/* index */
+.index ul {
+  margin: 0 0 0 1em;
+  padding: 0;
+  list-style: none;
+}
+.index ul ul {
+  margin: 0;
+}
+.index li {
+  margin: 0;
+  text-indent: -2em;
+  padding-left: 2em;
+  padding-bottom: 5px;
+}
+.indexIndex {
+  margin: 0.5em 0 1em;
+}
+.index a {
+  font-weight: 700;
+}
+/* make the index two-column on all but the smallest screens */
+@media (min-width: 600px) {
+  .index ul {
+    -moz-column-count: 2;
+    -moz-column-gap: 20px;
+  }
+  .index ul ul {
+    -moz-column-count: 1;
+    -moz-column-gap: 0;
+  }
+}
+
+/* authors */
+address.vcard {
+  font-style: normal;
+  margin: 1em 0;
+}
+
+address.vcard .nameRole {
+  font-weight: 700;
+  margin-left: 0;
+}
+address.vcard .label {
+  font-family: var(--font-sans);
+  margin: 0.5em 0;
+}
+address.vcard .type {
+  display: none;
+}
+.alternative-contact {
+  margin: 1.5em 0 1em;
+}
+hr.addr {
+  border-top: 1px dashed;
+  margin: 0;
+  color: #ddd;
+  max-width: calc(100% - 16px);
+}
+
+/* temporary notes */
+.rfcEditorRemove::before {
+  position: absolute;
+  top: 0.2em;
+  right: 0.2em;
+  padding: 0.2em;
+  content: "The RFC Editor will remove this note";
+  color: #9e2a00; /* Arlen: WCAG 2019 */
+  background-color: #ffd; /* Arlen: WCAG 2019 */
+}
+.rfcEditorRemove {
+  position: relative;
+  padding-top: 1.8em;
+  background-color: #ffd; /* Arlen: WCAG 2019 */
+  border-radius: 3px;
+}
+.cref {
+  background-color: #ffd; /* Arlen: WCAG 2019 */
+  padding: 2px 4px;
+}
+.crefSource {
+  font-style: italic;
+}
+/* alternative layout for smaller screens */
+@media screen and (max-width: 1023px) {
+  body {
+    padding-top: 2em;
+  }
+  #title {
+    padding: 1em 0;
+  }
+  h1 {
+    font-size: 24px;
+  }
+  h2 {
+    font-size: 20px;
+    margin-top: -18px;  /* provide offset for in-page anchors */
+    padding-top: 38px;
+  }
+  #identifiers dd {
+    max-width: 60%;
+  }
+  #toc {
+    position: fixed;
+    z-index: 2;
+    top: 0;
+    right: 0;
+    padding: 0;
+    margin: 0;
+    background-color: inherit;
+    border-bottom: 1px solid #ccc;
+  }
+  #toc h2 {
+    margin: -1px 0 0 0;
+    padding: 4px 0 4px 6px;
+    padding-right: 1em;
+    min-width: 190px;
+    font-size: 1.1em;
+    text-align: right;
+    background-color: #444;
+    color: white;
+    cursor: pointer;
+  }
+  #toc h2::before { /* css hamburger */
+    float: right;
+    position: relative;
+    width: 1em;
+    height: 1px;
+    left: -164px;
+    margin: 6px 0 0 0;
+    background: white none repeat scroll 0 0;
+    box-shadow: 0 4px 0 0 white, 0 8px 0 0 white;
+    content: "";
+  }
+  #toc nav {
+    display: none;
+    padding: 0.5em 1em 1em;
+    overflow: auto;
+    height: calc(100vh - 48px);
+    border-left: 1px solid #ddd;
+  }
+}
+
+/* alternative layout for wide screens */
+@media screen and (min-width: 1024px) {
+  body {
+    max-width: 724px;
+    margin: 42px auto;
+    padding-left: 1.5em;
+    padding-right: 29em;
+  }
+  #toc {
+    position: fixed;
+    top: 42px;
+    right: 42px;
+    width: 25%;
+    margin: 0;
+    padding: 0 1em;
+    z-index: 1;
+  }
+  #toc h2 {
+    border-top: none;
+    border-bottom: 1px solid #ddd;
+    font-size: 1em;
+    font-weight: normal;
+    margin: 0;
+    padding: 0.25em 1em 1em 0;
+  }
+  #toc nav {
+    display: block;
+    height: calc(90vh - 84px);
+    bottom: 0;
+    padding: 0.5em 0 0;
+    overflow: auto;
+  }
+  img { /* future proofing */
+    max-width: 100%;
+    height: auto;
+  }
+}
+
+/* pagination */
+@media print {
+  body {
+    width: 100%;
+  }
+  p {
+    orphans: 3;
+    widows: 3;
+  }
+  #n-copyright-notice {
+    border-bottom: none;
+  }
+  #toc, #n-introduction {
+    page-break-before: always;
+  }
+  #toc {
+    border-top: none;
+    padding-top: 0;
+  }
+  figure, pre {
+    page-break-inside: avoid;
+  }
+  figure {
+    overflow: scroll;
+  }
+  .breakable pre {
+    break-inside: auto;
+  }
+  h1, h2, h3, h4, h5, h6 {
+    page-break-after: avoid;
+  }
+  h2+*, h3+*, h4+*, h5+*, h6+* {
+    page-break-before: avoid;
+  }
+  pre {
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    font-size: 10pt;
+  }
+  table {
+    border: 1px solid #ddd;
+  }
+  td {
+    border-top: 1px solid #ddd;
+  }
+}
+
+/* This is commented out here, as the string-set: doesn't
+   pass W3C validation currently */
+/*
+.ears thead .left {
+  string-set: ears-top-left content();
+}
+
+.ears thead .center {
+  string-set: ears-top-center content();
+}
+
+.ears thead .right {
+  string-set: ears-top-right content();
+}
+
+.ears tfoot .left {
+  string-set: ears-bottom-left content();
+}
+
+.ears tfoot .center {
+  string-set: ears-bottom-center content();
+}
+
+.ears tfoot .right {
+  string-set: ears-bottom-right content();
+}
+*/
+
+@page :first {
+  padding-top: 0;
+  @top-left {
+    content: normal;
+    border: none;
+  }
+  @top-center {
+    content: normal;
+    border: none;
+  }
+  @top-right {
+    content: normal;
+    border: none;
+  }
+}
+
+@page {
+  size: A4;
+  margin-bottom: 45mm;
+  padding-top: 20px;
+  /* The following is commented out here, but set appropriately by in code, as
+     the content depends on the document */
+  /*
+  @top-left {
+    content: 'Internet-Draft';
+    vertical-align: bottom;
+    border-bottom: solid 1px #ccc;
+  }
+  @top-left {
+    content: string(ears-top-left);
+    vertical-align: bottom;
+    border-bottom: solid 1px #ccc;
+  }
+  @top-center {
+    content: string(ears-top-center);
+    vertical-align: bottom;
+    border-bottom: solid 1px #ccc;
+  }
+  @top-right {
+    content: string(ears-top-right);
+    vertical-align: bottom;
+    border-bottom: solid 1px #ccc;
+  }
+  @bottom-left {
+    content: string(ears-bottom-left);
+    vertical-align: top;
+    border-top: solid 1px #ccc;
+  }
+  @bottom-center {
+    content: string(ears-bottom-center);
+    vertical-align: top;
+    border-top: solid 1px #ccc;
+  }
+  @bottom-right {
+      content: '[Page ' counter(page) ']';
+      vertical-align: top;
+      border-top: solid 1px #ccc;
+  }
+  */
+
+}
+
+/* Changes introduced to fix issues found during implementation */
+/* Make sure links are clickable even if overlapped by following H* */
+a {
+  z-index: 2;
+}
+/* Separate body from document info even without intervening H1 */
+section {
+  clear: both;
+}
+
+
+/* Top align author divs, to avoid names without organization dropping level with org names */
+.author {
+  vertical-align: top;
+}
+
+/* Leave room in document info to show Internet-Draft on one line */
+#identifiers dt {
+  width: 8em;
+}
+
+/* Don't waste quite as much whitespace between label and value in doc info */
+#identifiers dd {
+  margin-left: 1em;
+}
+
+/* Give floating toc a background color (needed when it's a div inside section */
+#toc {
+  background-color: white;
+}
+
+/* Make the collapsed ToC header render white on gray also when it's a link */
+@media screen and (max-width: 1023px) {
+  #toc h2 a,
+  #toc h2 a:link,
+  #toc h2 a:focus,
+  #toc h2 a:hover,
+  #toc a.toplink,
+  #toc a.toplink:hover {
+    color: white;
+    background-color: #444;
+    text-decoration: none;
+  }
+}
+
+/* Give the bottom of the ToC some whitespace */
+@media screen and (min-width: 1024px) {
+  #toc {
+    padding: 0 0 1em 1em;
+  }
+}
+
+/* Style section numbers with more space between number and title */
+.section-number {
+  padding-right: 0.5em;
+}
+
+/* prevent monospace from becoming overly large */
+tt, code, pre {
+  font-size: 95%;
+}
+
+/* Fix the height/width aspect for ascii art*/
+.sourcecode pre,
+.art-text pre {
+  line-height: 1.12;
+}
+
+
+/* Add styling for a link in the ToC that points to the top of the document */
+a.toplink {
+  float: right;
+  margin-right: 0.5em;
+}
+
+/* Fix the dl styling to match the RFC 7992 attributes */
+dl > dt,
+dl.dlParallel > dt {
+  float: left;
+  margin-right: 1em;
+}
+dl.dlNewline > dt {
+  float: none;
+}
+
+/* Provide styling for table cell text alignment */
+table td.text-left,
+table th.text-left {
+  text-align: left;
+}
+table td.text-center,
+table th.text-center {
+  text-align: center;
+}
+table td.text-right,
+table th.text-right {
+  text-align: right;
+}
+
+/* Make the alternative author contact information look less like just another
+   author, and group it closer with the primary author contact information */
+.alternative-contact {
+  margin: 0.5em 0 0.25em 0;
+}
+address .non-ascii {
+  margin: 0 0 0 2em;
+}
+
+/* With it being possible to set tables with alignment
+  left, center, and right, { width: 100%; } does not make sense */
+table {
+  width: auto;
+}
+
+/* Avoid reference text that sits in a block with very wide left margin,
+   because of a long floating dt label.*/
+.references dd {
+  overflow: visible;
+}
+
+/* Control caption placement */
+caption {
+  caption-side: bottom;
+}
+
+/* Limit the width of the author address vcard, so names in right-to-left
+   script don't end up on the other side of the page. */
+
+address.vcard {
+  max-width: 30em;
+  margin-right: auto;
+}
+
+/* For address alignment dependent on LTR or RTL scripts */
+address div.left {
+  text-align: left;
+}
+address div.right {
+  text-align: right;
+}
+
+/* Provide table alignment support.  We can't use the alignX classes above
+   since they do unwanted things with caption and other styling. */
+table.right {
+ margin-left: auto;
+ margin-right: 0;
+}
+table.center {
+ margin-left: auto;
+ margin-right: auto;
+}
+table.left {
+ margin-left: 0;
+ margin-right: auto;
+}
+
+/* Give the table caption label the same styling as the figcaption */
+caption a[href] {
+  color: #222;
+}
+
+@media print {
+  .toplink {
+    display: none;
+  }
+
+  /* avoid overwriting the top border line with the ToC header */
+  #toc {
+    padding-top: 1px;
+  }
+
+  /* Avoid page breaks inside dl and author address entries */
+  .vcard {
+    page-break-inside: avoid;
+  }
+
+}
+/* Tweak the bcp14 keyword presentation */
+.bcp14 {
+  font-variant: small-caps;
+  font-weight: bold;
+  font-size: 0.9em;
+}
+/* Tweak the invisible space above H* in order not to overlay links in text above */
+ h2 {
+  margin-top: -18px;  /* provide offset for in-page anchors */
+  padding-top: 31px;
+ }
+ h3 {
+  margin-top: -18px;  /* provide offset for in-page anchors */
+  padding-top: 24px;
+ }
+ h4 {
+  margin-top: -18px;  /* provide offset for in-page anchors */
+  padding-top: 24px;
+ }
+/* Float artwork pilcrow to the right */
+@media screen {
+  .artwork a.pilcrow {
+    display: block;
+    line-height: 0.7;
+    margin-top: 0.15em;
+  }
+}
+/* Make pilcrows on dd visible */
+@media screen {
+  dd:hover > a.pilcrow {
+    visibility: visible;
+  }
+}
+/* Make the placement of figcaption match that of a table's caption
+   by removing the figure's added bottom margin */
+.alignLeft.art-text,
+.alignCenter.art-text,
+.alignRight.art-text {
+   margin-bottom: 0;
+}
+.alignLeft,
+.alignCenter,
+.alignRight {
+  margin: 1em 0 0 0;
+}
+/* In print, the pilcrow won't show on hover, so prevent it from taking up space,
+   possibly even requiring a new line */
+@media print {
+  a.pilcrow {
+    display: none;
+  }
+}
+/* Styling for the external metadata */
+div#external-metadata {
+  background-color: #eee;
+  padding: 0.5em;
+  margin-bottom: 0.5em;
+  display: none;
+}
+div#internal-metadata {
+  padding: 0.5em;                       /* to match the external-metadata padding */
+}
+/* Styling for title RFC Number */
+h1#rfcnum {
+  clear: both;
+  margin: 0 0 -1em;
+  padding: 1em 0 0 0;
+}
+/* Make .olPercent look the same as <ol><li> */
+dl.olPercent > dd {
+  margin-bottom: 0.25em;
+  min-height: initial;
+}
+/* Give aside some styling to set it apart */
+aside {
+  border-left: 1px solid #ddd;
+  margin: 1em 0 1em 2em;
+  padding: 0.2em 2em;
+}
+aside > dl,
+aside > ol,
+aside > ul,
+aside > table,
+aside > p {
+  margin-bottom: 0.5em;
+}
+/* Additional page break settings */
+@media print {
+  figcaption, table caption {
+    page-break-before: avoid;
+  }
+}
+/* Font size adjustments for print */
+@media print {
+  body  { font-size: 10pt;      line-height: normal; max-width: 96%; }
+  h1    { font-size: 1.72em;    padding-top: 1.5em; } /* 1*1.2*1.2*1.2 */
+  h2    { font-size: 1.44em;    padding-top: 1.5em; } /* 1*1.2*1.2 */
+  h3    { font-size: 1.2em;     padding-top: 1.5em; } /* 1*1.2 */
+  h4    { font-size: 1em;       padding-top: 1.5em; }
+  h5, h6 { font-size: 1em;      margin: initial; padding: 0.5em 0 0.3em; }
+}
+/* Sourcecode margin in print, when there's no pilcrow */
+@media print {
+  .artwork,
+  .artwork > pre,
+  .sourcecode {
+    margin-bottom: 1em;
+  }
+}
+/* Avoid narrow tables forcing too narrow table captions, which may render badly */
+table {
+  min-width: 20em;
+}
+/* ol type a */
+ol.type-a { list-style-type: lower-alpha; }
+ol.type-A { list-style-type: upper-alpha; }
+ol.type-i { list-style-type: lower-roman; }
+ol.type-I { list-style-type: upper-roman; }
+/* Apply the print table and row borders in general, on request from the RPC,
+and increase the contrast between border and odd row background slightly */
+table {
+  border: 1px solid #ddd;
+}
+td {
+  border-top: 1px solid #ddd;
+}
+tr {
+  break-inside: avoid;
+}
+tr:nth-child(2n+1) > td {
+  background-color: #f8f8f8;
+}
+/* Use style rules to govern display of the TOC. */
+@media screen and (max-width: 1023px) {
+  #toc nav { display: none; }
+  #toc.active nav { display: block; }
+}
+/* Add support for keepWithNext */
+.keepWithNext {
+  break-after: avoid-page;
+  break-after: avoid-page;
+}
+/* Add support for keepWithPrevious */
+.keepWithPrevious {
+  break-before: avoid-page;
+}
+/* Change the approach to avoiding breaks inside artwork etc. */
+figure, pre, table, .artwork, .sourcecode  {
+  break-before: auto;
+  break-after: auto;
+}
+/* Avoid breaks between <dt> and <dd> */
+dl {
+  break-before: auto;
+  break-inside: auto;
+}
+dt {
+  break-before: auto;
+  break-after: avoid-page;
+}
+dd {
+  break-before: avoid-page;
+  break-after: auto;
+  orphans: 3;
+  widows: 3
+}
+span.break, dd.break {
+  margin-bottom: 0;
+  min-height: 0;
+  break-before: auto;
+  break-inside: auto;
+  break-after: auto;
+}
+/* Undo break-before ToC */
+@media print {
+  #toc {
+    break-before: auto;
+  }
+}
+/* Text in compact lists should not get extra bottom margin space,
+   since that would makes the list not compact */
+ul.compact p, .ulCompact p,
+ol.compact p, .olCompact p {
+ margin: 0;
+}
+/* But the list as a whole needs the extra space at the end */
+section ul.compact,
+section .ulCompact,
+section ol.compact,
+section .olCompact {
+  margin-bottom: 1em;                    /* same as p not within ul.compact etc. */
+}
+/* The tt and code background above interferes with for instance table cell
+   backgrounds.  Changed to something a bit more selective. */
+tt, code {
+  background-color: transparent;
+}
+p tt, p code, li tt, li code, dt tt, dt code {
+  background-color: #f8f8f8;
+}
+/* Tweak the pre margin -- 0px doesn't come out well */
+pre {
+   margin-top: 0.5px;
+}
+/* Tweak the compact list text */
+ul.compact, .ulCompact,
+ol.compact, .olCompact,
+dl.compact, .dlCompact {
+  line-height: normal;
+}
+/* Don't add top margin for nested lists */
+li > ul, li > ol, li > dl,
+dd > ul, dd > ol, dd > dl,
+dl > dd > dl {
+  margin-top: initial;
+}
+/* Elements that should not be rendered on the same line as a <dt> */
+/* This should match the element list in writer.text.TextWriter.render_dl() */
+dd > div.artwork:first-child,
+dd > aside:first-child,
+dd > blockquote:first-child,
+dd > figure:first-child,
+dd > ol:first-child,
+dd > div.sourcecode:first-child,
+dd > table:first-child,
+dd > ul:first-child {
+  clear: left;
+}
+/* fix for weird browser behaviour when <dd/> is empty */
+dt+dd:empty::before{
+  content: "\00a0";
+}
+/* Make paragraph spacing inside <li> smaller than in body text, to fit better within the list */
+li > p {
+  margin-bottom: 0.5em
+}
+/* Don't let p margin spill out from inside list items */
+li > p:last-of-type:only-child {
+  margin-bottom: 0;
+}
+</style>
+<link href="rfc-local.css" rel="stylesheet" type="text/css">
+</head>
+<body class="xml2rfc">
+<table class="ears">
+<thead><tr>
+<td class="left">Internet-Draft</td>
+<td class="center">draft-map-ops-01</td>
+<td class="right">July 2026</td>
+</tr></thead>
+<tfoot><tr>
+<td class="left">Larsen</td>
+<td class="center">Expires 18 January 2027</td>
+<td class="right">[Page]</td>
+</tr></tfoot>
+</table>
+<div id="external-metadata" class="document-information"></div>
+<div id="internal-metadata" class="document-information">
+<dl id="identifiers">
+<dt class="label-workgroup">Workgroup:</dt>
+<dd class="workgroup">Network Working Group</dd>
+<dt class="label-published">Published:</dt>
+<dd class="published">
+<time datetime="2026-07-17" class="published">17 July 2026</time>
+    </dd>
+<dt class="label-intended-status">Intended Status:</dt>
+<dd class="intended-status">Best Current Practice</dd>
+<dt class="label-expires">Expires:</dt>
+<dd class="expires"><time datetime="2027-01-18">18 January 2027</time></dd>
+<dt class="label-authors">Author:</dt>
+<dd class="authors">
+<div class="author">
+      <div class="author-name">J. Larsen</div>
+<div class="org">Independent</div>
+</div>
+</dd>
+</dl>
+</div>
+<h1 id="title">MAP Operations: Governance, Registries, Federation, Interoperability, and Migration</h1>
+<section id="section-abstract">
+      <h2 id="abstract"><a href="#abstract" class="selfRef">Abstract</a></h2>
+<p id="section-abstract-1">This document is part of the MAP (Manolito Agent Protocol) specification family. See draft-map-index-01 for the family overview and reading order.<a href="#section-abstract-1" class="pilcrow">¶</a></p>
+</section>
+<div id="status-of-memo">
+<section id="section-boilerplate.1">
+        <h2 id="name-status-of-this-memo">
+<a href="#name-status-of-this-memo" class="section-name selfRef">Status of This Memo</a>
+        </h2>
+<p id="section-boilerplate.1-1">
+        This Internet-Draft is submitted in full conformance with the
+        provisions of BCP 78 and BCP 79.<a href="#section-boilerplate.1-1" class="pilcrow">¶</a></p>
+<p id="section-boilerplate.1-2">
+        Internet-Drafts are working documents of the Internet Engineering Task
+        Force (IETF). Note that other groups may also distribute working
+        documents as Internet-Drafts. The list of current Internet-Drafts is
+        at <span><a href="https://datatracker.ietf.org/drafts/current/">https://datatracker.ietf.org/drafts/current/</a></span>.<a href="#section-boilerplate.1-2" class="pilcrow">¶</a></p>
+<p id="section-boilerplate.1-3">
+        Internet-Drafts are draft documents valid for a maximum of six months
+        and may be updated, replaced, or obsoleted by other documents at any
+        time. It is inappropriate to use Internet-Drafts as reference
+        material or to cite them other than as "work in progress."<a href="#section-boilerplate.1-3" class="pilcrow">¶</a></p>
+<p id="section-boilerplate.1-4">
+        This Internet-Draft will expire on 18 January 2027.<a href="#section-boilerplate.1-4" class="pilcrow">¶</a></p>
+</section>
+</div>
+<div id="copyright">
+<section id="section-boilerplate.2">
+        <h2 id="name-copyright-notice">
+<a href="#name-copyright-notice" class="section-name selfRef">Copyright Notice</a>
+        </h2>
+<p id="section-boilerplate.2-1">
+            Copyright (c) 2026 IETF Trust and the persons identified as the
+            document authors. All rights reserved.<a href="#section-boilerplate.2-1" class="pilcrow">¶</a></p>
+<p id="section-boilerplate.2-2">
+            This document is subject to BCP 78 and the IETF Trust's Legal
+            Provisions Relating to IETF Documents
+            (<span><a href="https://trustee.ietf.org/license-info">https://trustee.ietf.org/license-info</a></span>) in effect on the date of
+            publication of this document. Please review these documents
+            carefully, as they describe your rights and restrictions with
+            respect to this document. Code Components extracted from this
+            document must include Revised BSD License text as described in
+            Section 4.e of the Trust Legal Provisions and are provided without
+            warranty as described in the Revised BSD License.<a href="#section-boilerplate.2-2" class="pilcrow">¶</a></p>
+</section>
+</div>
+<div id="toc">
+<section id="section-toc.1">
+        <a href="#" onclick="scroll(0,0)" class="toplink">▲</a><h2 id="name-table-of-contents">
+<a href="#name-table-of-contents" class="section-name selfRef">Table of Contents</a>
+        </h2>
+<nav class="toc"><ul class="compact toc ulBare ulEmpty">
+<li class="compact toc ulBare ulEmpty" id="section-toc.1-1.1">
+            <p id="section-toc.1-1.1.1" class="keepWithNext"><a href="#section-1" class="auto internal xref">1</a>.  <a href="#name-requirements-language" class="internal xref">Requirements Language</a></p>
+</li>
+          <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.2">
+            <p id="section-toc.1-1.2.1" class="keepWithNext"><a href="#section-2" class="auto internal xref">2</a>.  <a href="#name-scope" class="internal xref">Scope</a></p>
+</li>
+          <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.3">
+            <p id="section-toc.1-1.3.1" class="keepWithNext"><a href="#section-3" class="auto internal xref">3</a>.  <a href="#name-engineering-policy-bounded-" class="internal xref">Engineering policy: bounded contexts and data semantics</a></p>
+</li>
+          <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.4">
+            <p id="section-toc.1-1.4.1"><a href="#section-4" class="auto internal xref">4</a>.  <a href="#name-registries-and-change-contr" class="internal xref">Registries and change control</a></p>
+<ul class="compact toc ulBare ulEmpty">
+<li class="compact toc ulBare ulEmpty" id="section-toc.1-1.4.2.1">
+                <p id="section-toc.1-1.4.2.1.1"><a href="#section-4.1" class="auto internal xref">4.1</a>.  <a href="#name-designated-experts" class="internal xref">Designated experts</a></p>
+</li>
+              <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.4.2.2">
+                <p id="section-toc.1-1.4.2.2.1"><a href="#section-4.2" class="auto internal xref">4.2</a>.  <a href="#name-private-experimental-use" class="internal xref">Private/experimental use</a></p>
+</li>
+              <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.4.2.3">
+                <p id="section-toc.1-1.4.2.3.1"><a href="#section-4.3" class="auto internal xref">4.3</a>.  <a href="#name-immutability-of-assignments" class="internal xref">Immutability of assignments</a></p>
+</li>
+              <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.4.2.4">
+                <p id="section-toc.1-1.4.2.4.1"><a href="#section-4.4" class="auto internal xref">4.4</a>.  <a href="#name-deprecation-process" class="internal xref">Deprecation process</a></p>
+</li>
+              <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.4.2.5">
+                <p id="section-toc.1-1.4.2.5.1"><a href="#section-4.5" class="auto internal xref">4.5</a>.  <a href="#name-registry-stewardship-and-ie" class="internal xref">Registry stewardship and IETF submission</a></p>
+</li>
+            </ul>
+</li>
+          <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.5">
+            <p id="section-toc.1-1.5.1"><a href="#section-5" class="auto internal xref">5</a>.  <a href="#name-versioning-discipline" class="internal xref">Versioning discipline</a></p>
+</li>
+          <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.6">
+            <p id="section-toc.1-1.6.1"><a href="#section-6" class="auto internal xref">6</a>.  <a href="#name-federation" class="internal xref">Federation</a></p>
+<ul class="compact toc ulBare ulEmpty">
+<li class="compact toc ulBare ulEmpty" id="section-toc.1-1.6.2.1">
+                <p id="section-toc.1-1.6.2.1.1"><a href="#section-6.1" class="auto internal xref">6.1</a>.  <a href="#name-paid-api-gateways-the-x402-" class="internal xref">Paid-API gateways (the x402 composition)</a></p>
+</li>
+            </ul>
+</li>
+          <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.7">
+            <p id="section-toc.1-1.7.1"><a href="#section-7" class="auto internal xref">7</a>.  <a href="#name-conformance-and-interoperab" class="internal xref">Conformance and interoperability testing</a></p>
+<ul class="compact toc ulBare ulEmpty">
+<li class="compact toc ulBare ulEmpty" id="section-toc.1-1.7.2.1">
+                <p id="section-toc.1-1.7.2.1.1"><a href="#section-7.1" class="auto internal xref">7.1</a>.  <a href="#name-structure" class="internal xref">Structure</a></p>
+</li>
+              <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.7.2.2">
+                <p id="section-toc.1-1.7.2.2.1"><a href="#section-7.2" class="auto internal xref">7.2</a>.  <a href="#name-required-negative-tests-min" class="internal xref">Required negative tests (minimum)</a></p>
+</li>
+              <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.7.2.3">
+                <p id="section-toc.1-1.7.2.3.1"><a href="#section-7.3" class="auto internal xref">7.3</a>.  <a href="#name-formal-analysis-program" class="internal xref">Formal analysis program</a></p>
+</li>
+              <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.7.2.4">
+                <p id="section-toc.1-1.7.2.4.1"><a href="#section-7.4" class="auto internal xref">7.4</a>.  <a href="#name-fuzzing-and-load" class="internal xref">Fuzzing and load</a></p>
+</li>
+            </ul>
+</li>
+          <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.8">
+            <p id="section-toc.1-1.8.1"><a href="#section-8" class="auto internal xref">8</a>.  <a href="#name-migration" class="internal xref">Migration</a></p>
+<ul class="compact toc ulBare ulEmpty">
+<li class="compact toc ulBare ulEmpty" id="section-toc.1-1.8.2.1">
+                <p id="section-toc.1-1.8.2.1.1"><a href="#section-8.1" class="auto internal xref">8.1</a>.  <a href="#name-from-legacy-manolito-mp2p-c" class="internal xref">From legacy Manolito/MP2P (conceptual)</a></p>
+</li>
+              <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.8.2.2">
+                <p id="section-toc.1-1.8.2.2.1"><a href="#section-8.2" class="auto internal xref">8.2</a>.  <a href="#name-from-hep-01-drafts-the-atta" class="internal xref">From HEP-0.1 drafts (the attached preprint)</a></p>
+</li>
+              <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.8.2.3">
+                <p id="section-toc.1-1.8.2.3.1"><a href="#section-8.3" class="auto internal xref">8.3</a>.  <a href="#name-coexistence" class="internal xref">Coexistence</a></p>
+</li>
+            </ul>
+</li>
+          <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.9">
+            <p id="section-toc.1-1.9.1"><a href="#section-9" class="auto internal xref">9</a>.  <a href="#name-reference-implementation-gu" class="internal xref">Reference implementation guidance</a></p>
+</li>
+          <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.10">
+            <p id="section-toc.1-1.10.1"><a href="#section-10" class="auto internal xref">10</a>. <a href="#name-compliance-and-regulatory-n" class="internal xref">Compliance and regulatory notes (informative)</a></p>
+</li>
+          <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.11">
+            <p id="section-toc.1-1.11.1"><a href="#section-11" class="auto internal xref">11</a>. <a href="#name-security-considerations" class="internal xref">Security Considerations</a></p>
+</li>
+          <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.12">
+            <p id="section-toc.1-1.12.1"><a href="#section-12" class="auto internal xref">12</a>. <a href="#name-iana-considerations" class="internal xref">IANA Considerations</a></p>
+</li>
+          <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.13">
+            <p id="section-toc.1-1.13.1"><a href="#section-13" class="auto internal xref">13</a>. <a href="#name-references-selected" class="internal xref">References (selected)</a></p>
+</li>
+          <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.14">
+            <p id="section-toc.1-1.14.1"><a href="#appendix-A" class="auto internal xref"></a><a href="#name-authors-address" class="internal xref">Author's Address</a></p>
+</li>
+        </ul>
+</nav>
+</section>
+</div>
+<div id="requirements-language-1">
+<section id="section-1">
+      <h2 id="name-requirements-language">
+<a href="#section-1" class="section-number selfRef">1. </a><a href="#name-requirements-language" class="section-name selfRef">Requirements Language</a>
+      </h2>
+<p id="section-1-1">The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT", "SHOULD", "SHOULD NOT", "RECOMMENDED", "NOT RECOMMENDED", "MAY", and "OPTIONAL" in this document family are to be interpreted as described in BCP 14 [RFC2119] [RFC8174] when, and only when, they appear in all capitals, as shown here. No adaptation or weakening of these terms applies.<a href="#section-1-1" class="pilcrow">¶</a></p>
+</section>
+</div>
+<div id="scope-2">
+<section id="section-2">
+      <h2 id="name-scope">
+<a href="#section-2" class="section-number selfRef">2. </a><a href="#name-scope" class="section-name selfRef">Scope</a>
+      </h2>
+<p id="section-2-1">Everything that keeps the MAP family coherent over time: the engineering policy binding the documents together, code-point registries and their change policies, the deprecation process, federation between meshes, conformance and interoperability testing, the formal-analysis program, reference-implementation guidance, migration from legacy designs, and regulatory notes.<a href="#section-2-1" class="pilcrow">¶</a></p>
+</section>
+</div>
+<div id="engineering-policy-bounded-cont-3">
+<section id="section-3">
+      <h2 id="name-engineering-policy-bounded-">
+<a href="#section-3" class="section-number selfRef">3. </a><a href="#name-engineering-policy-bounded-" class="section-name selfRef">Engineering policy: bounded contexts and data semantics</a>
+      </h2>
+<p id="section-3-1">The document family is a deliberate bounded-context decomposition. Each document owns a vocabulary, a small set of aggregates, and explicit data semantics; cross-context references are <strong>by identity only</strong> (AgentID, TaskID, quote-id, invoice-id, descriptor-cid, transcript-root), never by embedded foreign structures. Context integration happens through signed messages and translation (gateways, §5), never shared internal models.<a href="#section-3-1" class="pilcrow">¶</a></p>
+<table class="center" id="table-1">
+        <caption><a href="#table-1" class="selfRef">Table 1</a></caption>
+<thead>
+          <tr>
+            <th class="text-left" rowspan="1" colspan="1">Context (doc)</th>
+            <th class="text-left" rowspan="1" colspan="1">Aggregate roots (identity)</th>
+            <th class="text-left" rowspan="1" colspan="1">Durable facts / events</th>
+            <th class="text-left" rowspan="1" colspan="1">Derived data (rebuildable)</th>
+            <th class="text-left" rowspan="1" colspan="1">Ordering scope</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="text-left" rowspan="1" colspan="1">Identity</td>
+            <td class="text-left" rowspan="1" colspan="1">Key lineage (AgentID)</td>
+            <td class="text-left" rowspan="1" colspan="1">DelegationCert, ROTATE, REVOKE records</td>
+            <td class="text-left" rowspan="1" colspan="1">resolved chain caches, revocation views</td>
+            <td class="text-left" rowspan="1" colspan="1">per AgentID (rotation seq/time)</td>
+          </tr>
+          <tr>
+            <td class="text-left" rowspan="1" colspan="1">Core</td>
+            <td class="text-left" rowspan="1" colspan="1">Session (SessionID)</td>
+            <td class="text-left" rowspan="1" colspan="1">negotiation transcript hash</td>
+            <td class="text-left" rowspan="1" colspan="1">replay caches, credit counters</td>
+            <td class="text-left" rowspan="1" colspan="1">
+              <code>seq</code> per session direction</td>
+          </tr>
+          <tr>
+            <td class="text-left" rowspan="1" colspan="1">Discovery</td>
+            <td class="text-left" rowspan="1" colspan="1">Descriptor (AgentID + seq)</td>
+            <td class="text-left" rowspan="1" colspan="1">signed descriptors</td>
+            <td class="text-left" rowspan="1" colspan="1">DHT provider records, peer caches</td>
+            <td class="text-left" rowspan="1" colspan="1">
+              <code>seq</code> per subject (single writer, LWW)</td>
+          </tr>
+          <tr>
+            <td class="text-left" rowspan="1" colspan="1">Tasks</td>
+            <td class="text-left" rowspan="1" colspan="1">Task (TaskID)</td>
+            <td class="text-left" rowspan="1" colspan="1">ASSIGN terms, countersigned checkpoints, COMPLETE</td>
+            <td class="text-left" rowspan="1" colspan="1">provider execution state, requester progress view</td>
+            <td class="text-left" rowspan="1" colspan="1">
+              <code>chunk-seq</code> per task</td>
+          </tr>
+          <tr>
+            <td class="text-left" rowspan="1" colspan="1">Trust</td>
+            <td class="text-left" rowspan="1" colspan="1">Receipt (content address)</td>
+            <td class="text-left" rowspan="1" colspan="1">ExecutionReceipts, vouches, challenge outcomes</td>
+            <td class="text-left" rowspan="1" colspan="1">trust scores/tiers (projections)</td>
+            <td class="text-left" rowspan="1" colspan="1">timestamps per (peer, capability)</td>
+          </tr>
+          <tr>
+            <td class="text-left" rowspan="1" colspan="1">Pay</td>
+            <td class="text-left" rowspan="1" colspan="1">Agreement (quote digest), Invoice (invoice-id)</td>
+            <td class="text-left" rowspan="1" colspan="1">PAY_AGREE, PAY_PROOF, PAY_RECEIPT</td>
+            <td class="text-left" rowspan="1" colspan="1">balance/exposure views</td>
+            <td class="text-left" rowspan="1" colspan="1">per invoice-id</td>
+          </tr>
+        </tbody>
+      </table>
+<p id="section-3-3">Binding rules across the family (restating what each document enforces locally, so reviewers can check any change against one list):<a href="#section-3-3" class="pilcrow">¶</a></p>
+<ol start="1" type="1" class="normal type-1" id="section-3-4">
+<li id="section-3-4.1">
+          <strong>One source of truth per fact</strong>, named explicitly; everything else is<a href="#section-3-4.1" class="pilcrow">¶</a>
+</li>
+      </ol>
+<p id="section-3-5">a derived copy with a repair path (republish, re-fetch, recompute).<a href="#section-3-5" class="pilcrow">¶</a></p>
+<ol start="1" type="1" class="normal type-1" id="section-3-6">
+<li id="section-3-6.1">
+          <strong>Events are past-tense facts</strong> (RECEIPT, PAY_RECEIPT, REVOKE);<a href="#section-3-6.1" class="pilcrow">¶</a>
+</li>
+      </ol>
+<p id="section-3-7">commands are requests (ASSIGN, CANCEL, PAY_AGREE); the two are never conflated in naming or semantics.<a href="#section-3-7" class="pilcrow">¶</a></p>
+<ol start="1" type="1" class="normal type-1" id="section-3-8">
+<li id="section-3-8.1">
+          <strong>Idempotency everywhere delivery is uncertain</strong>: TaskID, invoice-id,<a href="#section-3-8.1" class="pilcrow">¶</a>
+</li>
+      </ol>
+<p id="section-3-9">msg-id, content addresses. No handler MAY have unrepeatable side effects; no design MAY assume exactly-once delivery.<a href="#section-3-9" class="pilcrow">¶</a></p>
+<ol start="1" type="1" class="normal type-1" id="section-3-10">
+<li id="section-3-10.1">
+          <strong>Ordering is scoped, never global</strong> — and each scope is written down.<a href="#section-3-10.1" class="pilcrow">¶</a>
+</li>
+        <li id="section-3-10.2">
+          <strong>Distinguish accepted / durable / applied</strong> (visible in pay §1's<a href="#section-3-10.2" class="pilcrow">¶</a>
+</li>
+      </ol>
+<p id="section-3-11">agreed/submitted/settled and tasks' countersigned-checkpoint boundary).<a href="#section-3-11" class="pilcrow">¶</a></p>
+<ol start="1" type="1" class="normal type-1" id="section-3-12">
+<li id="section-3-12.1">
+          <strong>Schema evolution is additive within a major version</strong>; contract<a href="#section-3-12.1" class="pilcrow">¶</a>
+</li>
+      </ol>
+<p id="section-3-13">changes ride registries and version negotiation; fields are never reused with new meaning (registry policy forbids re-assignment, §3.3).<a href="#section-3-13" class="pilcrow">¶</a></p>
+<ol start="1" type="1" class="normal type-1" id="section-3-14">
+<li id="section-3-14.1">
+          <strong>Projections MUST be rebuildable</strong> (trust scores from receipts, DHT<a href="#section-3-14.1" class="pilcrow">¶</a>
+</li>
+      </ol>
+<p id="section-3-15">index from descriptors) and their staleness observable.<a href="#section-3-15" class="pilcrow">¶</a></p>
+<p id="section-3-16">Changes to any MAP document that violate a row or rule above MUST be rejected in review or accompanied by an explicit amendment to this table.<a href="#section-3-16" class="pilcrow">¶</a></p>
+</section>
+</div>
+<div id="registries-and-change-control-4">
+<section id="section-4">
+      <h2 id="name-registries-and-change-contr">
+<a href="#section-4" class="section-number selfRef">4. </a><a href="#name-registries-and-change-contr" class="section-name selfRef">Registries and change control</a>
+      </h2>
+<p id="section-4-1">Registries are documents plus process — never runtime services (arch G1).<a href="#section-4-1" class="pilcrow">¶</a></p>
+<table class="center" id="table-2">
+        <caption><a href="#table-2" class="selfRef">Table 2</a></caption>
+<thead>
+          <tr>
+            <th class="text-left" rowspan="1" colspan="1">Registry</th>
+            <th class="text-left" rowspan="1" colspan="1">Policy</th>
+            <th class="text-left" rowspan="1" colspan="1">Notes</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="text-left" rowspan="1" colspan="1">Cryptographic Suites</td>
+            <td class="text-left" rowspan="1" colspan="1">Standards Action</td>
+            <td class="text-left" rowspan="1" colspan="1">security-critical</td>
+          </tr>
+          <tr>
+            <td class="text-left" rowspan="1" colspan="1">Message Types, Body Keys, Error Codes</td>
+            <td class="text-left" rowspan="1" colspan="1">Specification Required</td>
+            <td class="text-left" rowspan="1" colspan="1">ranges per core §5; 0xF000+ private</td>
+          </tr>
+          <tr>
+            <td class="text-left" rowspan="1" colspan="1">Extension Keys</td>
+            <td class="text-left" rowspan="1" colspan="1">Specification Required</td>
+            <td class="text-left" rowspan="1" colspan="1">HELLO-negotiated before use</td>
+          </tr>
+          <tr>
+            <td class="text-left" rowspan="1" colspan="1">Capability Ontology</td>
+            <td class="text-left" rowspan="1" colspan="1">Expert Review</td>
+            <td class="text-left" rowspan="1" colspan="1">additive; aliases at majors only</td>
+          </tr>
+          <tr>
+            <td class="text-left" rowspan="1" colspan="1">Settlement Methods</td>
+            <td class="text-left" rowspan="1" colspan="1">Specification Required</td>
+            <td class="text-left" rowspan="1" colspan="1">MUST define proof verification &amp; reversal model</td>
+          </tr>
+          <tr>
+            <td class="text-left" rowspan="1" colspan="1">Delegation Caveats, Chunk Kinds, HW/Sandbox classes</td>
+            <td class="text-left" rowspan="1" colspan="1">Expert Review</td>
+            <td class="text-left" rowspan="1" colspan="1"></td>
+          </tr>
+        </tbody>
+      </table>
+<div id="designated-experts-1">
+<section id="section-4.1">
+        <h3 id="name-designated-experts">
+<a href="#section-4.1" class="section-number selfRef">4.1. </a><a href="#name-designated-experts" class="section-name selfRef">Designated experts</a>
+        </h3>
+<p id="section-4.1-1">Two or more per registry, appointed by the project's steering process; review criteria: no semantic overlap with existing points, complete specification, security considerations present.<a href="#section-4.1-1" class="pilcrow">¶</a></p>
+</section>
+</div>
+<div id="privateexperimental-use-1">
+<section id="section-4.2">
+        <h3 id="name-private-experimental-use">
+<a href="#section-4.2" class="section-number selfRef">4.2. </a><a href="#name-private-experimental-use" class="section-name selfRef">Private/experimental use</a>
+        </h3>
+<p id="section-4.2-1">Private ranges (core §5, ext keys ≥ 0xF000) require no registration and MUST NOT appear in public-mesh descriptors.<a href="#section-4.2-1" class="pilcrow">¶</a></p>
+</section>
+</div>
+<div id="immutability-of-assignments-1">
+<section id="section-4.3">
+        <h3 id="name-immutability-of-assignments">
+<a href="#section-4.3" class="section-number selfRef">4.3. </a><a href="#name-immutability-of-assignments" class="section-name selfRef">Immutability of assignments</a>
+        </h3>
+<p id="section-4.3-1">Code points are never reused or re-defined; deprecation marks them reserved forever (rule 6 above). As a standing example, message type <code>0x0206</code> is a <strong>permanent, deliberately-unassigned reservation</strong> in the Tasks range (wire §3.20): it is never reused for any future meaning, and any document or implementation that claims <code>0x0206</code> is non-conformant.<a href="#section-4.3-1" class="pilcrow">¶</a></p>
+</section>
+</div>
+<div id="deprecation-process-1">
+<section id="section-4.4">
+        <h3 id="name-deprecation-process">
+<a href="#section-4.4" class="section-number selfRef">4.4. </a><a href="#name-deprecation-process" class="section-name selfRef">Deprecation process</a>
+        </h3>
+<p id="section-4.4-1">Mark deprecated in registry with rationale and replacement → minimum two minor versions of dual support → removal only at a major version, with the major's migration notes. HELLO negotiation makes the sunset observable in the field (peers advertising deprecated versions are countable).<a href="#section-4.4-1" class="pilcrow">¶</a></p>
+</section>
+</div>
+<div id="registry-stewardship-and-ietf-su-1">
+<section id="section-4.5">
+        <h3 id="name-registry-stewardship-and-ie">
+<a href="#section-4.5" class="section-number selfRef">4.5. </a><a href="#name-registry-stewardship-and-ie" class="section-name selfRef">Registry stewardship and IETF submission</a>
+        </h3>
+<p id="section-4.5-1">The MAP family is intended for publication as <strong>Independent Stream</strong> Internet-Drafts (each draft's <code>submissiontype: independent</code> front-matter records this). This section fixes <em>who owns the registries and how governance works</em> — both before and after publication — so the family is externally submittable without an undefined "steering process".<a href="#section-4.5-1" class="pilcrow">¶</a></p>
+<ul class="normal">
+<li class="normal" id="section-4.5-2.1">
+            <strong>Pre-publication ownership.</strong> While the documents are Internet-Drafts (not<a href="#section-4.5-2.1" class="pilcrow">¶</a>
+</li>
+        </ul>
+<p id="section-4.5-3">yet RFCs), the <strong>protocol steward</strong> — the document editor(s) named on the front matter of this operations document — is the registry authority. The steward appoints the designated experts required by §3.1, resolves registry disputes, and runs the change-control process in §3/§4. "The project's steering process" (§3.1) means this steward appointment, not a separate body.<a href="#section-4.5-3" class="pilcrow">¶</a></p>
+<ul class="normal">
+<li class="normal" id="section-4.5-4.1">
+            <strong>Post-publication ownership.</strong> On IETF publication, <strong>IANA</strong> operates every<a href="#section-4.5-4.1" class="pilcrow">¶</a>
+</li>
+        </ul>
+<p id="section-4.5-5">registry under the policies enumerated in <code>draft-map-wire-01.md</code> §4 (Specification Required, Expert Review, Standards Action). The designated experts become IANA-appointed Expert Reviewers / registration reviewers per the relevant IANA policy; the Independent Stream shepherd and the IESG provide the oversight the stream defines. The MAP steward's pre-publication appointments SHOULD be carried forward as IANA's initial expert roster.<a href="#section-4.5-5" class="pilcrow">¶</a></p>
+<ul class="normal">
+<li class="normal" id="section-4.5-6.1">
+            <strong>Authority split (no double authority).</strong> Internal ops §3/§4 change-control<a href="#section-4.5-6.1" class="pilcrow">¶</a>
+</li>
+        </ul>
+<p id="section-4.5-7">governs <em>draft</em> revisions and the working tree. Once an RFC is published, code-point assignments are made by IANA under the registered policy; the steward no longer unilaterally assigns points. The immutability and deprecation rules (§3.3/§3.4) apply identically in both periods — IANA honors "never reuse" as a permanent reservation.<a href="#section-4.5-7" class="pilcrow">¶</a></p>
+<ul class="normal">
+<li class="normal" id="section-4.5-8.1">
+            <strong>Intellectual property.</strong> The source working tree is distributed under<a href="#section-4.5-8.1" class="pilcrow">¶</a>
+</li>
+        </ul>
+<p id="section-4.5-9">Apache-2.0 (see repository README). Contributors SHOULD disclose relevant IPR per IETF BCP 79. The published RFC is copyrighted by the IETF Trust and licensed for use per the IETF Trust's terms; this is distinct from the source-repo Apache-2.0 grant and does not change the wire format or code points.<a href="#section-4.5-9" class="pilcrow">¶</a></p>
+<ul class="normal">
+<li class="normal" id="section-4.5-10.1">
+            <strong>Readiness gate.</strong> Submission (and any request that IANA create the<a href="#section-4.5-10.1" class="pilcrow">¶</a>
+</li>
+        </ul>
+<p id="section-4.5-11">registries) is gated on the two-independent-implementation criterion in §6.1; the documents remain in draft pending human/expert review until that gate is met and the Independent Stream review completes.<a href="#section-4.5-11" class="pilcrow">¶</a></p>
+</section>
+</div>
+</section>
+</div>
+<div id="versioning-discipline-5">
+<section id="section-5">
+      <h2 id="name-versioning-discipline">
+<a href="#section-5" class="section-number selfRef">5. </a><a href="#name-versioning-discipline" class="section-name selfRef">Versioning discipline</a>
+      </h2>
+<p id="section-5-1">Semantics per core §6.4. Additionally: every published draft revision carries a changelog distinguishing editorial / additive / breaking; breaking items MUST name the major version that will carry them. Reference implementations MUST keep a compatibility test pinning the previous minor's golden vectors.<a href="#section-5-1" class="pilcrow">¶</a></p>
+</section>
+</div>
+<div id="federation-6">
+<section id="section-6">
+      <h2 id="name-federation">
+<a href="#section-6" class="section-number selfRef">6. </a><a href="#name-federation" class="section-name selfRef">Federation</a>
+      </h2>
+<p id="section-6-1">A <strong>mesh</strong> is a deployment sharing bootstrap and policy (arch §3). Meshes federate through <strong>gateways</strong> — ordinary agents advertising <code>map:cap:gateway/&lt;namespace&gt;</code> — which are, precisely, anti-corruption layers: they translate a foreign context (another mesh, or an external service such as a hosted-model API) into local MAP vocabulary without letting the foreign model leak through.<a href="#section-6-1" class="pilcrow">¶</a></p>
+<p id="section-6-2">Gateway rules:<a href="#section-6-2" class="pilcrow">¶</a></p>
+<ul class="normal">
+<li class="normal" id="section-6-3.1">G-1: A gateway signs everything <strong>as itself</strong>. It MUST NOT fabricate<a href="#section-6-3.1" class="pilcrow">¶</a>
+</li>
+      </ul>
+<p id="section-6-4">descriptors, receipts, or proofs purporting to originate from the external party; provenance (<code>gateway-of: &lt;namespace&gt;</code> ext field) is REQUIRED on re-advertised capabilities.<a href="#section-6-4" class="pilcrow">¶</a></p>
+<ul class="normal">
+<li class="normal" id="section-6-5.1">G-2: Evidence about work done through a gateway accrues to the gateway's<a href="#section-6-5.1" class="pilcrow">¶</a>
+</li>
+      </ul>
+<p id="section-6-6">AgentID — it is accountable for its upstream, which is exactly the incentive alignment wanted from the "OpenRouter gateway peer" pattern (design3, adopted).<a href="#section-6-6" class="pilcrow">¶</a></p>
+<ul class="normal">
+<li class="normal" id="section-6-7.1">G-3: Zone labels never launder through a gateway (arch Z2); a gateway<a href="#section-6-7.1" class="pilcrow">¶</a>
+</li>
+      </ul>
+<p id="section-6-8">bridging to an external API is Zone ≥2 by definition unless the deployment allowlists it into Zone 1.<a href="#section-6-8" class="pilcrow">¶</a></p>
+<ul class="normal">
+<li class="normal" id="section-6-9.1">G-4: Namespaces are DNS-anchored (<code>gateway/openrouter.example.org</code>) or<a href="#section-6-9.1" class="pilcrow">¶</a>
+</li>
+      </ul>
+<p id="section-6-10">mesh-registered; collisions resolve in favor of the DNS anchor.<a href="#section-6-10" class="pilcrow">¶</a></p>
+<p id="section-6-11">Cross-mesh identity, receipts, and payments need no translation — they are already self-certifying — so federation cost is limited to discovery bridging and policy reconciliation.<a href="#section-6-11" class="pilcrow">¶</a></p>
+<div id="paid-api-gateways-the-x402-comp-1">
+<section id="section-6.1">
+        <h3 id="name-paid-api-gateways-the-x402-">
+<a href="#section-6.1" class="section-number selfRef">6.1. </a><a href="#name-paid-api-gateways-the-x402-" class="section-name selfRef">Paid-API gateways (the x402 composition)</a>
+        </h3>
+<p id="section-6.1-1">A gateway MAY front an external HTTP service that prices its requests with x402 (pay §5.1: HTTP 402 + <code>X-PAYMENT</code> header; the loop is appropriate exactly here, at the gateway boundary — never between MAP peers). Such a gateway participates in <strong>two independent payment legs</strong>:<a href="#section-6.1-1" class="pilcrow">¶</a></p>
+<ul class="normal">
+<li class="normal" id="section-6.1-2.1">
+            <strong>Downstream (MAP leg)</strong>: the gateway is an ordinary MAP payee. It<a href="#section-6.1-2.1" class="pilcrow">¶</a>
+</li>
+        </ul>
+<p id="section-6.1-3">quotes, agrees, invoices, and settles under pay §2–§5 with any method and terms it chooses; its price is local policy (a margin over its upstream cost is typical and is nobody else's business — C5).<a href="#section-6.1-3" class="pilcrow">¶</a></p>
+<ul class="normal">
+<li class="normal" id="section-6.1-4.1">
+            <strong>Upstream (rail leg)</strong>: the gateway is an x402 HTTP payer, spending<a href="#section-6.1-4.1" class="pilcrow">¶</a>
+</li>
+        </ul>
+<p id="section-6.1-5">its own funds from its own wallet against the external service's 402 challenge.<a href="#section-6.1-5" class="pilcrow">¶</a></p>
+<p id="section-6.1-6">Rules (extending G-1..G-4 to money):<a href="#section-6.1-6" class="pilcrow">¶</a></p>
+<ul class="normal">
+<li class="normal" id="section-6.1-7.1">
+            <strong>G-5 — payment legs never launder.</strong> The gateway settles each leg in<a href="#section-6.1-7.1" class="pilcrow">¶</a>
+</li>
+        </ul>
+<p id="section-6.1-8">its own name and MUST NOT re-present one leg's artifacts as the other's: an upstream x402 settlement is not a MAP PayProof, and a MAP PayProof is never forwarded upstream. Upstream payment evidence (settlement response, tx ref) MAY be embedded in the gateway's signed transcript as gateway-attested evidence — provenance G-1 applies: it is the gateway's statement, not the upstream's.<a href="#section-6.1-8" class="pilcrow">¶</a></p>
+<ul class="normal">
+<li class="normal" id="section-6.1-9.1">
+            <strong>G-6 — spend order.</strong> The gateway MUST admit the task (G-3/scope) and<a href="#section-6.1-9.1" class="pilcrow">¶</a>
+</li>
+        </ul>
+<p id="section-6.1-10">SHOULD hold its downstream settlement (RECOMMENDED: terms 1 prepaid, pay §5.2.2 — the execution gate is exactly the credit-risk boundary) before initiating any upstream payment. A gateway MUST NOT spend upstream on a task it has rejected or will reject.<a href="#section-6.1-10" class="pilcrow">¶</a></p>
+<ul class="normal">
+<li class="normal" id="section-6.1-11.1">
+            <strong>G-7 — bounded upstream spend.</strong> The gateway MUST enforce a per-task<a href="#section-6.1-11.1" class="pilcrow">¶</a>
+</li>
+        </ul>
+<p id="section-6.1-12">ceiling on upstream payment; a 402 challenge demanding more is refused fail-closed (the task fails; no payment is made). Upstream price changes never propagate implicitly into an already-agreed MAP quote — the quote is binding (pay §3); the margin absorbs or the gateway eats the loss and reprices future quotes.<a href="#section-6.1-12" class="pilcrow">¶</a></p>
+<ul class="normal">
+<li class="normal" id="section-6.1-13.1">Retry safety: upstream authorizations SHOULD be derived<a href="#section-6.1-13.1" class="pilcrow">¶</a>
+</li>
+        </ul>
+<p id="section-6.1-14">deterministically per (task, attempt) so an HTTP retry cannot double-pay (the same single-use authorization re-presents; the rail's nonce rule dedups) — the same construction as the pay §5.1 invoice nonce, under a distinct domain string.<a href="#section-6.1-14" class="pilcrow">¶</a></p>
+<p id="section-6.1-15">Compliance (§9) attaches to the gateway as rail participant on the upstream leg and as method operator counterparty on the downstream leg; neither is compliance-free.<a href="#section-6.1-15" class="pilcrow">¶</a></p>
+</section>
+</div>
+</section>
+</div>
+<div id="conformance-and-interoperability-7">
+<section id="section-7">
+      <h2 id="name-conformance-and-interoperab">
+<a href="#section-7" class="section-number selfRef">7. </a><a href="#name-conformance-and-interoperab" class="section-name selfRef">Conformance and interoperability testing</a>
+      </h2>
+<div id="structure-1">
+<section id="section-7.1">
+        <h3 id="name-structure">
+<a href="#section-7.1" class="section-number selfRef">7.1. </a><a href="#name-structure" class="section-name selfRef">Structure</a>
+        </h3>
+<p id="section-7.1-1">Per conformance class (arch §10): golden test vectors (encode/decode/ verify — TV-001/002 seed the set), negative vectors, state-machine conformance suites, and live pairwise interop matrices. Advancement rule: no document leaves draft status without <strong>two independent implementations</strong> passing the full matrix against each other.<a href="#section-7.1-1" class="pilcrow">¶</a></p>
+<p id="section-7.1-2"><strong>Status (TASK-020, 2026-07-13): the live pairwise matrix is delivered — 16/16, Rust (<code>map-rs</code>) ↔ Go (<code>map-go</code>).</strong> Both implementations complete real MAP sessions against each other over framed TCP, in both orientations (each side as dialer and as listener), across 8 scenarios: echo, replay (1003), sequence gap (1003), tamper (2000), cross-session relay (2000 — the live §7.3 anti-relay property), version-disjoint handshake (1001), foreign-SessionID rejection (1006, core §6.1), and delegated handshake with accountable-root resolution (identity §4/§6). The record, toolchain versions, and reproduction driver are in <code>interop/MATRIX.md</code>. This is the substantive session-layer matrix; live cross-language task/receipt/payment flows layer on the same session (I2) and remain future work.<a href="#section-7.1-2" class="pilcrow">¶</a></p>
+</section>
+</div>
+<div id="required-negative-tests-minimum-1">
+<section id="section-7.2">
+        <h3 id="name-required-negative-tests-min">
+<a href="#section-7.2" class="section-number selfRef">7.2. </a><a href="#name-required-negative-tests-min" class="section-name selfRef">Required negative tests (minimum)</a>
+        </h3>
+<p id="section-7.2-1">Duplicate delivery of every idempotent message (ASSIGN, RECEIPT, PAY_INVOICE, PAY_PROOF) — observable effect exactly once. Replayed envelopes within and across sessions (MUST fail 1003; cross-session MUST fail channel binding). Out-of-order and gapped <code>seq</code>/<code>chunk-seq</code>. Truncated/duplicate-key/indefinite-length CBOR (MUST fail 1000). Stale descriptor <code>seq</code> (MUST NOT regress). Wrong-shard provider records (MUST be discarded). Delegation chains that widen scope/zone/depth (MUST fail 2003). Signature over re-serialized rather than received bytes (vector constructed to differ — MUST fail). <strong>Projection rebuild</strong>: delete trust scores, recompute from receipt store, byte-compare decisions; same for DHT index from descriptors.<a href="#section-7.2-1" class="pilcrow">¶</a></p>
+</section>
+</div>
+<div id="formal-analysis-program-1">
+<section id="section-7.3">
+        <h3 id="name-formal-analysis-program">
+<a href="#section-7.3" class="section-number selfRef">7.3. </a><a href="#name-formal-analysis-program" class="section-name selfRef">Formal analysis program</a>
+        </h3>
+<p id="section-7.3-1"><strong>Delivered for P1–P3 (TASK-014, 2026-07-10).</strong> ProVerif 2.05 models at <code>formal/</code> (repo root): <code>hello-cb.pv</code> (P1 downgrade resistance via the negotiation-recheck + transcript hash, core §6.2; P2 channel-binding session separation, core §7.3 — no two distinguishable sessions ever derive the same CB) and <code>delegation.pv</code> (P3 delegation-chain attenuation is tighten-only, identity §4 / TASK-010 <code>validate_chain</code>, including fail-closed unknown caveats). Adversary: full active Dolev-Yao network control plus a fully compromised insider (a legitimate registered agent's private key is leaked). All three properties hold in the honest models (no counterexample found) and each carries a mandatory negative control that fails with a concrete witnessing trace, proving the queries are not vacuous. No BLOCKING finding. Full methodology, the property-to-spec mapping, and the abstraction gaps (msg-id/timestamp replay cache, sequence numbers, suite negotiation, chain depth bounded to 2 links, zone attenuation, exporter modeled at exactly the strength of the deployed <code>/map/1.0.0</code> binding per TASK-012 FR-4) are in <code>formal/README.md</code>; captured tool output is under <code>formal/results/</code>.<a href="#section-7.3-1" class="pilcrow">¶</a></p>
+<p id="section-7.3-2">Remaining future formal work (not yet modeled): receipts non-repudiation, the payment binding chain (quote→agree→invoice→proof), reservation obligations, and the msg-id replay cache itself (closing the Q2 gap noted above to a stronger injective session-uniqueness property). Claims not covered by models or tests are labeled assumptions (arch §7).<a href="#section-7.3-2" class="pilcrow">¶</a></p>
+</section>
+</div>
+<div id="fuzzing-and-load-1">
+<section id="section-7.4">
+        <h3 id="name-fuzzing-and-load">
+<a href="#section-7.4" class="section-number selfRef">7.4. </a><a href="#name-fuzzing-and-load" class="section-name selfRef">Fuzzing and load</a>
+        </h3>
+<p id="section-7.4-1">Continuous structure-aware CBOR fuzzing of every decoder; churn simulation (30 %/hour peer turnover) against discovery; hot-key load tests validating the §6-discovery sharding math at 10^5 synthetic providers per capability.<a href="#section-7.4-1" class="pilcrow">¶</a></p>
+</section>
+</div>
+</section>
+</div>
+<div id="migration-8">
+<section id="section-8">
+      <h2 id="name-migration">
+<a href="#section-8" class="section-number selfRef">8. </a><a href="#name-migration" class="section-name selfRef">Migration</a>
+      </h2>
+<div id="from-legacy-manolitomp2p-conce-1">
+<section id="section-8.1">
+        <h3 id="name-from-legacy-manolito-mp2p-c">
+<a href="#section-8.1" class="section-number selfRef">8.1. </a><a href="#name-from-legacy-manolito-mp2p-c" class="section-name selfRef">From legacy Manolito/MP2P (conceptual)</a>
+        </h3>
+<p id="section-8.1-1">No wire compatibility (arch non-goal). Concept map: file-hash search → capability-key lookup; flat UDP peer exchange → Kademlia + AutoNAT/relay; unsigned cleartext → signed CBOR over encrypted transports; "who has the file" results → descriptors + status. The retained virtues are architectural: no supernodes, tolerance of churn, small messages.<a href="#section-8.1-1" class="pilcrow">¶</a></p>
+</section>
+</div>
+<div id="from-hep-01-drafts-the-attache-1">
+<section id="section-8.2">
+        <h3 id="name-from-hep-01-drafts-the-atta">
+<a href="#section-8.2" class="section-number selfRef">8.2. </a><a href="#name-from-hep-01-drafts-the-atta" class="section-name selfRef">From HEP-0.1 drafts (the attached preprint)</a>
+        </h3>
+<table class="center" id="table-3">
+          <caption><a href="#table-3" class="selfRef">Table 3</a></caption>
+<thead>
+            <tr>
+              <th class="text-left" rowspan="1" colspan="1">HEP-0.1</th>
+              <th class="text-left" rowspan="1" colspan="1">MAP</th>
+              <th class="text-left" rowspan="1" colspan="1">Notes</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="text-left" rowspan="1" colspan="1">NodeAdvertisement</td>
+              <td class="text-left" rowspan="1" colspan="1">Descriptor (discovery §2)</td>
+              <td class="text-left" rowspan="1" colspan="1">trust/load/latency fields <strong>dropped</strong> (critique C1/C3/C6)</td>
+            </tr>
+            <tr>
+              <td class="text-left" rowspan="1" colspan="1">trust: TrustScore</td>
+              <td class="text-left" rowspan="1" colspan="1">ExecutionReceipts + local projection</td>
+              <td class="text-left" rowspan="1" colspan="1">trust §1–3</td>
+            </tr>
+            <tr>
+              <td class="text-left" rowspan="1" colspan="1">CapabilityQuery</td>
+              <td class="text-left" rowspan="1" colspan="1">CAP_QUERY hard constraints + local ranking</td>
+              <td class="text-left" rowspan="1" colspan="1">critique C5</td>
+            </tr>
+            <tr>
+              <td class="text-left" rowspan="1" colspan="1">routing score formula</td>
+              <td class="text-left" rowspan="1" colspan="1">informative guidance only</td>
+              <td class="text-left" rowspan="1" colspan="1">tasks §5</td>
+            </tr>
+            <tr>
+              <td class="text-left" rowspan="1" colspan="1">TaskCheckpoint</td>
+              <td class="text-left" rowspan="1" colspan="1">CHECKPOINT + requester countersign</td>
+              <td class="text-left" rowspan="1" colspan="1">critique C11</td>
+            </tr>
+            <tr>
+              <td class="text-left" rowspan="1" colspan="1">kv_cache_delta</td>
+              <td class="text-left" rowspan="1" colspan="1">transcript replay; <code>ext-kvx</code> extension (tasks §8.4, extension key 2)</td>
+              <td class="text-left" rowspan="1" colspan="1">critique C10</td>
+            </tr>
+            <tr>
+              <td class="text-left" rowspan="1" colspan="1">did:hep</td>
+              <td class="text-left" rowspan="1" colspan="1">AgentID ≡ did:key ≡ libp2p PeerID</td>
+              <td class="text-left" rowspan="1" colspan="1">critique C13</td>
+            </tr>
+            <tr>
+              <td class="text-left" rowspan="1" colspan="1">credits/escrow prose</td>
+              <td class="text-left" rowspan="1" colspan="1">PAY_* + settlement registry</td>
+              <td class="text-left" rowspan="1" colspan="1">critique C9</td>
+            </tr>
+            <tr>
+              <td class="text-left" rowspan="1" colspan="1">protobuf-signed ads</td>
+              <td class="text-left" rowspan="1" colspan="1">deterministic CBOR + COSE, verify received bytes</td>
+              <td class="text-left" rowspan="1" colspan="1">critique C2</td>
+            </tr>
+          </tbody>
+        </table>
+</section>
+</div>
+<div id="coexistence-1">
+<section id="section-8.3">
+        <h3 id="name-coexistence">
+<a href="#section-8.3" class="section-number selfRef">8.3. </a><a href="#name-coexistence" class="section-name selfRef">Coexistence</a>
+        </h3>
+<p id="section-8.3-1">A HEP-0.1 prototype bridges via a gateway (G-1..G-4) during transition; dual-stack nodes advertise both and prefer MAP sessions.<a href="#section-8.3-1" class="pilcrow">¶</a></p>
+</section>
+</div>
+</section>
+</div>
+<div id="reference-implementation-guidanc-9">
+<section id="section-9">
+      <h2 id="name-reference-implementation-gu">
+<a href="#section-9" class="section-number selfRef">9. </a><a href="#name-reference-implementation-gu" class="section-name selfRef">Reference implementation guidance</a>
+      </h2>
+<p id="section-9-1">Rust first (rust-libp2p maturity), Go second; workspace mirrors the context map — one crate per bounded context, dependencies only along the document dependency graph, no shared "common domain" crate beyond identifier newtypes:<a href="#section-9-1" class="pilcrow">¶</a></p>
+<div class="sourcecode" id="section-9-2">
+<pre>map/            crates: map-identity, map-core, map-discovery,
+                map-tasks, map-trust, map-pay
+adapters/       ollama-provider, gateway (hosted-API bridge), ide-rpc
+storage/        append-only receipt log + rebuildable projections;
+                descriptor cache keyed (AgentID, seq)
+conformance/    golden vectors, negative vectors, matrix harness</pre><a href="#section-9-2" class="pilcrow">¶</a>
+</div>
+<p id="section-9-3">Implementation musts drawn from §2: value types for AgentID/TaskID/Amount (no bare byte-strings crossing APIs); receipt ingestion idempotent; projection rebuild as a first-class CLI operation; observability for lag (descriptor staleness, credit exhaustion, retry counts, dispute rates). MVP ordering (adapted from design3's scope, which was sound): core + identity handshake → descriptor publish/fetch → echo task with streaming and flow credit → receipts → payments last.<a href="#section-9-3" class="pilcrow">¶</a></p>
+<p id="section-9-4">The reference-implementation program is executed through implementation-specification packages in the repository's <code>tasks/</code> directory (see <code>tasks/README.md</code>): an architect role authors complete, self-contained engineering specifications; coding agents implement them; each package carries its own acceptance criteria and validation checklist, and the spec-feedback rule of §2 (patch the spec in the same change when implementation exposes ambiguity) binds every package. The Rust workspace <code>map-rs/</code> (impl #1 toward the §6.1 two-implementation rule) is the first target of this process.<a href="#section-9-4" class="pilcrow">¶</a></p>
+<p id="section-9-5">Status (TASK-001..003): the <code>map-rs/</code> scaffold builds and its full test suite is green. The <code>conformance/map-conformance</code> crate reproduces TV-001 and TV-002 byte-for-byte from the seeds and rejects the §6.2 negative catalog (N1–N10), satisfying the §6.2 minimum negative suite for impl #1; the deterministic-CBOR encoder reproduced the cbor2-canonical vectors without modification. Adapter seams (<code>ollama-provider</code>, <code>gateway</code>) and the <code>map-cli</code> tool (<code>keygen</code>, projection rebuild) exist; live transport, delegation, and payments remain future work per the MVP ordering above.<a href="#section-9-5" class="pilcrow">¶</a></p>
+<p id="section-9-6">Status (TASK-015, 2026-07-11): <strong>impl #2 is at frozen-vector parity.</strong> <code>map-go/</code> (Go, zero external deps, written from the drafts and vectors under the independence rule — no Rust source consulted) reproduces every frozen positive vector byte-for-byte from seeds (TV-001..015 incl. TV-010b; TV-007 ASSIGN is produce+consume in Go, closing that ERRATA parity hole on the Go side), consumes them from frozen bytes, and rejects NV-001..008 with the required classes, including the §6.2 canonicality-vs-signature isolation case (NV-003) and scope-widening delegation (NV-007 → 2003). Strict Ed25519 verification (canonical A/R/S, small-order rejection) is implemented and tested per TASK-015 §FR-4. The live pairwise interop MATRIX (two implementations against each other over a real transport) remains future work — vector parity alone does not advance any document out of draft.<a href="#section-9-6" class="pilcrow">¶</a></p>
+</section>
+</div>
+<div id="compliance-and-regulatory-notes--10">
+<section id="section-10">
+      <h2 id="name-compliance-and-regulatory-n">
+<a href="#section-10" class="section-number selfRef">10. </a><a href="#name-compliance-and-regulatory-n" class="section-name selfRef">Compliance and regulatory notes (informative)</a>
+      </h2>
+<p id="section-10-1">Receipts and descriptors are pseudonymous personal data under GDPR-like regimes: holders are controllers of their local stores; the protocol compels no publication, and erasure is satisfiable because disclosure is pull-based and local deletion is always possible (trust §4). Payment compliance (KYC/AML/sanctions) attaches to settlement methods and their operators (pay §7). Model-output liability and content policy are application-layer; SecurityProfile and zones give deployments the enforcement hooks. Export-control considerations for cryptography follow the chosen suite's primitives, all of which are widely published standards.<a href="#section-10-1" class="pilcrow">¶</a></p>
+</section>
+</div>
+<div id="security-considerations-11">
+<section id="section-11">
+      <h2 id="name-security-considerations">
+<a href="#section-11" class="section-number selfRef">11. </a><a href="#name-security-considerations" class="section-name selfRef">Security Considerations</a>
+      </h2>
+<p id="section-11-1">Governance capture is the meta-risk: registries use open policies with appealable expert review; no registry is a runtime dependency, so capture degrades coordination, not operation. Federation gateways concentrate trust by construction — G-1/G-2 make that concentration visible and priced rather than hidden.<a href="#section-11-1" class="pilcrow">¶</a></p>
+</section>
+</div>
+<div id="iana-considerations-12">
+<section id="section-12">
+      <h2 id="name-iana-considerations">
+<a href="#section-12" class="section-number selfRef">12. </a><a href="#name-iana-considerations" class="section-name selfRef">IANA Considerations</a>
+      </h2>
+<p id="section-12-1">This document defines the registration policies and change-control model for the MAP registries (§3), but requests no IANA action of its own: the registries and their initial contents are defined by the protocol documents, and the consolidated index is <code>draft-map-wire-01</code>. Should the family be adopted onto a stream that uses the IANA registries, the policies in §3 (open / Specification Required, with appealable expert review) are the requested assignment policies for each registry named there.<a href="#section-12-1" class="pilcrow">¶</a></p>
+</section>
+</div>
+<div id="references-selected-13">
+<section id="section-13">
+      <h2 id="name-references-selected">
+<a href="#section-13" class="section-number selfRef">13. </a><a href="#name-references-selected" class="section-name selfRef">References (selected)</a>
+      </h2>
+<p id="section-13-1">[RFC2119] [RFC8174] BCP 14 requirement levels.<a href="#section-13-1" class="pilcrow">¶</a></p>
+</section>
+</div>
+<div id="authors-addresses">
+<section id="appendix-A">
+      <h2 id="name-authors-address">
+<a href="#name-authors-address" class="section-name selfRef">Author's Address</a>
+      </h2>
+<address class="vcard">
+        <div dir="auto" class="left"><span class="fn nameRole">Jesse Larsen</span></div>
+<div dir="auto" class="left"><span class="org">Independent</span></div>
+<div class="email">
+<span>Email:</span>
+<a href="mailto:jesselarsen@gmail.com" class="email">jesselarsen@gmail.com</a>
+</div>
+</address>
+</section>
+</div>
+<script>const toc = document.getElementById("toc");
+toc.querySelector("h2").addEventListener("click", e => {
+  toc.classList.toggle("active");
+});
+toc.querySelector("nav").addEventListener("click", e => {
+  toc.classList.remove("active");
+});
+</script>
+</body>
+</html>

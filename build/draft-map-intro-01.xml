@@ -1,0 +1,100 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rfc docName="draft-map-intro-01" category="info" ipr="trust200902" version="3" submissionType="independent">
+  <front>
+    <title abbrev="draft-map-intro-01">MAP Introduction and Motivation: Autonomous Agent Interoperability</title>
+    <author initials="J." surname="Larsen" fullname="Jesse Larsen"><organization>Independent</organization><address><email>jesselarsen@gmail.com</email></address></author>
+    <date year="2026" month="July" day="17"/>
+    <abstract><t>The Manolito Agent Protocol (MAP) is a decentralized, permissionless protocol for autonomous AI agents to discover one another by capability, negotiate work, execute it with verifiable evidence, and settle payment &#8212; without a central authority, global reputation service, or native token. This document states the problem MAP addresses, why prior designs failed, the design responses MAP adopts, and a reading guide for the rest of the specification family. The substantive specifications are the companion <tt>draft-map-*-01</tt> documents; the critical evaluation that motivates them is <tt>01-design-critique.md</tt>.</t></abstract>
+  </front>
+  <middle>
+<section anchor="requirements-language-1" numbered="true">
+<name>Requirements Language</name>
+<t>The key words &quot;MUST&quot;, &quot;MUST NOT&quot;, &quot;REQUIRED&quot;, &quot;SHALL&quot;, &quot;SHALL NOT&quot;, &quot;SHOULD&quot;, &quot;SHOULD NOT&quot;, &quot;RECOMMENDED&quot;, &quot;NOT RECOMMENDED&quot;, &quot;MAY&quot;, and &quot;OPTIONAL&quot; in this document family are to be interpreted as described in BCP 14 [RFC2119] [RFC8174] when, and only when, they appear in all capitals, as shown here. No adaptation or weakening of these terms applies.</t>
+</section>
+<section anchor="the-problem-2" numbered="true">
+<name>The Problem</name>
+<t>Autonomous AI agents increasingly need to cooperate: one agent commissions another to run inference, call a tool, retrieve memory, or transform data. That cooperation should be <strong>verifiable, permissionless, and attriburable</strong> &#8212; any agent should be able to find a capable counterparty, agree on terms, confirm the work was done, and pay for it, without trusting a central broker with the identity graph, the reputation ledger, or the money supply.</t>
+<t>The historical Manolito/MP2P file-sharing network (c. 2001) showed that a flat, serverless, high-churn peer network can route by <em>what is wanted</em> rather than <em>where it lives</em>. MAP evolves that instinct from &quot;who has this file?&quot; to &quot;who can do this task?&quot;: the network becomes a <strong>capability graph</strong>. Several recent design sketches and a preprint (HEP v0.1) attempted exactly this, but &#8212; as <tt>01-design-critique.md</tt> documents in detail &#8212; they contained defects that would be fatal in standards review: self-referential signature definitions, self-asserted trust scores, volatile data pushed through a global DHT, no replay protection, normative magic-weight routing, and a serialization choice that cannot support the signature semantics the documents rely on.</t>
+</section>
+<section anchor="why-prior-designs-failed-high-l-3" numbered="true">
+<name>Why Prior Designs Failed (high level)</name>
+<t>The critique identifies fifteen findings (C1&#8211;C15). The most consequential:</t>
+<ul><li><strong>C1 &#8212; Self-asserted trust.</strong> Advertised trust/reputation scores are</li></ul>
+<t>signed by the subject, proving only self-praise; a rational attacker advertises a perfect score. Any routing formula weighted by such a score is steered by attacker-controlled input.</t>
+<ul><li><strong>C2 &#8212; Non-canonical signatures.</strong> Signing Protobuf structures (which have</li></ul>
+<t>no canonical encoding) makes &quot;serialize and verify&quot; fail across implementations and enables re-serialization malleability.</t>
+<ul><li><strong>C3 &#8212; Volatile state in the DHT.</strong> Republishing load/latency every few</li></ul>
+<t>seconds does not scale and routes on stale fiction.</t>
+<ul><li><strong>C4 &#8212; No replay protection.</strong> Signed requests can be replayed verbatim</li></ul>
+<t>(re-executing paid work, double-spending receipts).</t>
+<ul><li><strong>C5 &#8212; Normative magic-weight routing.</strong> Fixed score weights freeze bad</li></ul>
+<t>constants into the standard and mix attacker-controlled inputs with honest ones; ranking should be local policy.</t>
+<ul><li><strong>C6 &#8212; Latency as a global field.</strong> Latency is a property of a path</li></ul>
+<t>between two peers, not of a node.</t>
+<ul><li><strong>C7 &#8212; Privacy leakage.</strong> Exact hardware fingerprints and broadcast query</li></ul>
+<t>intent link a stable identity to high-entropy metadata.</t>
+<ul><li><strong>C8 &#8212; Transport lock-in.</strong> Hard-wiring gRPC/QUIC with two parallel</li></ul>
+<t>identities contradicts transport-agnosticism.</t>
+<ul><li><strong>C9 &#8212; Central-bank economics.</strong> &quot;Credits minted by the orchestrator&quot;</li></ul>
+<t>reintroduces the central authority the goals forbid.</t>
+<ul><li><strong>C10 &#8212; Impractical resumption.</strong> KV-cache transfer assumes identical</li></ul>
+<t>engines; normative resumption must be engine-independent.</t>
+<ul><li><strong>C11 &#8212; Checkpoint trust.</strong> A checkpoint signed only by the party that may</li></ul>
+<t>have failed can poison its successor.</t>
+<ul><li><strong>C12 &#8212; Taxonomy anarchy.</strong> Free-text capability strings fragment the</li></ul>
+<t>keyspace.</t>
+<ul><li><strong>C13 &#8212; Identifier fragmentation.</strong> Three incompatible ID spaces for the</li></ul>
+<t>same key.</t>
+<ul><li><strong>C14 &#8212; Weakened requirements language.</strong> &quot;RFC 2119, adapted&quot; guts</li></ul>
+<t>normative force.</t>
+<ul><li><strong>C15 &#8212; Sybil hand-waving.</strong> &quot;Reputation decay fixes Sybil&quot; is an assertion,</li></ul>
+<t>not a mechanism.</t>
+<t>The full findings, dispositions, and per-document assessment are in <tt>01-design-critique.md</tt>.</t>
+</section>
+<section anchor="maps-design-responses-4" numbered="true">
+<name>MAP&#x27;s Design Responses</name>
+<t>Each cluster of failures maps to a concrete MAP mechanism:</t>
+<table><thead><tr><th>Problem (critique)</th><th>MAP mechanism</th><th>Where</th></tr></thead><tbody><tr><td>C1 self-asserted trust</td><td>No trust fields in descriptors; trust is a local projection over dual-signed <tt>ExecutionReceipt</tt>s</td><td>trust &#167;1&#8211;3</td></tr><tr><td>C2 non-canonical sigs</td><td>Deterministic CBOR (RFC 8949 &#167;4.2.1) + COSE_Sign1; verify received bytes, never re-serialize</td><td>core &#167;4</td></tr><tr><td>C3 volatile DHT</td><td>Two-plane discovery: stable signed descriptors in a sharded DHT; volatile status pulled on demand</td><td>discovery &#167;1, &#167;5</td></tr><tr><td>C4 no replay</td><td><tt>msg-id</tt> + timestamp window + session sequence numbers + channel binding</td><td>core &#167;7</td></tr><tr><td>C5 magic routing</td><td>Standardize verifiable <em>inputs</em> and hard <em>constraints</em>; ranking is local policy</td><td>tasks &#167;5, trust &#167;7</td></tr><tr><td>C6 latency field</td><td>Removed; RTT measured by the querier</td><td>discovery &#167;3</td></tr><tr><td>C7 privacy</td><td>Coarse hardware buckets; selective receipt disclosure; zones; relayed/decoy queries</td><td>arch &#167;8, discovery &#167;9</td></tr><tr><td>C8 transport lock-in</td><td>One identity, one address book; normative bindings for libp2p/QUIC/TCP+TLS/WebSocket</td><td>core &#167;10</td></tr><tr><td>C9 central bank</td><td>Payment <em>negotiation</em> standardized; <em>settlement</em> is a pluggable registry (Lightning, stablecoins, ACH, Interledger, credit-ledger, x402)</td><td>pay &#167;3, &#167;5</td></tr><tr><td>C10 resumption</td><td>Transcript replay (Merkle-rooted); KV-cache is an optional same-engine extension</td><td>tasks &#167;8</td></tr><tr><td>C11 checkpoint trust</td><td>Requester countersigns each checkpoint&#x27;s transcript root</td><td>tasks &#167;8.2</td></tr><tr><td>C12 taxonomy</td><td>Governed capability ontology (URI) + IANA-style registry, Expert Review</td><td>discovery &#167;4, ops &#167;3</td></tr><tr><td>C13 ID fragmentation</td><td>One <tt>AgentID</tt> &#8801; did:key &#8801; libp2p Ed25519 PeerID</td><td>identity &#167;3</td></tr><tr><td>C14 weak language</td><td>Proper RFC 8174 boilerplate; example domains from <tt>example.org</tt></td><td>every draft</td></tr><tr><td>C15 Sybil</td><td>Layered admission costs (PoW/VDF/stake/vouch) + per-observer evidence-based trust</td><td>trust &#167;5</td></tr></tbody></table>
+</section>
+<section anchor="what-map-is-not-5" numbered="true">
+<name>What MAP Is Not</name>
+<t>To bound scope, MAP explicitly is <strong>not</strong> (see arch &#167;4.1):</t>
+<ul><li>A model-training or fine-tuning coordinator.</li><li>A general-purpose file-sharing network (content transfer exists only in</li></ul>
+<t>service of tasks).</t>
+<ul><li>A native token, blockchain, or consensus layer.</li><li>A global, objective reputation service.</li><li>A guarantor of the <em>semantic quality</em> of AI outputs &#8212; MAP makes behavior</li></ul>
+<t><em>attributable and evidence-bearing</em>, not correct.</t>
+<ul><li>Wire-compatible with legacy Manolito clients (a conceptual migration guide</li></ul>
+<t>is in ops &#167;7).</t>
+<t>MAP is a <strong>protocol, not a product</strong>. &quot;Hermes&quot; and similar orchestrators are implementations that speak MAP; nothing in these documents privileges any implementation.</t>
+</section>
+<section anchor="document-map-and-reading-order-6" numbered="true">
+<name>Document Map and Reading Order</name>
+<t>The family comprises the documents listed in the README &quot;Contents&quot; table and the arch &#167;11 document map. For orientation, read in this order:</t>
+<ol><li>This introduction (<tt>draft-map-intro-01</tt>) &#8212; motivation and reading guide.</li><li><tt>01-design-critique.md</tt> &#8212; the critical evaluation that justifies every</li></ol>
+<t>design choice (findings C1&#8211;C15).</t>
+<ol><li><tt>draft-map-arch-01</tt> &#8212; goals/non-goals, threat model TH1&#8211;TH15, zones,</li></ol>
+<t>scalability, conformance classes.</t>
+<ol><li><tt>draft-map-identity-01</tt> then <tt>draft-map-core-01</tt> for the foundation.</li><li>Then <tt>draft-map-discovery-01</tt> and <tt>draft-map-tasks-01</tt>.</li><li>Finally <tt>draft-map-trust-01</tt> and <tt>draft-map-pay-01</tt>; <tt>draft-map-ops-01</tt></li></ol>
+<t>governs the family.</t>
+<t>For the complete wire format and the full code-point space in one place, consult <tt>draft-map-wire-01</tt> (the master registry index).</t>
+<t>Implement in the order: identity, core, discovery, tasks, then trust/pay.</t>
+</section>
+<section anchor="status-and-maturity-7" numbered="true">
+<name>Status and Maturity</name>
+<t>Two independent, separately-authored implementations &#8212; <tt>map-rs</tt> (Rust) and <tt>map-go</tt> (Go) &#8212; reproduce every frozen test vector byte-for-byte and complete a live pairwise interop matrix (16/16 scenarios, <tt>interop/MATRIX.md</tt>) over a real transport, in both orientations. The core security properties (downgrade resistance, channel-binding session separation, delegation attenuation) are machine-checked (ops &#167;6.3). Remaining formal work and the deferred extension semantics are listed honestly in the README &quot;Status&quot; section and in <tt>ops &#167;6.3</tt> / <tt>ops &#167;8</tt>. The documents remain in draft pending human/expert review.</t>
+</section>
+<section anchor="security-considerations-8" numbered="true">
+<name>Security Considerations</name>
+<t>This document is a non-normative motivational and design-rationale overview and defines no protocol mechanisms; it introduces no new security considerations. The security considerations of MAP are normative in the protocol documents &#8212; principally <tt>draft-map-core-01</tt> (envelope, sessions, channel binding) &#8212; and the family threat model is in <tt>draft-map-arch-01</tt>.</t>
+</section>
+<section anchor="iana-considerations-9" numbered="true">
+<name>IANA Considerations</name>
+<t>This document requests no IANA actions.</t>
+</section>
+<section anchor="references-selected-10" numbered="true">
+<name>References (selected)</name>
+<t>[RFC2119] [RFC8174] BCP 14 requirement levels. [RFC8949] CBOR. [RFC9052] COSE. <tt>01-design-critique.md</tt> (critical evaluation, findings C1&#8211;C15). <tt>README.md</tt> (contents and reading order). <tt>draft-map-arch-01</tt> (goals, threat model, zones).</t>
+</section>
+  </middle>
+  <back></back>
+</rfc>

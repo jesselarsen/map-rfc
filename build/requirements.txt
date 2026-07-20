@@ -1,0 +1,7 @@
+# Toolchain for rendering the MAP Internet-Drafts (build/render.py).
+# Pinned for reproducible output. Install into any Python >= 3.9:
+#     py -3 -m pip install -r build/requirements.txt
+#
+# md2rfc.py (the Markdown -> RFC 7991 XML converter) is stdlib-only and needs
+# no packages. Only the xml2rfc back end has a dependency.
+xml2rfc==3.34.0

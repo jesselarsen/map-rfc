@@ -3,6 +3,9 @@ title: "MAP Wire Format and Registry Index"
 docname: draft-map-wire-01
 category: info
 submissiontype: independent
+author: Jesse Larsen
+email: jesselarsen@gmail.com
+ipr: trust200902
 ---
 
 # MAP Wire Format and Registry Index
@@ -289,7 +292,25 @@ MAP-Core (REQUIRED: identity + core); MAP-Discovery; MAP-Tasks; MAP-Trust;
 MAP-Pay; MAP-Fed (arch §10). A conforming provider/requester implements
 Core + Discovery + Tasks; Trust and Pay are RECOMMENDED on public meshes.
 
-## 6. References (selected)
+## 6. Security Considerations
+
+This document is a wire-format layering summary and a consolidated registry
+index; it introduces no mechanism beyond those in the protocol documents,
+whose security considerations apply unchanged. In particular, all code-point
+and key registrations indexed here are consumed under the deterministic-CBOR
+and signed-envelope rules of `draft-map-core-01` §4, whose Security
+Considerations govern malleability, downgrade, and replay.
+
+## 7. IANA Considerations
+
+This document defines no new registry of its own. It provides a consolidated
+index (§3) of the registries defined by the MAP protocol documents; each
+registry's contents, assignment policy, and change control are normative in
+its defining document, and the registration policies are summarized in §4.
+No IANA action is requested by this document beyond those already requested
+by the protocol documents it indexes.
+
+## 8. References (selected)
 
 [RFC2119] [RFC8174] BCP 14 requirement levels. [RFC8610] CDDL.
 [RFC8949] CBOR. [RFC9052] COSE. Owning documents: `draft-map-core-01`,

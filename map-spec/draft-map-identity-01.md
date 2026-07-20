@@ -3,6 +3,9 @@ title: "MAP Identity: Agent Identifiers, Key Hierarchy, Delegation, and Lifecycl
 docname: draft-map-identity-01
 category: std
 submissiontype: independent
+author: Jesse Larsen
+email: jesselarsen@gmail.com
+ipr: trust200902
 ---
 
 # MAP Identity
@@ -197,7 +200,7 @@ chain per §4 (scope, zone, depth, time); check revocation state per local
 freshness policy; verify signature over received bytes (core I1); verify
 transport binding B1–B3 for in-session messages. Errors: 2000–2005.
 
-## 10. Security considerations
+## 10. Security Considerations
 
 Key hierarchy limits blast radius but adds chain-validation surface —
 implementations MUST cap chain length (default 5) and total cert bytes.
@@ -209,7 +212,7 @@ recoverable. Timestamp trust follows core §14. Privacy: delegation chains
 reveal organizational structure; Zone-2/3 interactions SHOULD present
 minimal chains (leaf + one parent).
 
-## 11. IANA-style considerations
+## 11. IANA-Style Considerations
 
 Registries established: MAP Key Types (multicodec bindings); MAP Delegation
 Caveats; MAP Revocation Reasons. The assigned values and the family-wide

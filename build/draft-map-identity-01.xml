@@ -1,0 +1,108 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rfc docName="draft-map-identity-01" category="std" ipr="trust200902" version="3">
+  <front>
+    <title abbrev="draft-map-identity-01">MAP Identity: Agent Identifiers, Key Hierarchy, Delegation, and Lifecycle</title>
+    <author initials="J." surname="Larsen" fullname="Jesse Larsen"><organization>Independent</organization><address><email>jesselarsen@gmail.com</email></address></author>
+    <date year="2026" month="July" day="17"/>
+    <abstract><t>Defines the self-certifying MAP agent identifier (AgentID), a three-tier key hierarchy (root, device, session), delegation certificates with attenuating caveats, key rotation and revocation records, ephemeral and organizational identities, hardware-backed keys, and interoperability with W3C DIDs (did:key, did:web), libp2p PeerIDs, and WebAuthn.</t></abstract>
+  </front>
+  <middle>
+<section anchor="requirements-language-1" numbered="true">
+<name>Requirements Language</name>
+<t>The key words &quot;MUST&quot;, &quot;MUST NOT&quot;, &quot;REQUIRED&quot;, &quot;SHALL&quot;, &quot;SHALL NOT&quot;, &quot;SHOULD&quot;, &quot;SHOULD NOT&quot;, &quot;RECOMMENDED&quot;, &quot;NOT RECOMMENDED&quot;, &quot;MAY&quot;, and &quot;OPTIONAL&quot; in this document family are to be interpreted as described in BCP 14 [RFC2119] [RFC8174] when, and only when, they appear in all capitals, as shown here. No adaptation or weakening of these terms applies.</t>
+</section>
+<section anchor="design-position-2" numbered="true">
+<name>Design position</name>
+<t>Identity in MAP is a keypair, not a name, and confers nothing but attributability (arch T3&#8211;T5). There is no global PKI and no certificate authority; all authority statements are peer-issued delegations verifiable offline. The identifier is deliberately byte-compatible with two deployed ecosystems so that no bespoke resolver is needed (fixes critique C13):</t>
+<ul><li><strong>libp2p</strong>: an Ed25519 PeerID is <tt>multihash(identity, protobuf-pubkey)</tt>;</li></ul>
+<t>MAP mandates Ed25519 identities on libp2p transports, so the transport peer identity and AgentID derive from the same key (&#167;3.2).</t>
+<ul><li><strong>did:key</strong>: <tt>did:key:z...</tt> for an Ed25519 key is exactly</li></ul>
+<t>multibase-base58btc(multicodec(0xED01) || key) &#8212; the AgentID&#x27;s canonical text form (&#167;3.1).</t>
+</section>
+<section anchor="key-hierarchy-3" numbered="true">
+<name>Key hierarchy</name>
+<sourcecode>Root Identity Key (RIK)  &#8212; Ed25519; SHOULD be offline or hardware-backed;
+      |                    signs only: delegations, rotation, revocation.
+      v  DelegationCert (scope: all or subset; long-lived)
+Device Key (DK)          &#8212; per device/process; signs descriptors,
+      |                    delegations to session keys, receipts.
+      v  DelegationCert (scope: narrow; short-lived, hours)
+Session Key (SK)         &#8212; per session or per counterparty; used as the
+                           transport static key and envelope signer.</sourcecode>
+<t>Single-key operation (RIK = DK = SK) is permitted for constrained or low-value agents; the hierarchy is the RECOMMENDED posture because it bounds blast radius: SK compromise burns hours, DK compromise burns one device until revoked, RIK compromise is identity loss (&#167;7).</t>
+</section>
+<section anchor="agentid-4" numbered="true">
+<name>AgentID</name>
+<section anchor="format-1" numbered="true">
+<name>Format</name>
+<sourcecode>AgentID(bytes) = multicodec-varint(key-type) || raw-public-key
+  ed25519-pub  = 0xED 0x01 || 32 bytes            (suite 1/2)
+AgentID(text)  = multibase(base58btc, AgentID(bytes))   ; &quot;z6Mk...&quot;
+DID form       = &quot;did:key:&quot; || AgentID(text)</sourcecode>
+<t>Future suites register their multicodec here; verifiers dispatch on the prefix &#8212; this is the identity leg of cryptographic agility.</t>
+</section>
+<section anchor="binding-rules-1" numbered="true">
+<name>Binding rules</name>
+<t>B1: On libp2p, the connection&#x27;s PeerID key MUST equal the peer&#x27;s SK, and the envelope <tt>kid</tt> MUST be an AgentID whose key is that SK &#8212; either directly, or as the LEAF subject of a delegation chain carried in ProtHdr key 33. B2: On TLS transports, the certificate/raw public key MUST satisfy the same rule. B3: <tt>kid</tt> names the <em>signing</em> key; the <strong>accountable</strong> identity is the chain root&#x27;s issuer when a chain is present, and <tt>kid</tt> itself otherwise. Verifiers resolve and report the accountable identity; receipts and trust records accrue to it.</t>
+</section>
+</section>
+<section anchor="delegation-certificates-5" numbered="true">
+<name>Delegation certificates</name>
+<sourcecode type="cddl">DelegationCert = Envelope             ; msg-type 0x0502, out-of-session
+DelegateBody = {                      ; carried in Body key 10
+  1 =&gt; AgentID,                       ; issuer (parent key)
+  2 =&gt; AgentID,                       ; subject (child key)
+  3 =&gt; Timestamp,                     ; not-before
+  4 =&gt; Timestamp,                     ; not-after
+  ? 5 =&gt; [+ CapURI],                  ; capability scope (absent = all)
+  ? 6 =&gt; [+ ZoneLabel],               ; zone scope
+  ? 7 =&gt; uint,                        ; max further delegation depth
+  ? 8 =&gt; { * int =&gt; any }             ; caveats (registry; e.g. budget,
+}                                     ;  audience, task-id pinning)</sourcecode>
+<t>Chain validation: each cert&#x27;s issuer key signs its envelope; each child is the next cert&#x27;s issuer; scopes/zones/depth only ever <em>attenuate</em> (a child scope MUST be a subset of the parent&#x27;s; violations &#8658; 2003); all validity windows MUST cover the verification time; the envelope <tt>kid</tt> MUST equal the chain LEAF&#x27;s subject (the leaf key produces the envelope signature; violations &#8658; 2003), and the verifier resolves the chain root&#x27;s issuer as the accountable identity (&#167;3.2 B3). <tt>max-depth</tt> (key 7) bounds further delegation below the declaring certificate: a chain is invalid (2003) when any certificate has more certificates between itself and the leaf than its declared max-depth &#8212; a cert with max-depth 0 must itself be the leaf cert. The byte-level behavior of these rules is fixed by TV-012 and NV-009. Semantics deliberately parallel UCAN (informative reference) so existing tooling and audit intuition transfer. Tool-grant tokens in tasks &#167;7 are DelegationCerts with task-pinning caveats &#8212; one mechanism, two uses.</t>
+<t>Chains are carried in ProtHdr key 33, ordered leaf..root (core &#167;6). A chain MUST NOT exceed <strong>8</strong> certificates (a denial-of-service bound: chain validation is one signature verification per link). An <strong>unknown caveat key MUST invalidate the entire chain</strong> (fail-closed: a caveat is a restriction, so silently ignoring one would widen scope). Registered caveat keys (&#167;11): <tt>1</tt> = <strong>task-pinning</strong> (value: a 32-byte TaskID, tasks &#167;1 &#8212; the chain is valid only for envelopes whose Body references that task; the referencing check is performed by the consumer); <tt>2</tt> = <strong>audience</strong> (value: a 34-byte AgentID &#8212; the chain is valid only when the validating party&#x27;s own AgentID equals it).</t>
+</section>
+<section anchor="descriptor-binding-and-proof-of--6" numbered="true">
+<name>Descriptor binding and proof of possession</name>
+<t>An agent proves control of its AgentID implicitly: every envelope is signed, and sessions are channel-bound (core &#167;7.3). No separate challenge-response registration exists or is needed; a DHT record or descriptor is trusted exactly as far as its signature chain.</t>
+</section>
+<section anchor="organizational-and-ephemeral-ide-7" numbered="true">
+<name>Organizational and ephemeral identities</name>
+<t><strong>Organizational</strong>: an org RIK delegates to member DKs with scoped caveats; counterparties see receipts accrue to the org AgentID while members remain individually revocable. Orgs MAY additionally publish <tt>did:web</tt> documents listing their AgentID(s) to anchor a human-meaningful name; MAP itself never requires the DNS anchor (G1) and treats it as evidence, not authority.</t>
+<t><strong>Ephemeral (Zone 3 / anonymous)</strong>: a fresh keypair with no delegation chain. Fully permitted (arch G4). Ephemeral identities start with zero evidence, are subject to admission costs where the mesh applies them (trust &#167;5), and cannot benefit from any prior reputation &#8212; which is precisely the Sybil containment property. Linkability trade-off is the user&#x27;s: reuse accrues evidence; rotation buys privacy.</t>
+</section>
+<section anchor="rotation-and-revocation-8" numbered="true">
+<name>Rotation and revocation</name>
+<sourcecode type="cddl">RotateBody = { 1 =&gt; AgentID/*old*/, 2 =&gt; AgentID/*new*/, 3 =&gt; Timestamp,
+               ? 4 =&gt; uint /*grace-ms, default 7 days*/ }
+RevokeBody = { 1 =&gt; AgentID/*revoked*/, 2 =&gt; Timestamp,
+               ? 3 =&gt; uint /*reason: 0 unspecified,1 compromise,
+                             2 superseded,3 cessation*/ }</sourcecode>
+<t>ROTATE MUST be signed by the <em>old</em> key (proving continuity) and SHOULD be countersigned by the new key (an ext field carries the second signature) proving possession. REVOKE is signed by the revoked key&#x27;s parent (for DK/SK) or by the RIK itself (self-revocation on compromise; reason 1). Distribution: rotation/revocation records are stored in the DHT under <tt>H(&quot;map:id:&quot; || AgentID)</tt> and gossiped on a low-rate identity topic; verifiers of high-value operations SHOULD fetch freshness &#8804;24 h old and MUST treat known-revoked keys as 2002. There is no global instant revocation (T8); risk-tier your checks. RIK compromise is unrecoverable by design &#8212; evidence and receipts attach to keys, not names; this is stated plainly rather than papered over.</t>
+</section>
+<section anchor="hardware-backing-and-webauthn-9" numbered="true">
+<name>Hardware backing and WebAuthn</name>
+<t>RIKs and DKs SHOULD reside in hardware (TPM 2.0, secure enclave, YubiKey/ CTAP2 authenticators). WebAuthn interop: an authenticator-resident Ed25519 credential (COSE alg -8) can serve directly as a RIK; the WebAuthn assertion format is not carried on the wire &#8212; the authenticator simply performs the RIK&#x27;s rare signatures (delegations, rotations). Attestation of hardware residence MAY be advertised in the descriptor SecurityProfile (discovery &#167;5) and lifts trust priors per local policy only.</t>
+</section>
+<section anchor="validation-summary-normative-ch-10" numbered="true">
+<name>Validation summary (normative checklist)</name>
+<t>On any signed object: resolve <tt>kid</tt> &#8594; root AgentID; validate delegation chain per &#167;4 (scope, zone, depth, time); check revocation state per local freshness policy; verify signature over received bytes (core I1); verify transport binding B1&#8211;B3 for in-session messages. Errors: 2000&#8211;2005.</t>
+</section>
+<section anchor="security-considerations-11" numbered="true">
+<name>Security Considerations</name>
+<t>Key hierarchy limits blast radius but adds chain-validation surface &#8212; implementations MUST cap chain length (default 5) and total cert bytes. Rotation records signed only by old keys allow an attacker holding a stolen key to rotate away from the victim; hence the countersignature requirement and grace period during which <em>both</em> keys&#x27; signatures are accepted and either MAY REVOKE (reason 1) &#8212; a compromise observed during grace is recoverable. Timestamp trust follows core &#167;14. Privacy: delegation chains reveal organizational structure; Zone-2/3 interactions SHOULD present minimal chains (leaf + one parent).</t>
+</section>
+<section anchor="iana-style-considerations-12" numbered="true">
+<name>IANA-Style Considerations</name>
+<t>Registries established: MAP Key Types (multicodec bindings); MAP Delegation Caveats; MAP Revocation Reasons. The assigned values and the family-wide index are in <tt>draft-map-wire-01.md</tt> &#167;3.7, &#167;3.8, and &#167;3.9; in case of divergence the normative tables in &#167;4 govern.</t>
+<t>MAP Delegation Caveats (DelegateBody key 8; &#167;4). Assigned code points (immutable once merged, ops &#167;3.3):</t>
+<table><thead><tr><th>Key</th><th>Name</th><th>Value</th><th>Meaning</th></tr></thead><tbody><tr><td>1</td><td>task-pinning</td><td>32-byte TaskID</td><td>Chain valid only for envelopes referencing that task.</td></tr><tr><td>2</td><td>audience</td><td>34-byte AgentID</td><td>Chain valid only when validated by that party.</td></tr></tbody></table>
+<t>An unknown caveat key MUST invalidate the chain (&#167;4, fail-closed).</t>
+</section>
+<section anchor="references-selected-13" numbered="true">
+<name>References (selected)</name>
+<t>[RFC2119] [RFC8174] BCP 14 requirement levels.</t>
+</section>
+  </middle>
+  <back></back>
+</rfc>

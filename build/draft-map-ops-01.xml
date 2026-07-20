@@ -1,0 +1,176 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rfc docName="draft-map-ops-01" category="bcp" ipr="trust200902" version="3">
+  <front>
+    <title abbrev="draft-map-ops-01">MAP Operations: Governance, Registries, Federation, Interoperability, and Migration</title>
+    <author initials="J." surname="Larsen" fullname="Jesse Larsen"><organization>Independent</organization><address><email>jesselarsen@gmail.com</email></address></author>
+    <date year="2026" month="July" day="17"/>
+    <abstract><t>This document is part of the MAP (Manolito Agent Protocol) specification family. See draft-map-index-01 for the family overview and reading order.</t></abstract>
+  </front>
+  <middle>
+<section anchor="requirements-language-1" numbered="true">
+<name>Requirements Language</name>
+<t>The key words &quot;MUST&quot;, &quot;MUST NOT&quot;, &quot;REQUIRED&quot;, &quot;SHALL&quot;, &quot;SHALL NOT&quot;, &quot;SHOULD&quot;, &quot;SHOULD NOT&quot;, &quot;RECOMMENDED&quot;, &quot;NOT RECOMMENDED&quot;, &quot;MAY&quot;, and &quot;OPTIONAL&quot; in this document family are to be interpreted as described in BCP 14 [RFC2119] [RFC8174] when, and only when, they appear in all capitals, as shown here. No adaptation or weakening of these terms applies.</t>
+</section>
+<section anchor="scope-2" numbered="true">
+<name>Scope</name>
+<t>Everything that keeps the MAP family coherent over time: the engineering policy binding the documents together, code-point registries and their change policies, the deprecation process, federation between meshes, conformance and interoperability testing, the formal-analysis program, reference-implementation guidance, migration from legacy designs, and regulatory notes.</t>
+</section>
+<section anchor="engineering-policy-bounded-cont-3" numbered="true">
+<name>Engineering policy: bounded contexts and data semantics</name>
+<t>The document family is a deliberate bounded-context decomposition. Each document owns a vocabulary, a small set of aggregates, and explicit data semantics; cross-context references are <strong>by identity only</strong> (AgentID, TaskID, quote-id, invoice-id, descriptor-cid, transcript-root), never by embedded foreign structures. Context integration happens through signed messages and translation (gateways, &#167;5), never shared internal models.</t>
+<table><thead><tr><th>Context (doc)</th><th>Aggregate roots (identity)</th><th>Durable facts / events</th><th>Derived data (rebuildable)</th><th>Ordering scope</th></tr></thead><tbody><tr><td>Identity</td><td>Key lineage (AgentID)</td><td>DelegationCert, ROTATE, REVOKE records</td><td>resolved chain caches, revocation views</td><td>per AgentID (rotation seq/time)</td></tr><tr><td>Core</td><td>Session (SessionID)</td><td>negotiation transcript hash</td><td>replay caches, credit counters</td><td><tt>seq</tt> per session direction</td></tr><tr><td>Discovery</td><td>Descriptor (AgentID + seq)</td><td>signed descriptors</td><td>DHT provider records, peer caches</td><td><tt>seq</tt> per subject (single writer, LWW)</td></tr><tr><td>Tasks</td><td>Task (TaskID)</td><td>ASSIGN terms, countersigned checkpoints, COMPLETE</td><td>provider execution state, requester progress view</td><td><tt>chunk-seq</tt> per task</td></tr><tr><td>Trust</td><td>Receipt (content address)</td><td>ExecutionReceipts, vouches, challenge outcomes</td><td>trust scores/tiers (projections)</td><td>timestamps per (peer, capability)</td></tr><tr><td>Pay</td><td>Agreement (quote digest), Invoice (invoice-id)</td><td>PAY_AGREE, PAY_PROOF, PAY_RECEIPT</td><td>balance/exposure views</td><td>per invoice-id</td></tr></tbody></table>
+<t>Binding rules across the family (restating what each document enforces locally, so reviewers can check any change against one list):</t>
+<ol><li><strong>One source of truth per fact</strong>, named explicitly; everything else is</li></ol>
+<t>a derived copy with a repair path (republish, re-fetch, recompute).</t>
+<ol><li><strong>Events are past-tense facts</strong> (RECEIPT, PAY_RECEIPT, REVOKE);</li></ol>
+<t>commands are requests (ASSIGN, CANCEL, PAY_AGREE); the two are never conflated in naming or semantics.</t>
+<ol><li><strong>Idempotency everywhere delivery is uncertain</strong>: TaskID, invoice-id,</li></ol>
+<t>msg-id, content addresses. No handler MAY have unrepeatable side effects; no design MAY assume exactly-once delivery.</t>
+<ol><li><strong>Ordering is scoped, never global</strong> &#8212; and each scope is written down.</li><li><strong>Distinguish accepted / durable / applied</strong> (visible in pay &#167;1&#x27;s</li></ol>
+<t>agreed/submitted/settled and tasks&#x27; countersigned-checkpoint boundary).</t>
+<ol><li><strong>Schema evolution is additive within a major version</strong>; contract</li></ol>
+<t>changes ride registries and version negotiation; fields are never reused with new meaning (registry policy forbids re-assignment, &#167;3.3).</t>
+<ol><li><strong>Projections MUST be rebuildable</strong> (trust scores from receipts, DHT</li></ol>
+<t>index from descriptors) and their staleness observable.</t>
+<t>Changes to any MAP document that violate a row or rule above MUST be rejected in review or accompanied by an explicit amendment to this table.</t>
+</section>
+<section anchor="registries-and-change-control-4" numbered="true">
+<name>Registries and change control</name>
+<t>Registries are documents plus process &#8212; never runtime services (arch G1).</t>
+<table><thead><tr><th>Registry</th><th>Policy</th><th>Notes</th></tr></thead><tbody><tr><td>Cryptographic Suites</td><td>Standards Action</td><td>security-critical</td></tr><tr><td>Message Types, Body Keys, Error Codes</td><td>Specification Required</td><td>ranges per core &#167;5; 0xF000+ private</td></tr><tr><td>Extension Keys</td><td>Specification Required</td><td>HELLO-negotiated before use</td></tr><tr><td>Capability Ontology</td><td>Expert Review</td><td>additive; aliases at majors only</td></tr><tr><td>Settlement Methods</td><td>Specification Required</td><td>MUST define proof verification &amp; reversal model</td></tr><tr><td>Delegation Caveats, Chunk Kinds, HW/Sandbox classes</td><td>Expert Review</td><td></td></tr></tbody></table>
+<section anchor="designated-experts-1" numbered="true">
+<name>Designated experts</name>
+<t>Two or more per registry, appointed by the project&#x27;s steering process; review criteria: no semantic overlap with existing points, complete specification, security considerations present.</t>
+</section>
+<section anchor="privateexperimental-use-1" numbered="true">
+<name>Private/experimental use</name>
+<t>Private ranges (core &#167;5, ext keys &#8805; 0xF000) require no registration and MUST NOT appear in public-mesh descriptors.</t>
+</section>
+<section anchor="immutability-of-assignments-1" numbered="true">
+<name>Immutability of assignments</name>
+<t>Code points are never reused or re-defined; deprecation marks them reserved forever (rule 6 above). As a standing example, message type <tt>0x0206</tt> is a <strong>permanent, deliberately-unassigned reservation</strong> in the Tasks range (wire &#167;3.20): it is never reused for any future meaning, and any document or implementation that claims <tt>0x0206</tt> is non-conformant.</t>
+</section>
+<section anchor="deprecation-process-1" numbered="true">
+<name>Deprecation process</name>
+<t>Mark deprecated in registry with rationale and replacement &#8594; minimum two minor versions of dual support &#8594; removal only at a major version, with the major&#x27;s migration notes. HELLO negotiation makes the sunset observable in the field (peers advertising deprecated versions are countable).</t>
+</section>
+<section anchor="registry-stewardship-and-ietf-su-1" numbered="true">
+<name>Registry stewardship and IETF submission</name>
+<t>The MAP family is intended for publication as <strong>Independent Stream</strong> Internet-Drafts (each draft&#x27;s <tt>submissiontype: independent</tt> front-matter records this). This section fixes <em>who owns the registries and how governance works</em> &#8212; both before and after publication &#8212; so the family is externally submittable without an undefined &quot;steering process&quot;.</t>
+<ul><li><strong>Pre-publication ownership.</strong> While the documents are Internet-Drafts (not</li></ul>
+<t>yet RFCs), the <strong>protocol steward</strong> &#8212; the document editor(s) named on the front matter of this operations document &#8212; is the registry authority. The steward appoints the designated experts required by &#167;3.1, resolves registry disputes, and runs the change-control process in &#167;3/&#167;4. &quot;The project&#x27;s steering process&quot; (&#167;3.1) means this steward appointment, not a separate body.</t>
+<ul><li><strong>Post-publication ownership.</strong> On IETF publication, <strong>IANA</strong> operates every</li></ul>
+<t>registry under the policies enumerated in <tt>draft-map-wire-01.md</tt> &#167;4 (Specification Required, Expert Review, Standards Action). The designated experts become IANA-appointed Expert Reviewers / registration reviewers per the relevant IANA policy; the Independent Stream shepherd and the IESG provide the oversight the stream defines. The MAP steward&#x27;s pre-publication appointments SHOULD be carried forward as IANA&#x27;s initial expert roster.</t>
+<ul><li><strong>Authority split (no double authority).</strong> Internal ops &#167;3/&#167;4 change-control</li></ul>
+<t>governs <em>draft</em> revisions and the working tree. Once an RFC is published, code-point assignments are made by IANA under the registered policy; the steward no longer unilaterally assigns points. The immutability and deprecation rules (&#167;3.3/&#167;3.4) apply identically in both periods &#8212; IANA honors &quot;never reuse&quot; as a permanent reservation.</t>
+<ul><li><strong>Intellectual property.</strong> The source working tree is distributed under</li></ul>
+<t>Apache-2.0 (see repository README). Contributors SHOULD disclose relevant IPR per IETF BCP 79. The published RFC is copyrighted by the IETF Trust and licensed for use per the IETF Trust&#x27;s terms; this is distinct from the source-repo Apache-2.0 grant and does not change the wire format or code points.</t>
+<ul><li><strong>Readiness gate.</strong> Submission (and any request that IANA create the</li></ul>
+<t>registries) is gated on the two-independent-implementation criterion in &#167;6.1; the documents remain in draft pending human/expert review until that gate is met and the Independent Stream review completes.</t>
+</section>
+</section>
+<section anchor="versioning-discipline-5" numbered="true">
+<name>Versioning discipline</name>
+<t>Semantics per core &#167;6.4. Additionally: every published draft revision carries a changelog distinguishing editorial / additive / breaking; breaking items MUST name the major version that will carry them. Reference implementations MUST keep a compatibility test pinning the previous minor&#x27;s golden vectors.</t>
+</section>
+<section anchor="federation-6" numbered="true">
+<name>Federation</name>
+<t>A <strong>mesh</strong> is a deployment sharing bootstrap and policy (arch &#167;3). Meshes federate through <strong>gateways</strong> &#8212; ordinary agents advertising <tt>map:cap:gateway/&lt;namespace&gt;</tt> &#8212; which are, precisely, anti-corruption layers: they translate a foreign context (another mesh, or an external service such as a hosted-model API) into local MAP vocabulary without letting the foreign model leak through.</t>
+<t>Gateway rules:</t>
+<ul><li>G-1: A gateway signs everything <strong>as itself</strong>. It MUST NOT fabricate</li></ul>
+<t>descriptors, receipts, or proofs purporting to originate from the external party; provenance (<tt>gateway-of: &lt;namespace&gt;</tt> ext field) is REQUIRED on re-advertised capabilities.</t>
+<ul><li>G-2: Evidence about work done through a gateway accrues to the gateway&#x27;s</li></ul>
+<t>AgentID &#8212; it is accountable for its upstream, which is exactly the incentive alignment wanted from the &quot;OpenRouter gateway peer&quot; pattern (design3, adopted).</t>
+<ul><li>G-3: Zone labels never launder through a gateway (arch Z2); a gateway</li></ul>
+<t>bridging to an external API is Zone &#8805;2 by definition unless the deployment allowlists it into Zone 1.</t>
+<ul><li>G-4: Namespaces are DNS-anchored (<tt>gateway/openrouter.example.org</tt>) or</li></ul>
+<t>mesh-registered; collisions resolve in favor of the DNS anchor.</t>
+<t>Cross-mesh identity, receipts, and payments need no translation &#8212; they are already self-certifying &#8212; so federation cost is limited to discovery bridging and policy reconciliation.</t>
+<section anchor="paid-api-gateways-the-x402-comp-1" numbered="true">
+<name>Paid-API gateways (the x402 composition)</name>
+<t>A gateway MAY front an external HTTP service that prices its requests with x402 (pay &#167;5.1: HTTP 402 + <tt>X-PAYMENT</tt> header; the loop is appropriate exactly here, at the gateway boundary &#8212; never between MAP peers). Such a gateway participates in <strong>two independent payment legs</strong>:</t>
+<ul><li><strong>Downstream (MAP leg)</strong>: the gateway is an ordinary MAP payee. It</li></ul>
+<t>quotes, agrees, invoices, and settles under pay &#167;2&#8211;&#167;5 with any method and terms it chooses; its price is local policy (a margin over its upstream cost is typical and is nobody else&#x27;s business &#8212; C5).</t>
+<ul><li><strong>Upstream (rail leg)</strong>: the gateway is an x402 HTTP payer, spending</li></ul>
+<t>its own funds from its own wallet against the external service&#x27;s 402 challenge.</t>
+<t>Rules (extending G-1..G-4 to money):</t>
+<ul><li><strong>G-5 &#8212; payment legs never launder.</strong> The gateway settles each leg in</li></ul>
+<t>its own name and MUST NOT re-present one leg&#x27;s artifacts as the other&#x27;s: an upstream x402 settlement is not a MAP PayProof, and a MAP PayProof is never forwarded upstream. Upstream payment evidence (settlement response, tx ref) MAY be embedded in the gateway&#x27;s signed transcript as gateway-attested evidence &#8212; provenance G-1 applies: it is the gateway&#x27;s statement, not the upstream&#x27;s.</t>
+<ul><li><strong>G-6 &#8212; spend order.</strong> The gateway MUST admit the task (G-3/scope) and</li></ul>
+<t>SHOULD hold its downstream settlement (RECOMMENDED: terms 1 prepaid, pay &#167;5.2.2 &#8212; the execution gate is exactly the credit-risk boundary) before initiating any upstream payment. A gateway MUST NOT spend upstream on a task it has rejected or will reject.</t>
+<ul><li><strong>G-7 &#8212; bounded upstream spend.</strong> The gateway MUST enforce a per-task</li></ul>
+<t>ceiling on upstream payment; a 402 challenge demanding more is refused fail-closed (the task fails; no payment is made). Upstream price changes never propagate implicitly into an already-agreed MAP quote &#8212; the quote is binding (pay &#167;3); the margin absorbs or the gateway eats the loss and reprices future quotes.</t>
+<ul><li>Retry safety: upstream authorizations SHOULD be derived</li></ul>
+<t>deterministically per (task, attempt) so an HTTP retry cannot double-pay (the same single-use authorization re-presents; the rail&#x27;s nonce rule dedups) &#8212; the same construction as the pay &#167;5.1 invoice nonce, under a distinct domain string.</t>
+<t>Compliance (&#167;9) attaches to the gateway as rail participant on the upstream leg and as method operator counterparty on the downstream leg; neither is compliance-free.</t>
+</section>
+</section>
+<section anchor="conformance-and-interoperability-7" numbered="true">
+<name>Conformance and interoperability testing</name>
+<section anchor="structure-1" numbered="true">
+<name>Structure</name>
+<t>Per conformance class (arch &#167;10): golden test vectors (encode/decode/ verify &#8212; TV-001/002 seed the set), negative vectors, state-machine conformance suites, and live pairwise interop matrices. Advancement rule: no document leaves draft status without <strong>two independent implementations</strong> passing the full matrix against each other.</t>
+<t><strong>Status (TASK-020, 2026-07-13): the live pairwise matrix is delivered &#8212; 16/16, Rust (<tt>map-rs</tt>) &#8596; Go (<tt>map-go</tt>).</strong> Both implementations complete real MAP sessions against each other over framed TCP, in both orientations (each side as dialer and as listener), across 8 scenarios: echo, replay (1003), sequence gap (1003), tamper (2000), cross-session relay (2000 &#8212; the live &#167;7.3 anti-relay property), version-disjoint handshake (1001), foreign-SessionID rejection (1006, core &#167;6.1), and delegated handshake with accountable-root resolution (identity &#167;4/&#167;6). The record, toolchain versions, and reproduction driver are in <tt>interop/MATRIX.md</tt>. This is the substantive session-layer matrix; live cross-language task/receipt/payment flows layer on the same session (I2) and remain future work.</t>
+</section>
+<section anchor="required-negative-tests-minimum-1" numbered="true">
+<name>Required negative tests (minimum)</name>
+<t>Duplicate delivery of every idempotent message (ASSIGN, RECEIPT, PAY_INVOICE, PAY_PROOF) &#8212; observable effect exactly once. Replayed envelopes within and across sessions (MUST fail 1003; cross-session MUST fail channel binding). Out-of-order and gapped <tt>seq</tt>/<tt>chunk-seq</tt>. Truncated/duplicate-key/indefinite-length CBOR (MUST fail 1000). Stale descriptor <tt>seq</tt> (MUST NOT regress). Wrong-shard provider records (MUST be discarded). Delegation chains that widen scope/zone/depth (MUST fail 2003). Signature over re-serialized rather than received bytes (vector constructed to differ &#8212; MUST fail). <strong>Projection rebuild</strong>: delete trust scores, recompute from receipt store, byte-compare decisions; same for DHT index from descriptors.</t>
+</section>
+<section anchor="formal-analysis-program-1" numbered="true">
+<name>Formal analysis program</name>
+<t><strong>Delivered for P1&#8211;P3 (TASK-014, 2026-07-10).</strong> ProVerif 2.05 models at <tt>formal/</tt> (repo root): <tt>hello-cb.pv</tt> (P1 downgrade resistance via the negotiation-recheck + transcript hash, core &#167;6.2; P2 channel-binding session separation, core &#167;7.3 &#8212; no two distinguishable sessions ever derive the same CB) and <tt>delegation.pv</tt> (P3 delegation-chain attenuation is tighten-only, identity &#167;4 / TASK-010 <tt>validate_chain</tt>, including fail-closed unknown caveats). Adversary: full active Dolev-Yao network control plus a fully compromised insider (a legitimate registered agent&#x27;s private key is leaked). All three properties hold in the honest models (no counterexample found) and each carries a mandatory negative control that fails with a concrete witnessing trace, proving the queries are not vacuous. No BLOCKING finding. Full methodology, the property-to-spec mapping, and the abstraction gaps (msg-id/timestamp replay cache, sequence numbers, suite negotiation, chain depth bounded to 2 links, zone attenuation, exporter modeled at exactly the strength of the deployed <tt>/map/1.0.0</tt> binding per TASK-012 FR-4) are in <tt>formal/README.md</tt>; captured tool output is under <tt>formal/results/</tt>.</t>
+<t>Remaining future formal work (not yet modeled): receipts non-repudiation, the payment binding chain (quote&#8594;agree&#8594;invoice&#8594;proof), reservation obligations, and the msg-id replay cache itself (closing the Q2 gap noted above to a stronger injective session-uniqueness property). Claims not covered by models or tests are labeled assumptions (arch &#167;7).</t>
+</section>
+<section anchor="fuzzing-and-load-1" numbered="true">
+<name>Fuzzing and load</name>
+<t>Continuous structure-aware CBOR fuzzing of every decoder; churn simulation (30 %/hour peer turnover) against discovery; hot-key load tests validating the &#167;6-discovery sharding math at 10^5 synthetic providers per capability.</t>
+</section>
+</section>
+<section anchor="migration-8" numbered="true">
+<name>Migration</name>
+<section anchor="from-legacy-manolitomp2p-conce-1" numbered="true">
+<name>From legacy Manolito/MP2P (conceptual)</name>
+<t>No wire compatibility (arch non-goal). Concept map: file-hash search &#8594; capability-key lookup; flat UDP peer exchange &#8594; Kademlia + AutoNAT/relay; unsigned cleartext &#8594; signed CBOR over encrypted transports; &quot;who has the file&quot; results &#8594; descriptors + status. The retained virtues are architectural: no supernodes, tolerance of churn, small messages.</t>
+</section>
+<section anchor="from-hep-01-drafts-the-attache-1" numbered="true">
+<name>From HEP-0.1 drafts (the attached preprint)</name>
+<table><thead><tr><th>HEP-0.1</th><th>MAP</th><th>Notes</th></tr></thead><tbody><tr><td>NodeAdvertisement</td><td>Descriptor (discovery &#167;2)</td><td>trust/load/latency fields <strong>dropped</strong> (critique C1/C3/C6)</td></tr><tr><td>trust: TrustScore</td><td>ExecutionReceipts + local projection</td><td>trust &#167;1&#8211;3</td></tr><tr><td>CapabilityQuery</td><td>CAP_QUERY hard constraints + local ranking</td><td>critique C5</td></tr><tr><td>routing score formula</td><td>informative guidance only</td><td>tasks &#167;5</td></tr><tr><td>TaskCheckpoint</td><td>CHECKPOINT + requester countersign</td><td>critique C11</td></tr><tr><td>kv_cache_delta</td><td>transcript replay; <tt>ext-kvx</tt> extension (tasks &#167;8.4, extension key 2)</td><td>critique C10</td></tr><tr><td>did:hep</td><td>AgentID &#8801; did:key &#8801; libp2p PeerID</td><td>critique C13</td></tr><tr><td>credits/escrow prose</td><td>PAY_* + settlement registry</td><td>critique C9</td></tr><tr><td>protobuf-signed ads</td><td>deterministic CBOR + COSE, verify received bytes</td><td>critique C2</td></tr></tbody></table>
+</section>
+<section anchor="coexistence-1" numbered="true">
+<name>Coexistence</name>
+<t>A HEP-0.1 prototype bridges via a gateway (G-1..G-4) during transition; dual-stack nodes advertise both and prefer MAP sessions.</t>
+</section>
+</section>
+<section anchor="reference-implementation-guidanc-9" numbered="true">
+<name>Reference implementation guidance</name>
+<t>Rust first (rust-libp2p maturity), Go second; workspace mirrors the context map &#8212; one crate per bounded context, dependencies only along the document dependency graph, no shared &quot;common domain&quot; crate beyond identifier newtypes:</t>
+<sourcecode>map/            crates: map-identity, map-core, map-discovery,
+                map-tasks, map-trust, map-pay
+adapters/       ollama-provider, gateway (hosted-API bridge), ide-rpc
+storage/        append-only receipt log + rebuildable projections;
+                descriptor cache keyed (AgentID, seq)
+conformance/    golden vectors, negative vectors, matrix harness</sourcecode>
+<t>Implementation musts drawn from &#167;2: value types for AgentID/TaskID/Amount (no bare byte-strings crossing APIs); receipt ingestion idempotent; projection rebuild as a first-class CLI operation; observability for lag (descriptor staleness, credit exhaustion, retry counts, dispute rates). MVP ordering (adapted from design3&#x27;s scope, which was sound): core + identity handshake &#8594; descriptor publish/fetch &#8594; echo task with streaming and flow credit &#8594; receipts &#8594; payments last.</t>
+<t>The reference-implementation program is executed through implementation-specification packages in the repository&#x27;s <tt>tasks/</tt> directory (see <tt>tasks/README.md</tt>): an architect role authors complete, self-contained engineering specifications; coding agents implement them; each package carries its own acceptance criteria and validation checklist, and the spec-feedback rule of &#167;2 (patch the spec in the same change when implementation exposes ambiguity) binds every package. The Rust workspace <tt>map-rs/</tt> (impl #1 toward the &#167;6.1 two-implementation rule) is the first target of this process.</t>
+<t>Status (TASK-001..003): the <tt>map-rs/</tt> scaffold builds and its full test suite is green. The <tt>conformance/map-conformance</tt> crate reproduces TV-001 and TV-002 byte-for-byte from the seeds and rejects the &#167;6.2 negative catalog (N1&#8211;N10), satisfying the &#167;6.2 minimum negative suite for impl #1; the deterministic-CBOR encoder reproduced the cbor2-canonical vectors without modification. Adapter seams (<tt>ollama-provider</tt>, <tt>gateway</tt>) and the <tt>map-cli</tt> tool (<tt>keygen</tt>, projection rebuild) exist; live transport, delegation, and payments remain future work per the MVP ordering above.</t>
+<t>Status (TASK-015, 2026-07-11): <strong>impl #2 is at frozen-vector parity.</strong> <tt>map-go/</tt> (Go, zero external deps, written from the drafts and vectors under the independence rule &#8212; no Rust source consulted) reproduces every frozen positive vector byte-for-byte from seeds (TV-001..015 incl. TV-010b; TV-007 ASSIGN is produce+consume in Go, closing that ERRATA parity hole on the Go side), consumes them from frozen bytes, and rejects NV-001..008 with the required classes, including the &#167;6.2 canonicality-vs-signature isolation case (NV-003) and scope-widening delegation (NV-007 &#8594; 2003). Strict Ed25519 verification (canonical A/R/S, small-order rejection) is implemented and tested per TASK-015 &#167;FR-4. The live pairwise interop MATRIX (two implementations against each other over a real transport) remains future work &#8212; vector parity alone does not advance any document out of draft.</t>
+</section>
+<section anchor="compliance-and-regulatory-notes--10" numbered="true">
+<name>Compliance and regulatory notes (informative)</name>
+<t>Receipts and descriptors are pseudonymous personal data under GDPR-like regimes: holders are controllers of their local stores; the protocol compels no publication, and erasure is satisfiable because disclosure is pull-based and local deletion is always possible (trust &#167;4). Payment compliance (KYC/AML/sanctions) attaches to settlement methods and their operators (pay &#167;7). Model-output liability and content policy are application-layer; SecurityProfile and zones give deployments the enforcement hooks. Export-control considerations for cryptography follow the chosen suite&#x27;s primitives, all of which are widely published standards.</t>
+</section>
+<section anchor="security-considerations-11" numbered="true">
+<name>Security Considerations</name>
+<t>Governance capture is the meta-risk: registries use open policies with appealable expert review; no registry is a runtime dependency, so capture degrades coordination, not operation. Federation gateways concentrate trust by construction &#8212; G-1/G-2 make that concentration visible and priced rather than hidden.</t>
+</section>
+<section anchor="iana-considerations-12" numbered="true">
+<name>IANA Considerations</name>
+<t>This document defines the registration policies and change-control model for the MAP registries (&#167;3), but requests no IANA action of its own: the registries and their initial contents are defined by the protocol documents, and the consolidated index is <tt>draft-map-wire-01</tt>. Should the family be adopted onto a stream that uses the IANA registries, the policies in &#167;3 (open / Specification Required, with appealable expert review) are the requested assignment policies for each registry named there.</t>
+</section>
+<section anchor="references-selected-13" numbered="true">
+<name>References (selected)</name>
+<t>[RFC2119] [RFC8174] BCP 14 requirement levels.</t>
+</section>
+  </middle>
+  <back></back>
+</rfc>

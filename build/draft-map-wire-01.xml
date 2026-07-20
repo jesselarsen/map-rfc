@@ -1,0 +1,183 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rfc docName="draft-map-wire-01" category="info" ipr="trust200902" version="3" submissionType="independent">
+  <front>
+    <title abbrev="draft-map-wire-01">MAP Wire Format and Registry Index</title>
+    <author initials="J." surname="Larsen" fullname="Jesse Larsen"><organization>Independent</organization><address><email>jesselarsen@gmail.com</email></address></author>
+    <date year="2026" month="July" day="17"/>
+    <abstract><t>This document is part of the MAP (Manolito Agent Protocol) specification family. See draft-map-index-01 for the family overview and reading order.</t></abstract>
+  </front>
+  <middle>
+<section anchor="requirements-language-1" numbered="true">
+<name>Requirements Language</name>
+<t>The key words &quot;MUST&quot;, &quot;MUST NOT&quot;, &quot;REQUIRED&quot;, &quot;SHALL&quot;, &quot;SHALL NOT&quot;, &quot;SHOULD&quot;, &quot;SHOULD NOT&quot;, &quot;RECOMMENDED&quot;, &quot;NOT RECOMMENDED&quot;, &quot;MAY&quot;, and &quot;OPTIONAL&quot; in this document family are to be interpreted as described in BCP 14 [RFC2119] [RFC8174] when, and only when, they appear in all capitals, as shown here. No adaptation or weakening of these terms applies.</t>
+</section>
+<section anchor="purpose-and-how-to-read-this-doc-2" numbered="true">
+<name>Purpose and how to read this document</name>
+<t>This document is the <strong>consolidated, non-normative index</strong> of the MAP wire format and of every assigned registry in the family. It exists so a reader can see the whole on-the-wire picture and the complete code-point space in one place, without opening all eight normative drafts.</t>
+<t>It is an <strong>index, not a normative source</strong>. The normative definitions &#8212; CDDL, validation rules, MUST/SHOULD requirements, and the exact bytes &#8212; remain in the owning documents listed below. Where this index and an owning document disagree, <strong>the owning document wins</strong> (engineering policy: one named source of truth per fact, ops &#167;2 rule 1).</t>
+</section>
+<section anchor="the-map-protocol-data-unit-pdu-3" numbered="true">
+<name>The MAP Protocol Data Unit (PDU) layering</name>
+<t>Every MAP message is a signed CBOR/COSE envelope. The layering, top to bottom:</t>
+<sourcecode>AgentID / key material                      (identity &#167;3)
+        &#9474;
+        &#9660;
+Envelope = COSE_Sign1                       (core &#167;4)
+   [ protected(ProtHdr), payload(Body), signature ]
+        &#9474;
+        &#9660;
+Body = {                                     (core &#167;4.1)
+   version, msg-type, msg-id, timestamp,
+   [recipient], [ttl-ms], [session-id], [seq],
+   [crit], [ext], content }
+        &#9474;
+        &#9660;
+content := selected by msg-type             (core &#167;5 registry &#8594; owning doc)
+   HELLO / HELLO_ACK / PING / PONG / CLOSE /
+   ERROR / FLOW_CREDIT                        (core &#167;6, &#167;8, &#167;9)
+   DESCRIPTOR / STATUS_QUERY / STATUS_REPORT /
+   CAP_QUERY / CAP_RESPONSE                   (discovery &#167;2, &#167;3, &#167;7)
+   OFFER / QUOTE / ASSIGN / ACCEPT / REJECT /
+   CHUNK / TOOL_CALL / TOOL_GRANT / TOOL_RESULT /
+   CHECKPOINT / CHECKPOINT_ACK / CANCEL / COMPLETE /
+   RESUME / RESERVE / LEASE / LEASE_RELEASE   (tasks &#167;2&#8211;&#167;6, &#167;8, &#167;11)
+   RECEIPT / RECEIPT_ACK / EVIDENCE_QUERY /
+   EVIDENCE_SET / CHALLENGE / CHALLENGE_RESPONSE  (trust &#167;2, &#167;4, &#167;8)
+   PAY_QUOTE / PAY_AGREE / PAY_INVOICE /
+   PAY_PROOF / PAY_RECEIPT / PAY_DISPUTE /
+   PAY_DISPUTE_EVIDENCE                       (pay &#167;2&#8211;&#167;6)
+        &#9474;
+        &#9660;
+Task transcript commitment                   (tasks &#167;8.1)
+   Merkle root over output/tool CHUNKs (kinds 0, 1, 4)</sourcecode>
+<t>Two transmission contexts (core &#167;7):</t>
+<ul><li><strong>In-session</strong>: the envelope&#x27;s COSE <tt>external_aad</tt> is the channel-binding</li></ul>
+<t>token <tt>CB</tt> (core &#167;7.3); <tt>recipient</tt>, <tt>session-id</tt>, and <tt>seq</tt> are REQUIRED.</t>
+<ul><li><strong>Out-of-session</strong> (descriptors, receipts, revocations, provider records):</li></ul>
+<t><tt>external_aad</tt> is empty; <tt>ttl-ms</tt> is REQUIRED; freshness/supersession rules are per object class (core &#167;7.4).</t>
+<t>Four design invariants bind every layer (core &#167;1):</t>
+<ul><li><strong>I1</strong> &#8212; signatures cover the exact transmitted bytes; verifiers MUST NOT</li></ul>
+<t>re-serialize before verifying.</t>
+<ul><li><strong>I2</strong> &#8212; every envelope is independently verifiable from the sender&#x27;s key</li></ul>
+<t>material alone.</t>
+<ul><li><strong>I3</strong> &#8212; unknown non-critical fields are ignored <em>and preserved verbatim</em></li></ul>
+<t>when stored or forwarded.</t>
+<ul><li><strong>I4</strong> &#8212; all normative structures are CDDL (RFC 8610) over the deterministic</li></ul>
+<t>CBOR profile (core &#167;4.2; RFC 8949 &#167;4.2.1).</t>
+</section>
+<section anchor="master-registry-index-4" numbered="true">
+<name>Master Registry Index</name>
+<t>Each subsection lists the assigned values (copied from the owning document) and a &quot;Defined in&quot; pointer to the normative definition. Registration policy for each registry is in ops &#167;3 (summary in &#167;4 below).</t>
+<section anchor="cryptographic-suites-core-2-1" numbered="true">
+<name>Cryptographic Suites (core &#167;2)</name>
+<table><thead><tr><th>ID</th><th>Name</th><th>Signature</th><th>KEM/DH</th><th>AEAD</th><th>Hash</th><th>KDF</th></tr></thead><tbody><tr><td>1</td><td>MAP-SUITE-1 (MTI)</td><td>Ed25519</td><td>X25519</td><td>ChaCha20-Poly1305</td><td>SHA-256</td><td>HKDF-SHA-256</td></tr><tr><td>2</td><td>MAP-SUITE-2</td><td>Ed25519</td><td>X25519</td><td>ChaCha20-Poly1305</td><td>BLAKE3</td><td>BLAKE3-derive-key</td></tr><tr><td>3</td><td>(reserved, post-quantum)</td><td>Ed25519+ML-DSA-44</td><td>X25519+ML-KEM-768</td><td>ChaCha20-Poly1305</td><td>SHA-256</td><td>HKDF-SHA-256</td></tr></tbody></table>
+<t>Suite 3 is a placeholder; its code point MUST NOT be used until a companion specification defines it. Policy: <strong>Standards Action</strong>.</t>
+</section>
+<section anchor="message-types-core-5-1" numbered="true">
+<name>Message Types (core &#167;5)</name>
+<table><thead><tr><th>Range</th><th>Family</th><th>Defined in</th></tr></thead><tbody><tr><td>0x0001&#8211;0x00FF</td><td>Core: HELLO 0x0001, HELLO_ACK 0x0002, PING 0x0003, PONG 0x0004, CLOSE 0x0005, ERROR 0x0006, FLOW_CREDIT 0x0007</td><td>core</td></tr><tr><td>0x0100&#8211;0x01FF</td><td>Discovery: DESCRIPTOR 0x0100, STATUS_QUERY 0x0101, STATUS_REPORT 0x0102, CAP_QUERY 0x0103, CAP_RESPONSE 0x0104</td><td>discovery</td></tr><tr><td>0x0200&#8211;0x02FF</td><td>Tasks: OFFER 0x0200, QUOTE 0x0201, ASSIGN 0x0202, ACCEPT 0x0203, REJECT 0x0204, CHUNK 0x0205, TOOL_CALL 0x0207, TOOL_GRANT 0x0208, TOOL_RESULT 0x0209, CHECKPOINT 0x020A, CHECKPOINT_ACK 0x020B, CANCEL 0x020C, COMPLETE 0x020D, RESUME 0x020E, RESERVE 0x020F, LEASE 0x0210, LEASE_RELEASE 0x0211</td><td>tasks</td></tr><tr><td>0x0300&#8211;0x03FF</td><td>Trust: RECEIPT 0x0300, RECEIPT_ACK 0x0301, EVIDENCE_QUERY 0x0302, EVIDENCE_SET 0x0303, CHALLENGE 0x0304, CHALLENGE_RESPONSE 0x0305</td><td>trust</td></tr><tr><td>0x0400&#8211;0x04FF</td><td>Pay: PAY_QUOTE 0x0400, PAY_AGREE 0x0401, PAY_INVOICE 0x0402, PAY_PROOF 0x0403, PAY_RECEIPT 0x0404, PAY_DISPUTE 0x0405, PAY_DISPUTE_EVIDENCE 0x0406</td><td>pay</td></tr><tr><td>0x0500&#8211;0x05FF</td><td>Identity: ROTATE 0x0500, REVOKE 0x0501, DELEGATE 0x0502</td><td>identity</td></tr><tr><td>0xF000&#8211;0xFFFF</td><td>Private use</td><td>&#8212;</td></tr></tbody></table>
+<t><tt>0x0206</tt> is deliberately unassigned (never reused; ops &#167;3.3). Registration policy: <strong>Specification Required</strong>.</t>
+</section>
+<section anchor="body-keys-core-41-1" numbered="true">
+<name>Body Keys (core &#167;4.1)</name>
+<t><tt>0</tt> version, <tt>1</tt> msg-type, <tt>2</tt> msg-id, <tt>3</tt> timestamp, <tt>4</tt> recipient, <tt>5</tt> ttl-ms, <tt>6</tt> session-id, <tt>7</tt> seq, <tt>8</tt> crit, <tt>9</tt> ext, <tt>10</tt> content. Key 33 (delegation chain) resides in <tt>ProtHdr</tt> (core &#167;4.1). Registration policy: <strong>Specification Required</strong>.</t>
+</section>
+<section anchor="extension-keys-core-51-1" numbered="true">
+<name>Extension Keys (core &#167;5.1)</name>
+<table><thead><tr><th>Key</th><th>Name</th><th>Defined in</th><th>Status</th></tr></thead><tbody><tr><td>1</td><td>ext-bid</td><td>tasks &#167;2.2</td><td>complete</td></tr><tr><td>2</td><td>ext-kvx</td><td>tasks &#167;8.4</td><td>reserved (stub)</td></tr><tr><td>3</td><td>ext-git</td><td>tasks &#167;9</td><td>reserved (stub)</td></tr></tbody></table>
+<t>Points &#8805; 0xF000 are private use. Policy: <strong>Specification Required</strong>.</t>
+</section>
+<section anchor="error-codes-core-9-1" numbered="true">
+<name>Error Codes (core &#167;9)</name>
+<table><thead><tr><th>Space</th><th>Codes</th></tr></thead><tbody><tr><td>1xxx protocol</td><td>1000 malformed, 1001 unsupported version/suite, 1002 unknown critical extension, 1003 replay/out-of-window/bad-seq, 1004 message too large, 1005 rate limited / no credit, 1006 state violation</td></tr><tr><td>2xxx auth/authz</td><td>2000 bad signature/identity misbind, 2001 expired object, 2002 revoked key, 2003 invalid delegation chain, 2004 zone violation, 2005 not authorized for message type, 2006 countersignature refused</td></tr><tr><td>3xxx capability</td><td>3000 unsupported message/capability, 3001 model unavailable, 3002 context too large, 3003 ontology term unknown</td></tr><tr><td>4xxx resource</td><td>4000 overloaded, 4001 queue full, 4002 insufficient memory/VRAM class, 4003 reservation expired, 4004 storage exhausted</td></tr><tr><td>5xxx execution</td><td>5000 task failed, 5001 deadline/TTFT exceeded, 5002 cancelled, 5003 checkpoint invalid, 5004 tool denied, 5005 output policy violation, 5006 resumption impossible</td></tr><tr><td>6xxx payment</td><td>6000 quote expired, 6001 payment required, 6002 settlement failed (generic), 6003 dispute opened, 6004 method unsupported, 6005 authorized cap exceeded, 6006 agreement digest mismatch, 6007 task-binding mismatch, 6008 invalid payment proof, 6009 invoice-watermark violation, 6010 escrow violation</td></tr></tbody></table>
+<t>Policy: <strong>Specification Required</strong>.</t>
+</section>
+<section anchor="transport-bindings-core-10-1" numbered="true">
+<name>Transport Bindings (core &#167;10)</name>
+<t>libp2p protocol ID <tt>/map/1.0.0</tt> (RECOMMENDED); Raw QUIC ALPN <tt>map/1</tt>; TCP+TLS 1.3 ALPN <tt>map/1</tt>; WebSocket subprotocol <tt>map.v1</tt>; gRPC binding (optional, non-normative). Policy: <strong>Specification Required</strong>.</t>
+</section>
+<section anchor="agentid-key-types-identity-11-1" numbered="true">
+<name>AgentID Key Types (identity &#167;11)</name>
+<t><tt>0xED01</tt> = Ed25519 public key (suite 1/2). Future suites register their multicodec here. Policy: <strong>Standards Action</strong>.</t>
+</section>
+<section anchor="delegation-caveats-identity-4-1" numbered="true">
+<name>Delegation Caveats (identity &#167;4, &#167;11)</name>
+<table><thead><tr><th>Key</th><th>Name</th><th>Value</th></tr></thead><tbody><tr><td>1</td><td>task-pinning</td><td>32-byte TaskID &#8212; chain valid only for envelopes referencing that task</td></tr><tr><td>2</td><td>audience</td><td>34-byte AgentID &#8212; chain valid only when validated by that party</td></tr></tbody></table>
+<t>An unknown caveat key MUST invalidate the chain (fail-closed). Policy: <strong>Expert Review</strong>.</t>
+</section>
+<section anchor="revocation-reasons-identity-11-1" numbered="true">
+<name>Revocation Reasons (identity &#167;11)</name>
+<t><tt>0</tt> unspecified, <tt>1</tt> compromise, <tt>2</tt> superseded, <tt>3</tt> cessation. Policy: <strong>Expert Review</strong>.</t>
+</section>
+<section anchor="capability-ontology-discovery--1" numbered="true">
+<name>Capability Ontology (discovery &#167;4)</name>
+<t>Hierarchical URIs under <tt>map:cap:</tt> &#8212; initial branches: <tt>inference/text-generation[/code|/chat]</tt>, <tt>inference/embedding</tt>, <tt>inference/vision | /speech-to-text | /text-to-speech | /image-gen</tt>, <tt>tool/git | /shell | /compiler/&lt;lang&gt; | /browser | /sql</tt>, <tt>lang/&lt;bcp47-or-programming-language-tag&gt;</tt>, <tt>memory/&lt;domain&gt;</tt>, <tt>relay</tt>, <tt>gateway/&lt;namespace&gt;</tt>, <tt>schedule/reservation</tt>. Matching is by exact segment prefix. Policy: <strong>Expert Review</strong>.</t>
+</section>
+<section anchor="capentry-parameter-keys-discove-1" numbered="true">
+<name>CapEntry Parameter Keys (discovery &#167;4, &#167;12)</name>
+<table><thead><tr><th>Key</th><th>Name</th><th>Value</th></tr></thead><tbody><tr><td>1</td><td>gateway-of</td><td>tstr namespace &#8212; the fronted capability is re-advertised through this gateway namespace</td></tr></tbody></table>
+<t>Policy: <strong>Expert Review</strong> (immutable once assigned, ops &#167;3.3).</t>
+</section>
+<section anchor="hardware--sandbox-classes-disc-1" numbered="true">
+<name>Hardware / Sandbox Classes (discovery &#167;12)</name>
+<t>HardwareClass: <tt>vram-class</tt> (0 n/a &#8230; 9 &gt;128 GB), <tt>ram-class</tt> (same scale), <tt>accel</tt> (0 none &#8230; 4 cpu-only), <tt>bandwidth-class</tt> (1 &#8804;100Mb &#8230; 3 &gt;1Gb). SecurityProfile sandbox: <tt>0</tt> none, <tt>1</tt> container, <tt>2</tt> microVM, <tt>3</tt> wasm, <tt>4</tt> tee. Policy: <strong>Expert Review</strong>.</t>
+</section>
+<section anchor="chunk-kinds-tasks-3-1" numbered="true">
+<name>Chunk Kinds (tasks &#167;3)</name>
+<t><tt>0</tt> output-text, <tt>1</tt> output-bytes, <tt>2</tt> log, <tt>3</tt> usage-update, <tt>4</tt> tool-io. Policy: <strong>Expert Review</strong>.</t>
+</section>
+<section anchor="reservation--lease-fields-task-1" numbered="true">
+<name>Reservation / Lease Fields (tasks &#167;6)</name>
+<t>Message types RESERVE 0x020F, LEASE 0x0210, LEASE_RELEASE 0x0211; rsv-id is the idempotency key. Policy: <strong>Expert Review</strong>.</t>
+</section>
+<section anchor="task-caveat-keys-tasks-16-1" numbered="true">
+<name>Task Caveat Keys (tasks &#167;16)</name>
+<t><tt>delegable</tt>, <tt>budget</tt>, <tt>args-digest</tt> (tool-grant caveats). Policy: <strong>Expert Review</strong>.</t>
+</section>
+<section anchor="receipt-outcome-codes-trust-3-1" numbered="true">
+<name>Receipt Outcome Codes (trust &#167;3)</name>
+<t><tt>0</tt> ok, <tt>1</tt> failed, <tt>2</tt> timeout, <tt>3</tt> cancelled, <tt>4</tt> disputed. Policy: <strong>Expert Review</strong>.</t>
+</section>
+<section anchor="trust-evidence-query-params--vo-1" numbered="true">
+<name>Trust Evidence Query Params / Vouch Caveat Keys / Challenge Modes (trust &#167;11)</name>
+<t>EvidenceQuery fields (subject, scope, window, limit, role filter); vouch records are DelegationCert-shaped; CHALLENGE/CHALLENGE_RESPONSE (0x0304/ 0x0305) for disclosed canary audits. Policy: <strong>Expert Review</strong>.</t>
+</section>
+<section anchor="settlement-methods-pay-51-1" numbered="true">
+<name>Settlement Methods (pay &#167;5.1)</name>
+<table><thead><tr><th>URI</th><th>Rail</th><th>Policy</th></tr></thead><tbody><tr><td><tt>pay:lightning-bolt12</tt></td><td>Lightning</td><td>Specification Required</td></tr><tr><td><tt>pay:stripe-intent</tt></td><td>card processors</td><td>Specification Required</td></tr><tr><td><tt>pay:erc20-stablecoin</tt></td><td>EVM stablecoins</td><td>Specification Required</td></tr><tr><td><tt>pay:ach</tt></td><td>ACH</td><td>Specification Required</td></tr><tr><td><tt>pay:interledger</tt></td><td>Interledger / Web Monetization</td><td>Specification Required</td></tr><tr><td><tt>pay:credit-ledger</tt></td><td>private mesh ledger</td><td>Specification Required</td></tr><tr><td><tt>pay:x402</tt></td><td>x402 (HTTP-native stablecoin)</td><td>Specification Required</td></tr></tbody></table>
+<t>Each entry&#x27;s defining document specifies params, proof, verification, and finality/reversal model. Policy: <strong>Specification Required</strong>.</t>
+</section>
+<section anchor="pricing-models--terms--rate-ta-1" numbered="true">
+<name>Pricing Models / Terms / Rate-table Unit Codes (pay &#167;3, &#167;8)</name>
+<t>Pricing models: <tt>0</tt> flat, <tt>1</tt> per-token (in/out rates), <tt>2</tt> per-second, <tt>3</tt> per-invocation. Terms: <tt>0</tt> postpaid, <tt>1</tt> prepaid, <tt>2</tt> escrow, <tt>3</tt> metered-incremental. Unit codes: <tt>0</tt> flat total, <tt>1</tt> per token in, <tt>2</tt> per token out, <tt>3</tt> per millisecond, <tt>4</tt> per invocation. Policy: <strong>Specification Required</strong>.</t>
+</section>
+<section anchor="dispute-claim-codes--evidence-i-1" numbered="true">
+<name>Dispute Claim Codes / Evidence-item Kinds (pay &#167;6.1, &#167;8)</name>
+<t>Claim codes: <tt>0</tt> non-delivery, <tt>1</tt> output-mismatch, <tt>2</tt> non-payment, <tt>3</tt> overbilling, <tt>4</tt> terms breach. Evidence-item kinds: <tt>0</tt> PAY_QUOTE envelope, <tt>1</tt> PAY_AGREE, <tt>2</tt> PAY_INVOICE, <tt>3</tt> PAY_PROOF, <tt>4</tt> PAY_RECEIPT, <tt>5</tt> countersigned checkpoint, <tt>6</tt> COMPLETE, <tt>7</tt> ExecutionReceipt, <tt>8</tt> method artifact, <tt>9</tt> CHUNK envelope. Policy: <strong>Specification Required</strong>.</t>
+</section>
+</section>
+<section anchor="registration-policies-and-change-5" numbered="true">
+<name>Registration policies and change control</name>
+<t>Each registry&#x27;s IANA policy (from ops &#167;3):</t>
+<table><thead><tr><th>Registry</th><th>Policy</th></tr></thead><tbody><tr><td>Cryptographic Suites, AgentID Key Types</td><td>Standards Action</td></tr><tr><td>Message Types, Body Keys, Error Codes, Extension Keys, Transport Bindings, Settlement Methods, Pricing Models, Terms, Unit Codes, Dispute codes/kinds</td><td>Specification Required</td></tr><tr><td>Capability Ontology, Delegation Caveats, Chunk Kinds, HW/Sandbox Classes, Revocation Reasons, Task Caveat Keys, CapEntry Parameter Keys, Trust Evidence/Vouch/Challenge</td><td>Expert Review</td></tr></tbody></table>
+<t>Immutability (ops &#167;3.3): code points are never reused or redefined; deprecation marks them reserved forever. Deprecation process (ops &#167;3.4): mark deprecated &#8594; &#8805;2 minor versions dual support &#8594; remove only at a major version. Private ranges (core &#167;5, ext keys &#8805; 0xF000) need no registration and MUST NOT appear in public-mesh descriptors.</t>
+</section>
+<section anchor="conformance-classes-6" numbered="true">
+<name>Conformance classes</name>
+<t>MAP-Core (REQUIRED: identity + core); MAP-Discovery; MAP-Tasks; MAP-Trust; MAP-Pay; MAP-Fed (arch &#167;10). A conforming provider/requester implements Core + Discovery + Tasks; Trust and Pay are RECOMMENDED on public meshes.</t>
+</section>
+<section anchor="security-considerations-7" numbered="true">
+<name>Security Considerations</name>
+<t>This document is a wire-format layering summary and a consolidated registry index; it introduces no mechanism beyond those in the protocol documents, whose security considerations apply unchanged. In particular, all code-point and key registrations indexed here are consumed under the deterministic-CBOR and signed-envelope rules of <tt>draft-map-core-01</tt> &#167;4, whose Security Considerations govern malleability, downgrade, and replay.</t>
+</section>
+<section anchor="iana-considerations-8" numbered="true">
+<name>IANA Considerations</name>
+<t>This document defines no new registry of its own. It provides a consolidated index (&#167;3) of the registries defined by the MAP protocol documents; each registry&#x27;s contents, assignment policy, and change control are normative in its defining document, and the registration policies are summarized in &#167;4. No IANA action is requested by this document beyond those already requested by the protocol documents it indexes.</t>
+</section>
+<section anchor="references-selected-9" numbered="true">
+<name>References (selected)</name>
+<t>[RFC2119] [RFC8174] BCP 14 requirement levels. [RFC8610] CDDL. [RFC8949] CBOR. [RFC9052] COSE. Owning documents: <tt>draft-map-core-01</tt>, <tt>draft-map-identity-01</tt>, <tt>draft-map-discovery-01</tt>, <tt>draft-map-tasks-01</tt>, <tt>draft-map-trust-01</tt>, <tt>draft-map-pay-01</tt>, <tt>draft-map-ops-01</tt>.</t>
+</section>
+  </middle>
+  <back></back>
+</rfc>

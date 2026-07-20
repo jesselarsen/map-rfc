@@ -3,6 +3,9 @@ title: "MAP Payments: Negotiation, Settlement-Method Abstraction, Metering, and 
 docname: draft-map-pay-01
 category: std
 submissiontype: independent
+author: Jesse Larsen
+email: jesselarsen@gmail.com
+ipr: trust200902
 ---
 
 # MAP Payments and Settlement
@@ -713,7 +716,7 @@ volume rides FLOW_CREDIT (§6.1 `more` chunking) — a party cannot flood;
 a verifier MAY cap total evidence size as local policy and rule
 "insufficient" beyond it.
 
-## 7. Security considerations
+## 7. Security Considerations
 
 Proof replay: proofs bind to invoice-ids; invoice-ids bind to quote
 digests; core replay rules (§7) cover the envelopes — a captured proof
@@ -727,7 +730,7 @@ Metadata: invoices reveal counterparties and amounts to rail operators
 per the chosen method — surface this in method definitions so zone policy
 can exclude rails inconsistent with the task's sensitivity.
 
-## 8. IANA-style considerations
+## 8. IANA-Style Considerations
 
 Registers: settlement method URIs (Specification Required); pricing model
 codes; terms codes; dispute claim codes; dispute evidence-item kinds

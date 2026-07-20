@@ -3,6 +3,9 @@ title: "MAP Core: Message Envelope, Sessions, Negotiation, and Error Handling"
 docname: draft-map-core-01
 category: std
 submissiontype: independent
+author: Jesse Larsen
+email: jesselarsen@gmail.com
+ipr: trust200902
 ---
 
 # MAP Core Protocol

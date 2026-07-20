@@ -3,6 +3,9 @@ title: "The Manolito Agent Protocol (MAP): Architecture, Requirements, and Threa
 docname: draft-map-arch-01
 category: info
 submissiontype: independent
+author: Jesse Larsen
+email: jesselarsen@gmail.com
+ipr: trust200902
 ---
 
 # The Manolito Agent Protocol (MAP): Architecture
@@ -321,7 +324,14 @@ meshes. Test-suite structure: draft-map-ops-01 §6.
 This entire document is a security consideration; see §6–§8 and the
 per-document Security Considerations sections.
 
-## 13. References (selected)
+## 13. IANA Considerations
+
+This document requests no IANA actions. It defines the MAP architecture and
+threat model, not wire mechanisms or registries. The consolidated registry
+index for the family is `draft-map-wire-01`; each registry is defined and
+populated by its owning protocol document.
+
+## 14. References (selected)
 
 [RFC2119] [RFC8174] BCP 14 requirement levels. [RFC8032] EdDSA.
 [RFC7748] X25519. [RFC8439] ChaCha20-Poly1305. [RFC5869] HKDF.

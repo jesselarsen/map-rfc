@@ -1,0 +1,269 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rfc docName="draft-map-core-01" category="std" ipr="trust200902" version="3">
+  <front>
+    <title abbrev="draft-map-core-01">MAP Core: Message Envelope, Sessions, Negotiation, and Error Handling</title>
+    <author initials="J." surname="Larsen" fullname="Jesse Larsen"><organization>Independent</organization><address><email>jesselarsen@gmail.com</email></address></author>
+    <date year="2026" month="July" day="17"/>
+    <abstract><t>This document defines the mandatory core of the Manolito Agent Protocol (MAP): a signed CBOR/COSE message envelope with deterministic encoding, a version/suite/extension negotiation handshake, session establishment with transport channel binding, replay protection, credit-based flow control, a uniform error taxonomy, the extension framework, and normative bindings to libp2p, QUIC, TCP+TLS, and WebSocket transports. Every other MAP document layers message <em>contents</em> on the envelope defined here.</t></abstract>
+  </front>
+  <middle>
+<section anchor="requirements-language-1" numbered="true">
+<name>Requirements Language</name>
+<t>The key words &quot;MUST&quot;, &quot;MUST NOT&quot;, &quot;REQUIRED&quot;, &quot;SHALL&quot;, &quot;SHALL NOT&quot;, &quot;SHOULD&quot;, &quot;SHOULD NOT&quot;, &quot;RECOMMENDED&quot;, &quot;NOT RECOMMENDED&quot;, &quot;MAY&quot;, and &quot;OPTIONAL&quot; in this document family are to be interpreted as described in BCP 14 [RFC2119] [RFC8174] when, and only when, they appear in all capitals, as shown here. No adaptation or weakening of these terms applies.</t>
+</section>
+<section anchor="overview-2" numbered="true">
+<name>Overview</name>
+<t>A MAP interaction has two phases. First, peers establish a <strong>session</strong>: an encrypted, mutually authenticated transport connection (or logical stream) over which they exchange HELLO messages to negotiate a protocol version, cryptographic suite, limits, and extensions. Second, they exchange <strong>envelopes</strong> &#8212; individually signed CBOR messages &#8212; whose <tt>content</tt> field is defined by the companion specifications. Some envelopes (descriptors, receipts, revocations) also travel <em>out of session</em> via DHT storage or gossip; the envelope format is identical, but channel binding is absent and replay rules differ (&#167;7.4).</t>
+<t>Design invariants (rationale in 01-design-critique.md C2, C4):</t>
+<ul><li>I1: Signatures cover the exact transmitted bytes. Verifiers MUST NOT</li></ul>
+<t>re-serialize before verifying.</t>
+<ul><li>I2: Every envelope is independently verifiable given only the sender&#x27;s</li></ul>
+<t>key material (self-contained authentication).</t>
+<ul><li>I3: Unknown non-critical fields are ignored <em>and preserved verbatim</em> when</li></ul>
+<t>a message is stored or forwarded.</t>
+<ul><li>I4: All normative structures are defined in CDDL [RFC8610] over the</li></ul>
+<t>deterministic CBOR profile of &#167;4.2.</t>
+</section>
+<section anchor="cryptographic-suites-3" numbered="true">
+<name>Cryptographic Suites</name>
+<t>A suite fixes every primitive used by core. Registry: draft-map-ops-01 &#167;3.</t>
+<table><thead><tr><th>ID</th><th>Signature</th><th>KEM/DH</th><th>AEAD</th><th>Hash</th><th>KDF</th></tr></thead><tbody><tr><td>1 (MAP-SUITE-1, MTI)</td><td>Ed25519 [RFC8032]</td><td>X25519 [RFC7748]</td><td>ChaCha20-Poly1305 [RFC8439]</td><td>SHA-256</td><td>HKDF-SHA-256 [RFC5869]</td></tr><tr><td>2 (MAP-SUITE-2)</td><td>Ed25519</td><td>X25519</td><td>ChaCha20-Poly1305</td><td>BLAKE3</td><td>BLAKE3-derive-key</td></tr><tr><td>3 (reserved)</td><td>hybrid Ed25519+ML-DSA-44</td><td>X25519+ML-KEM-768</td><td>ChaCha20-Poly1305</td><td>SHA-256</td><td>HKDF-SHA-256</td></tr></tbody></table>
+<t>Suite 1 is mandatory-to-implement (maximum ecosystem overlap: identical primitives to Noise/TLS1.3/libp2p defaults). Suite 2 is RECOMMENDED where BLAKE3 content addressing dominates. Suite 3 is a placeholder establishing the post-quantum migration path (arch G7); its code point MUST NOT be used until a companion specification defines it. Hash <em>references</em> inside messages use multihash, so mixed-suite meshes interoperate on content addressing.</t>
+</section>
+<section anchor="identifiers-and-common-types-cd-4" numbered="true">
+<name>Identifiers and Common Types (CDDL)</name>
+<sourcecode type="cddl">AgentID     = bstr .size (34..66)   ; multicodec-prefixed public key
+                                    ; (draft-map-identity-01 &#167;3)
+MsgID       = bstr .size 16         ; cryptographically random per message
+SessionID   = bstr .size 16
+TaskID      = bstr .size 32         ; requester-chosen; see tasks &#167;3
+Multihash   = bstr                  ; per multiformats/multihash
+CapURI      = tstr .regexp &quot;map:cap:[a-z0-9][a-z0-9/._-]{0,126}&quot;
+Timestamp   = uint                  ; milliseconds since Unix epoch, UTC
+Version     = uint                  ; (major &lt;&lt; 8) | minor; 0x0100 = 1.0
+ZoneLabel   = uint .le 3            ; arch &#167;8.1
+ExtMap      = { * int =&gt; any }      ; extension key registry: ops &#167;3</sourcecode>
+</section>
+<section anchor="the-envelope-5" numbered="true">
+<name>The Envelope</name>
+<section anchor="structure-1" numbered="true">
+<name>Structure</name>
+<t>Every MAP message is a COSE_Sign1 [RFC9052] object, CBOR tag 18:</t>
+<sourcecode type="cddl">Envelope = #6.18([
+  protected:   bstr .cbor ProtHdr,
+  unprotected: {},                  ; MUST be empty map; receivers ignore
+  payload:     bstr .cbor Body,
+  signature:   bstr .size 64        ; per negotiated suite (Ed25519 here)
+])
+
+ProtHdr = {
+  1 =&gt; -8,                          ; COSE alg: EdDSA
+  4 =&gt; AgentID,                     ; COSE kid: SENDER AgentID
+  ? 33 =&gt; [+ bstr]                  ; x5chain-slot reused: delegation chain
+}                                   ; (identity &#167;6); order: leaf..root
+
+Body = {
+  0  =&gt; Version,                    ; protocol-version (negotiated, &#167;6)
+  1  =&gt; uint,                       ; msg-type (registry &#167;11)
+  2  =&gt; MsgID,
+  3  =&gt; Timestamp,
+  ? 4  =&gt; AgentID,                  ; recipient (REQUIRED in-session)
+  ? 5  =&gt; uint,                     ; ttl-ms (store-and-forward objects)
+  ? 6  =&gt; SessionID,
+  ? 7  =&gt; uint,                     ; seq (REQUIRED in-session, &#167;7.2)
+  ? 8  =&gt; [* int],                  ; crit: ext keys receiver MUST grok
+  ? 9  =&gt; ExtMap,                   ; extensions
+  10 =&gt; any                         ; content, per msg-type
+}</sourcecode>
+<t>The signature is computed per COSE over <tt>Sig_structure = [&quot;Signature1&quot;, protected, external_aad, payload]</tt> encoded with &#167;4.2. <tt>external_aad</tt> is the channel-binding token (&#167;7.3) for in-session messages and the empty byte string for out-of-session objects.</t>
+</section>
+<section anchor="deterministic-encoding-profile-1" numbered="true">
+<name>Deterministic encoding profile</name>
+<t>All CBOR that is signed, hashed, or content-addressed MUST use RFC 8949 &#167;4.2.1 core deterministic encoding: shortest-form integers, definite-length strings/arrays/maps only, map keys sorted bytewise on their encoded form, no duplicate keys. Floating-point values MUST NOT appear in signed structures; quantities that are conceptually fractional use integer milli-/micro-units or CBOR decimal fractions (tag 4) with integer mantissa and exponent. Per invariant I1, this profile governs <em>producers</em>; verifiers operate on received bytes and additionally MUST reject envelopes violating the profile (malleability defense).</t>
+</section>
+<section anchor="validation-rules-every-receiver-1" numbered="true">
+<name>Validation rules (every receiver, every envelope)</name>
+<ol><li>Well-formed CBOR; tag 18; 4-element array; sizes within negotiated</li></ol>
+<t>limits (&#167;6.3) &#8212; else error 1000/1004.</t>
+<ol><li><tt>protected.alg</tt> matches negotiated suite &#8212; else 1001.</li><li><tt>Body[0]</tt> equals the negotiated version (in-session) or a supported</li></ol>
+<t>version (out-of-session) &#8212; else 1001.</t>
+<ol><li>All keys listed in <tt>crit</tt> are understood &#8212; else 1002.</li><li>Timestamp within &#177;120 s of local clock (in-session) or within object</li></ol>
+<t>class freshness rules (out-of-session) &#8212; else 1003.</t>
+<ol><li>Replay checks pass (&#167;7) &#8212; else 1003.</li><li>Signature verifies against <tt>kid</tt>, or against the leaf key of a valid</li></ol>
+<t>delegation chain terminating at <tt>kid</tt>&#x27;s root (identity &#167;6) &#8212; else 2000/2003.</t>
+<ol><li>Sender authorization for msg-type in current state (per companion spec)</li></ol>
+<t>&#8212; else 2005. Failing envelopes MUST NOT cause state transitions; receivers SHOULD respond with ERROR (in-session) and MUST rate-limit error responses.</t>
+</section>
+</section>
+<section anchor="message-types-initial-registry-6" numbered="true">
+<name>Message Types (initial registry)</name>
+<table><thead><tr><th>Range</th><th>Family</th><th>Defined in</th></tr></thead><tbody><tr><td>0x0001&#8211;0x00FF</td><td>Core: HELLO 0x0001, HELLO_ACK 0x0002, PING 0x0003, PONG 0x0004, CLOSE 0x0005, ERROR 0x0006, FLOW_CREDIT 0x0007</td><td>this doc</td></tr><tr><td>0x0100&#8211;0x01FF</td><td>Discovery: DESCRIPTOR 0x0100, STATUS_QUERY 0x0101, STATUS_REPORT 0x0102, CAP_QUERY 0x0103, CAP_RESPONSE 0x0104</td><td>discovery</td></tr><tr><td>0x0200&#8211;0x02FF</td><td>Tasks: OFFER 0x0200, QUOTE 0x0201, ASSIGN 0x0202, ACCEPT 0x0203, REJECT 0x0204, CHUNK 0x0205, TOOL_CALL 0x0207, TOOL_GRANT 0x0208, TOOL_RESULT 0x0209, CHECKPOINT 0x020A, CHECKPOINT_ACK 0x020B, CANCEL 0x020C, COMPLETE 0x020D, RESUME 0x020E, RESERVE 0x020F, LEASE 0x0210, LEASE_RELEASE 0x0211</td><td>tasks</td></tr><tr><td>0x0300&#8211;0x03FF</td><td>Trust: RECEIPT 0x0300, RECEIPT_ACK 0x0301, EVIDENCE_QUERY 0x0302, EVIDENCE_SET 0x0303, CHALLENGE 0x0304, CHALLENGE_RESPONSE 0x0305</td><td>trust</td></tr><tr><td>0x0400&#8211;0x04FF</td><td>Pay: PAY_QUOTE 0x0400, PAY_AGREE 0x0401, PAY_INVOICE 0x0402, PAY_PROOF 0x0403, PAY_RECEIPT 0x0404, PAY_DISPUTE 0x0405, PAY_DISPUTE_EVIDENCE 0x0406</td><td>pay</td></tr><tr><td>0x0500&#8211;0x05FF</td><td>Identity: ROTATE 0x0500, REVOKE 0x0501, DELEGATE 0x0502</td><td>identity</td></tr><tr><td>0xF000&#8211;0xFFFF</td><td>Private use</td><td>&#8212;</td></tr></tbody></table>
+<t><tt>0x0206</tt> is deliberately unassigned (a hole between CHUNK 0x0205 and TOOL_CALL 0x0207; never to be reused &#8212; ops &#167;3.3).</t>
+<t>Registration policy for new code points: Specification Required (draft-map-ops-01 &#167;3).</t>
+<section anchor="extension-keys-initial-registry-1" numbered="true">
+<name>Extension Keys (initial registry)</name>
+<t>Extensions are negotiated in HELLO (&#167;6.1 key 3) before use and keyed by these code points; each is fully specified in its owning document. Points are immutable once assigned (ops &#167;3.3); &#8805; 0xF000 is private-use.</t>
+<table><thead><tr><th>Key</th><th>Name</th><th>Defined in</th><th>Status</th></tr></thead><tbody><tr><td>1</td><td>ext-bid</td><td>tasks &#167;2.2</td><td>complete</td></tr><tr><td>2</td><td>ext-kvx</td><td>tasks &#167;8.4</td><td>reserved (stub)</td></tr><tr><td>3</td><td>ext-git</td><td>tasks &#167;9</td><td>reserved (stub)</td></tr></tbody></table>
+</section>
+</section>
+<section anchor="session-establishment-and-negoti-7" numbered="true">
+<name>Session Establishment and Negotiation</name>
+<section anchor="hello--helloack-1" numbered="true">
+<name>HELLO / HELLO_ACK</name>
+<t>The connection initiator sends HELLO as its first envelope:</t>
+<sourcecode type="cddl">Hello = {
+  1 =&gt; [+ Version],        ; supported protocol versions, descending pref
+  2 =&gt; [+ uint],           ; supported suites, descending pref
+  3 =&gt; { * int =&gt; uint },  ; offered extensions: ext-key =&gt; max ext-version
+  4 =&gt; uint,               ; max-message-size accepted (bytes; &gt;= 65536)
+  ? 5 =&gt; uint,             ; max concurrent tasks accepted
+  ? 6 =&gt; bstr .size 32,    ; cookie (retry/DoS defense, &#167;6.5)
+  ? 7 =&gt; [* ZoneLabel]     ; zones the sender is willing to operate in
+}</sourcecode>
+<t>The responder selects the highest mutually supported version, the first mutually supported suite in the <em>initiator&#x27;s</em> preference order, and the intersection of extensions, replying HELLO_ACK:</t>
+<sourcecode type="cddl">HelloAck = {
+  1 =&gt; Version,            ; chosen
+  2 =&gt; uint,               ; chosen suite
+  3 =&gt; { * int =&gt; uint },  ; accepted extensions with chosen versions
+  4 =&gt; uint,               ; responder&#x27;s max-message-size
+  ? 5 =&gt; uint,
+  ? 8 =&gt; bstr              ; transcript-hash: H(HELLO bytes || this map
+}                          ;  fields 1..5 deterministically encoded)</sourcecode>
+<t>Note the field-shape asymmetry under identical field numbers: Hello fields 1/2 are <em>lists</em> (offered sets) while HelloAck fields 1/2 are <em>singletons</em> (the chosen values) &#8212; implementers regularly miss this; TV-001/TV-003 are the byte-level guard.</t>
+<t>If no version or suite is mutual, the responder sends ERROR 1001 with the supported sets and closes. Both peers MUST verify each envelope&#x27;s signer matches the transport-authenticated identity (&#167;7.3) &#8212; the HELLO exchange is therefore itself authenticated and MITM-resistant.</t>
+<t>The initiator&#x27;s HELLO envelope carries a fresh SessionID (Body key 6); the responder MUST echo the same SessionID in its HELLO_ACK envelope, and every subsequent in-session envelope carries it. A SessionID mismatch is a state violation (1006) and the session MUST be closed.</t>
+</section>
+<section anchor="downgrade-resistance-1" numbered="true">
+<name>Downgrade resistance</name>
+<t>Both peers compute the negotiation transcript hash <tt>TH = H(&quot;MAPv1-transcript&quot; || HELLO-envelope-bytes || HELLO_ACK-envelope-bytes)</tt> with the chosen suite&#x27;s hash. TH is mixed into the channel-binding token (&#167;7.3). An attacker who strips versions/suites from either HELLO alters TH and every subsequent signature check fails &#8212; closing threat TH14.</t>
+</section>
+<section anchor="limits-1" numbered="true">
+<name>Limits</name>
+<t>Default/floor limits: max-message-size 256 KiB (floor 64 KiB); larger payloads MUST use chunked CHUNK streams or content-addressed fetch. Peers MUST enforce their advertised limits and MUST NOT send beyond the peer&#x27;s. Receivers SHOULD enforce the size limit on the raw received frame before any decoding or signature work (cheapest check first; DoS posture &#167;6.5).</t>
+</section>
+<section anchor="version-policy-1" numbered="true">
+<name>Version policy</name>
+<t><tt>Version</tt> is (major, minor). Minor revisions are strictly additive (new optional fields, new msg-types); implementations MUST accept unknown optional Body keys and unknown msg-types within a session by replying ERROR 3000 without closing. Major revisions may break anything and never interoperate implicitly. Deprecation process: draft-map-ops-01 &#167;3.4.</t>
+</section>
+<section anchor="denial-of-service-posture-at-han-1" numbered="true">
+<name>Denial-of-service posture at handshake</name>
+<t>Responders under load MAY reply to HELLO with ERROR 1005 carrying a <tt>cookie</tt>; the initiator retries HELLO including the cookie, proving reachability before the responder allocates session state (cf. DTLS/QUIC retry). Signature verification precedes all allocation-heavy processing.</t>
+</section>
+</section>
+<section anchor="anti-replay-and-channel-binding-8" numbered="true">
+<name>Anti-Replay and Channel Binding</name>
+<section anchor="message-level-1" numbered="true">
+<name>Message-level</name>
+<t>Receivers maintain, per sender, a cache of MsgIDs seen within the last 10 minutes and MUST reject duplicates (1003) and out-of-window timestamps. The cache bound is enforceable because of rate limits (&#167;8.3).</t>
+</section>
+<section anchor="session-sequence-numbers-1" numbered="true">
+<name>Session sequence numbers</name>
+<t>In-session envelopes carry <tt>seq</tt>, starting at 0 per direction and incrementing by 1. Receivers MUST reject non-monotonic seq (1003). seq gives cheap ordering across multiplexed transports and makes transcript audits (tasks &#167;8) unambiguous.</t>
+</section>
+<section anchor="channel-binding-1" numbered="true">
+<name>Channel binding</name>
+<t>On session establishment each peer derives <tt>CB = HKDF(TH, transport-exporter, &quot;map cb&quot;, 32)</tt> where <tt>transport-exporter</tt> is: the TLS 1.3 exporter (<tt>EXPORTER-map-binding</tt>) for TLS/QUIC transports; the Noise handshake hash for Noise transports; for transports lacking an exporter, the concatenation of both peers&#x27; static public keys as authenticated by the transport. CB is the COSE <tt>external_aad</tt> for every in-session envelope. Consequences: an envelope recorded on one session cannot verify on another (anti-relay), and the signer is cryptographically bound to the transport-authenticated endpoint (TH4). The transport identity MUST equal the envelope <tt>kid</tt>&#x27;s key or a delegated key chained to it (identity &#167;6); mismatch is error 2000 and immediate CLOSE.</t>
+</section>
+<section anchor="out-of-session-objects-1" numbered="true">
+<name>Out-of-session objects</name>
+<t>Descriptors, revocations, receipts, and other store-and-forward objects use empty <tt>external_aad</tt>, MUST carry <tt>ttl-ms</tt>, and are deduplicated by content address; freshness/supersession rules are per object class (e.g., descriptor <tt>seq</tt>, discovery &#167;5.3).</t>
+</section>
+</section>
+<section anchor="flow-control-and-rate-limiting-9" numbered="true">
+<name>Flow Control and Rate Limiting</name>
+<section anchor="credit-based-streaming-1" numbered="true">
+<name>Credit-based streaming</name>
+<t>Any message family that streams (task CHUNKs, evidence sets) is governed by receiver-granted credit. FLOW_CREDIT content:</t>
+<sourcecode type="cddl">FlowCredit = {
+  1 =&gt; TaskID / SessionID,   ; scope
+  2 =&gt; uint,                 ; additional message credits
+  3 =&gt; uint                  ; additional byte credits
+}</sourcecode>
+<t>Senders MUST NOT exceed outstanding credit in either unit; violations are 1005 and MAY be receipt-recorded. Initial credits are granted in ASSIGN/ACCEPT (tasks &#167;4). Rationale: transport backpressure alone lets a slow or malicious reader pin provider resources (VRAM, queue slots) indefinitely &#8212; critique &quot;no flow control&quot;. Credit lets providers bound commitment and bill for reserved-but-unconsumed output.</t>
+</section>
+<section anchor="keepalive-1" numbered="true">
+<name>Keepalive</name>
+<t>PING/PONG carry an opaque 8-byte payload echoed verbatim; RECOMMENDED interval 30 s on idle sessions; 3 missed PONGs &#8658; session failure handling.</t>
+</section>
+<section anchor="rate-limits-1" numbered="true">
+<name>Rate limits</name>
+<t>Implementations MUST enforce configurable per-peer ceilings on: envelopes/s, HELLOs/min from an address, STATUS_QUERYs/min, and DHT-record ingestion/s, with 1005 + exponential backoff hints (<tt>retry-after-ms</tt> in ERROR detail).</t>
+</section>
+</section>
+<section anchor="error-handling-10" numbered="true">
+<name>Error Handling</name>
+<t>ERROR content:</t>
+<sourcecode type="cddl">ErrorMsg = {
+  1 =&gt; uint,            ; code
+  2 =&gt; bool,            ; retryable
+  ? 3 =&gt; tstr,          ; human-readable (English; not for machines)
+  ? 4 =&gt; MsgID,         ; message being answered
+  ? 5 =&gt; { * int =&gt; any } ; machine-readable detail (per-code schema)
+}</sourcecode>
+<t>Code space (registry; Specification Required):</t>
+<ul><li><strong>1xxx protocol</strong>: 1000 malformed, 1001 unsupported version/suite,</li></ul>
+<t>1002 unknown critical extension, 1003 replay/out-of-window/bad-seq, 1004 message too large, 1005 rate limited / no credit, 1006 state violation.</t>
+<ul><li><strong>2xxx auth/authz</strong>: 2000 bad signature/identity misbind, 2001 expired</li></ul>
+<t>object, 2002 revoked key, 2003 invalid delegation chain, 2004 zone violation, 2005 not authorized for message type, 2006 countersignature refused (the receiver declines to attest the sender&#x27;s claimed facts &#8212; e.g. receipt usage/timestamps outside countersignature tolerance, trust &#167;3).</t>
+<ul><li><strong>3xxx capability</strong>: 3000 unsupported message/capability, 3001 model</li></ul>
+<t>unavailable, 3002 context too large, 3003 ontology term unknown.</t>
+<ul><li><strong>4xxx resource</strong>: 4000 overloaded, 4001 queue full, 4002 insufficient</li></ul>
+<t>memory/VRAM class, 4003 reservation expired, 4004 storage exhausted.</t>
+<ul><li><strong>5xxx execution</strong>: 5000 task failed, 5001 deadline/TTFT exceeded,</li></ul>
+<t>5002 cancelled, 5003 checkpoint invalid, 5004 tool denied, 5005 output policy violation, 5006 resumption impossible.</t>
+<ul><li><strong>6xxx payment</strong>: 6000 quote expired, 6001 payment required, 6002</li></ul>
+<t>settlement failed, 6003 dispute opened, 6004 method unsupported, 6005 authorized cap exceeded (PayAgree.4), 6006 agreement digest mismatch (quote/agreement envelope digest does not match the referenced bytes &#8212; price-switch defense, pay &#167;3.1), 6007 task binding mismatch (a pay message&#x27;s task binding &#8800; the bound task: PayQuote.9 vs the OFFER&#x27;s TaskID, pay &#167;3; UsageWatermark.1 vs the agreement&#x27;s task, pay &#167;4.1), 6008 invalid payment proof (forged or mismatched settlement proof, pay &#167;5), 6009 invoice-watermark violation (a metered invoice&#x27;s UsageWatermark fails a pay &#167;4.1 check: presence, monotonicity, meter consistency, or billing arithmetic), 6010 escrow violation (a terms-1/2 invoice or receipt fails a pay &#167;5.2 check: phase presence, prepaid/hold amount &#8800; quoted total, premature or oversized release, duplicate hold, or an unrecognized receipt kind). 6002 remains the generic settlement failure for causes not covered by a specific code.</t>
+<t>Retryability semantics: <tt>retryable = true</tt> means the identical request MAY succeed later at the same peer; false means the requester MUST change something (peer, parameters, payment) &#8212; this drives orchestrator fallback logic deterministically (adopting design3&#x27;s TTFT/fallback discipline).</t>
+</section>
+<section anchor="transport-bindings-11" numbered="true">
+<name>Transport Bindings</name>
+<t>Common requirements: mutual authentication with keys verifiable against AgentIDs; confidentiality and integrity; ordered byte streams; multiplexing (or one connection per session). Envelope framing on raw streams: 4-byte big-endian length prefix, then envelope bytes; length MUST respect negotiated max-message-size.</t>
+<ul><li><strong>libp2p (RECOMMENDED)</strong>: protocol ID <tt>/map/1.0.0</tt>; security Noise or</li></ul>
+<t>TLS; muxer yamux; transports QUIC-v1 preferred, TCP, WebSocket, WebTransport. PeerID MUST equal the AgentID key (identity &#167;3.2). NAT traversal profile &#8212; AutoNAT v2, Circuit Relay v2, DCUtR hole punching &#8212; is REQUIRED for public-mesh providers (discovery &#167;10). One MAP session runs per <tt>/map/1.0.0</tt> substream, length-prefixed as above.</t>
+<t><em>Channel binding for <tt>/map/1.0.0</tt></em> (&#167;7.3 third clause &#8212; transports lacking an exporter): rust-libp2p does not portably expose a Noise handshake-hash / TLS-exporter equivalent on its stream API, so the exporter for this binding is <tt>initiator-AgentID || responder-AgentID</tt> (the two PeerIDs the connection authenticated, in stream-initiator-first order). This binds the session to the authenticated identities of both endpoints. Residual (acknowledged, weaker than a true exporter): it binds the identity <em>pair</em>, not the specific connection instance, so it does not by itself separate two concurrent connections between the same pair; the per-message msg-id replay cache and the monotonic in-session sequence numbers (&#167;7.1) prevent cross-connection replay within the window regardless. An implementation whose libp2p version exposes Noise handshake-hash material SHOULD use it instead and record that choice.</t>
+<ul><li><strong>Raw QUIC</strong>: ALPN <tt>map/1</tt>; TLS 1.3 with RawPublicKey or self-signed</li></ul>
+<t>X.509 carrying the Ed25519 key; exporter per &#167;7.3.</t>
+<ul><li><strong>TCP+TLS 1.3</strong>: ALPN <tt>map/1</tt>; same certificate rules.</li><li><strong>WebSocket</strong>: subprotocol <tt>map.v1</tt>; binary frames = framed envelopes;</li></ul>
+<t>over TLS; where the WS layer terminates TLS at an intermediary, CB falls back to static-key binding and the session MUST be treated as Zone &#8805;2.</t>
+<ul><li><strong>gRPC binding (OPTIONAL, non-normative appendix in tasks)</strong>: bulk CHUNK</li></ul>
+<t>streaming MAY be carried over gRPC for ecosystem convenience; every gRPC message remains a MAP envelope (I2 holds regardless of carrier).</t>
+</section>
+<section anchor="extension-framework-12" numbered="true">
+<name>Extension Framework</name>
+<t>Extension keys are integers from the MAP Extension Registry (ops &#167;3). Rules: (a) unknown keys absent from <tt>crit</tt> MUST be ignored and, for stored/ forwarded objects, preserved byte-exactly (I3); (b) keys present in <tt>crit</tt> MUST be understood or the envelope rejected with 1002; (c) extensions are version-negotiated in HELLO field 3 before use in-session; (d) extensions MUST NOT redefine core field semantics. This mirrors the proven HTTP/TLS/COSE evolution model and is the mechanism by which bidding, KV-cache transfer, Git workspace sync, etc. attach without core changes.</t>
+</section>
+<section anchor="session-state-machine-13" numbered="true">
+<name>Session State Machine</name>
+<sourcecode>                    send HELLO                    recv HELLO_ACK(ok)
+        +------+  -------------&gt;  +------------+  ---------------&#8594; +-------------+
+        | IDLE |                  | HELLO_SENT |                   |             |
+        +------+  -------------&gt;  +------------+                   |             |
+            |       recv HELLO           | recv ERROR/timeout      | ESTABLISHED |
+            |                            v                         |             |
+            |                        +--------+   CLOSE sent/recv, |             |
+            +--- (responder) ------&gt; | CLOSED | &lt;---- auth fail ---+-------------+
+                 send HELLO_ACK,     +--------+        or 3&#215;PING loss    |
+                 enter ESTABLISHED        ^                              |
+                                          +------------------------------</sourcecode>
+<t>ESTABLISHED admits all in-session message families per negotiated conformance classes. CLOSE content carries an ErrorMsg-shaped reason. Half-close is not modeled; either CLOSE tears down the session after flushing acknowledged state (task-level survival across sessions is handled by tasks &#167;8 resumption, not by the session layer).</t>
+</section>
+<section anchor="examples-and-test-vectors-14" numbered="true">
+<name>Examples and Test Vectors</name>
+<t>TV-001 (signed HELLO envelope, 166 bytes) and TV-002 (dual-signed ExecutionReceipt) in <tt>test-vectors/map-test-vectors.md</tt> are normative encoding examples generated with real Ed25519 keys; all signatures verify per &#167;4. Implementations MUST reproduce byte-identical Sig_structures from the listed inputs.</t>
+</section>
+<section anchor="security-considerations-15" numbered="true">
+<name>Security Considerations</name>
+<t>Covered throughout: bytes-not-objects verification (&#167;4, I1), deterministic encoding as malleability defense (&#167;4.2), downgrade resistance (&#167;6.2), handshake DoS (&#167;6.5), replay and relay (&#167;7), resource pinning (&#167;8), information leakage via error verbosity (ERROR <tt>detail</tt> MUST NOT echo payload contents to unauthenticated peers). Residual: timestamp windows assume &#177;120 s clock sanity; deployments with worse clocks MUST widen windows and accept the enlarged replay cache, or deploy roughtime.</t>
+<t><strong>Channel-binding strength depends on the transport (&#167;7.3, &#167;10).</strong> The anti-relay and endpoint-binding guarantees of &#167;7.3 are only as strong as the <tt>transport-exporter</tt> fed into the CB derivation. On transports that expose a true key-schedule exporter (TLS 1.3, raw QUIC &#8212; &#167;10) CB binds the specific connection instance. On transports lacking a portable exporter &#8212; notably the <tt>/map/1.0.0</tt> libp2p binding as currently implemented, whose exporter is the authenticated <tt>initiator-AgentID || responder-AgentID</tt> pair (&#167;10) &#8212; CB binds the identity <em>pair</em> but not the specific connection, so it does not by itself separate two concurrent connections between the same pair; &#167;7.1&#x27;s per-message msg-id replay cache and monotonic in-session sequence numbers carry that separation within the window. Deployments requiring instance-level binding MUST use an exporter-bearing transport (TLS/QUIC) or a libp2p stack that surfaces Noise handshake-hash material, and SHOULD treat the identity-pair fallback as Zone &#8805;2. This is an implementation-maturity limitation of the reference libp2p binding, not a wire-format constraint: the CB derivation (&#167;7.3) is unchanged across transports, so a stronger exporter drops in without a protocol change.</t>
+</section>
+<section anchor="iana-style-considerations-16" numbered="true">
+<name>IANA-Style Considerations</name>
+<t>This document establishes (initial contents above; policies in ops &#167;3): MAP Cryptographic Suites; MAP Message Types; MAP Body Keys; MAP Extension Keys; MAP Error Codes; MAP Transport Bindings (ALPN/protocol-ID strings). The assigned values and the full family-wide index are in <tt>draft-map-wire-01.md</tt> &#167;3.1, &#167;3.2, &#167;3.3, &#167;3.4, &#167;3.5, and &#167;3.6 respectively; in case of divergence the normative tables above govern.</t>
+</section>
+<section anchor="references-selected-17" numbered="true">
+<name>References (selected)</name>
+<t>[RFC2119] [RFC8174] BCP 14 requirement levels.</t>
+</section>
+  </middle>
+  <back></back>
+</rfc>

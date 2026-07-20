@@ -3,6 +3,9 @@ title: "MAP Operations: Governance, Registries, Federation, Interoperability, an
 docname: draft-map-ops-01
 category: bcp
 submissiontype: independent
+author: Jesse Larsen
+email: jesselarsen@gmail.com
+ipr: trust200902
 ---
 
 # MAP Operations, Governance, and Interoperability
@@ -393,13 +396,23 @@ enforcement hooks. Export-control considerations for cryptography follow
 the chosen suite's primitives, all of which are widely published
 standards.
 
-## 10. Security considerations
+## 10. Security Considerations
 
 Governance capture is the meta-risk: registries use open policies with
 appealable expert review; no registry is a runtime dependency, so capture
 degrades coordination, not operation. Federation gateways concentrate
 trust by construction — G-1/G-2 make that concentration visible and
 priced rather than hidden.
+
+## 11. IANA Considerations
+
+This document defines the registration policies and change-control model for
+the MAP registries (§3), but requests no IANA action of its own: the
+registries and their initial contents are defined by the protocol documents,
+and the consolidated index is `draft-map-wire-01`. Should the family be
+adopted onto a stream that uses the IANA registries, the policies in §3
+(open / Specification Required, with appealable expert review) are the
+requested assignment policies for each registry named there.
 
 ## References (selected)
 

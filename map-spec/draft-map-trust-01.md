@@ -3,6 +3,9 @@ title: "MAP Trust: Execution Receipts, Evidence Exchange, and Local Reputation"
 docname: draft-map-trust-01
 category: std
 submissiontype: independent
+author: Jesse Larsen
+email: jesselarsen@gmail.com
+ipr: trust200902
 ---
 
 # MAP Trust and Reputation
@@ -295,7 +298,7 @@ scores — no write path MAY update a score without its evidence.
 | Receipt spam | Rate limits (core §8.3), storage quotas, payment-linkage preference (receipts referencing settled invoices weight higher) |
 | Selective countersigning (hide failures) | Requester-held unilateral negatives still circulate; density-vs-volume gap is itself evidence (§2) |
 
-## 10. Security considerations
+## 10. Security Considerations
 
 Receipts are pseudonymous personal data in some jurisdictions — retention
 and disclosure are holder decisions; the protocol never compels
@@ -306,7 +309,7 @@ The dominant residual risk is correlated model failure masquerading as
 collusion (k providers running the same wrong model agree); mitigate by
 diversifying `ModelEntry.weights-digest` across the redundant set.
 
-## 11. IANA-style considerations
+## 11. IANA-Style Considerations
 
 Registers: receipt outcome codes; evidence query parameters; vouch caveat
 keys; challenge disclosure modes. The assigned values and the family-wide

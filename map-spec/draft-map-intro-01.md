@@ -3,6 +3,9 @@ title: "MAP Introduction and Motivation: Autonomous Agent Interoperability"
 docname: draft-map-intro-01
 category: info
 submissiontype: independent
+author: Jesse Larsen
+email: jesselarsen@gmail.com
+ipr: trust200902
 ---
 
 # MAP Introduction and Motivation
@@ -172,6 +175,18 @@ attenuation) are machine-checked (ops §6.3). Remaining formal work and the
 deferred extension semantics are listed honestly in the README "Status"
 section and in `ops §6.3` / `ops §8`. The documents remain in draft pending
 human/expert review.
+
+## 7. Security Considerations
+
+This document is a non-normative motivational and design-rationale overview
+and defines no protocol mechanisms; it introduces no new security
+considerations. The security considerations of MAP are normative in the
+protocol documents — principally `draft-map-core-01` (envelope, sessions,
+channel binding) — and the family threat model is in `draft-map-arch-01`.
+
+## 8. IANA Considerations
+
+This document requests no IANA actions.
 
 ## References (selected)
 

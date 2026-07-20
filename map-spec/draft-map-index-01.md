@@ -3,6 +3,9 @@ title: "MAP: Family Index and Submission Overview"
 docname: draft-map-index-01
 category: info
 submissiontype: independent
+author: Jesse Larsen
+email: jesselarsen@gmail.com
+ipr: trust200902
 ---
 
 # MAP: Family Index and Submission Overview
@@ -95,7 +98,24 @@ and the pre/post-publication authority split are defined in `draft-map-ops-01`
 pass the full test-vector set and the live pairwise interop matrix (16/16).
 The documents remain in draft pending human/expert review.
 
-## 5. References (selected)
+## 5. Security Considerations
+
+This document is a family index and defines no protocol mechanisms of its own;
+it therefore introduces no new security considerations. MAP's security model
+is normative in the protocol documents: `draft-map-core-01` (envelope
+integrity, session channel binding, anti-replay), `draft-map-identity-01`
+(agent identity and delegation attenuation), `draft-map-trust-01`
+(receipt-based, self-reported-trust-free reputation), and `draft-map-pay-01`
+(settlement evidence and disputes). `draft-map-arch-01` states the family
+threat model.
+
+## 6. IANA Considerations
+
+This document requests no IANA actions. The consolidated registry index for
+the family is `draft-map-wire-01`; individual registries are defined and
+populated by the protocol documents.
+
+## 7. References (selected)
 
 [BCP14] BCP 14 requirement levels (RFC 2119 / RFC 8174).
 [RFC2026] BCP 78 (copyright). [RFC8179] BCP 79 (IPR).

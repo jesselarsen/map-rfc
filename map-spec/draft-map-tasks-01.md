@@ -3,6 +3,9 @@ title: "MAP Tasks: Negotiation, Streaming Inference, Tools, Checkpoints, and Del
 docname: draft-map-tasks-01
 category: std
 submissiontype: independent
+author: Jesse Larsen
+email: jesselarsen@gmail.com
+ipr: trust200902
 ---
 
 # MAP Task Execution and Secure Messaging
@@ -461,7 +464,7 @@ safe (§1). Orchestrator fallback chains (local → trusted mesh → gateway)
 are thereby deterministic — the property design3 wanted from "aggressive
 fallbacks", now grounded in error semantics.
 
-## 15. Security considerations
+## 15. Security Considerations
 
 Tool gating (§7) and zone rules (§9) are the primary injection/exfiltration
 controls; transcripts+countersigned checkpoints give attributable execution
@@ -471,7 +474,7 @@ Providers remain exposed to semantically malicious *inputs* — sandboxing
 requirements are the floor, not a guarantee; meshes SHOULD gate Zone-2 tool
 execution behind stricter sandbox classes than the default.
 
-## 16. IANA-style considerations
+## 16. IANA-Style Considerations
 
 Registers: chunk kinds; reservation/lease fields; caveat keys `delegable`,
 `budget`, `args-digest`; extensions `ext-bid` (key 1, complete, §2.2),

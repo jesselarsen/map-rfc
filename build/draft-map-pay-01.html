@@ -1,0 +1,2021 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta content="Common,Latin" name="scripts">
+<meta content="initial-scale=1.0" name="viewport">
+<title>MAP Payments: Negotiation, Settlement-Method Abstraction, Metering, and Disputes</title>
+<meta content="Jesse Larsen" name="author">
+<meta content="
+       Defines payment  negotiation and evidence  for MAP: quotes, agreements, invoices, settlement proofs, payment receipts, and a dispute-evidence protocol — over a registry of pluggable settlement methods (Lightning, card-processor intents, stablecoins, ACH, Interledger, private credit ledgers). MAP mandates no currency, token, chain, or processor; it standardizes how parties agree on price, prove settlement occurred on the chosen rail, and exchange evidence when they disagree. This replaces the orchestrator-minted-credit designs rejected in the critique (C9). 
+    " name="description">
+<meta content="xml2rfc 3.34.0" name="generator">
+<meta content="draft-map-pay-01" name="ietf.draft">
+<!-- Generator version information:
+  xml2rfc 3.34.0
+    Python 3.12.10
+    ConfigArgParse 1.7.5
+    google-i18n-address 3.1.1
+    intervaltree 3.2.1
+    Jinja2 3.1.6
+    lxml 6.1.1
+    natsort 8.4.0
+    platformdirs 4.10.0
+    pycountry 26.2.16
+    PyYAML 6.0.3
+    requests 2.34.2
+    wcwidth 0.8.2
+-->
+<link href="draft-map-pay-01.xml" rel="alternate" type="application/rfc+xml">
+<link href="#copyright" rel="license">
+<style type="text/css">/*
+
+  NOTE: Changes at the bottom of this file overrides some earlier settings.
+
+  Once the style has stabilized and has been adopted as an official RFC style,
+  this can be consolidated so that style settings occur only in one place, but
+  for now the contents of this file consists first of the initial CSS work as
+  provided to the RFC Formatter (xml2rfc) work, followed by itemized and
+  commented changes found necessary during the development of the v3
+  formatters.
+
+*/
+
+/* fonts */
+@import url('https://static.ietf.org/fonts/noto-sans/import.css'); /* Sans-serif */
+@import url('https://static.ietf.org/fonts/noto-serif/import.css'); /* Serif (print) */
+@import url('https://static.ietf.org/fonts/roboto-mono/import.css'); /* Monospace */
+
+:root {
+  --font-sans: 'Noto Sans', Arial, Helvetica, sans-serif;
+  --font-serif: 'Noto Serif', 'Times', 'Times New Roman', serif;
+  --font-mono: 'Roboto Mono', Courier, 'Courier New', monospace;
+}
+
+@viewport {
+  zoom: 1.0;
+}
+@-ms-viewport {
+  width: extend-to-zoom;
+  zoom: 1.0;
+}
+/* general and mobile first */
+html {
+}
+body {
+  max-width: 90%;
+  margin: 1.5em auto;
+  color: #222;
+  background-color: #fff;
+  font-size: 14px;
+  font-family: var(--font-sans);
+  line-height: 1.6;
+  scroll-behavior: smooth;
+  overflow-wrap: break-word;
+}
+.ears {
+  display: none;
+}
+
+/* headings */
+#title, h1, h2, h3, h4, h5, h6 {
+  margin: 1em 0 0.5em;
+  font-weight: bold;
+  line-height: 1.3;
+}
+#title {
+  clear: both;
+  border-bottom: 1px solid #ddd;
+  margin: 0 0 0.5em 0;
+  padding: 1em 0 0.5em;
+}
+.author {
+  padding-bottom: 4px;
+}
+h1 {
+  font-size: 26px;
+  margin: 1em 0;
+}
+h2 {
+  font-size: 22px;
+  margin-top: -20px;  /* provide offset for in-page anchors */
+  padding-top: 33px;
+}
+h3 {
+  font-size: 18px;
+  margin-top: -36px;  /* provide offset for in-page anchors */
+  padding-top: 42px;
+}
+h4 {
+  font-size: 16px;
+  margin-top: -36px;  /* provide offset for in-page anchors */
+  padding-top: 42px;
+}
+h5, h6 {
+  font-size: 14px;
+}
+#n-copyright-notice {
+  border-bottom: 1px solid #ddd;
+  padding-bottom: 1em;
+  margin-bottom: 1em;
+}
+/* general structure */
+p {
+  padding: 0;
+  margin: 0 0 1em 0;
+  text-align: left;
+}
+div, span {
+  position: relative;
+}
+div {
+  margin: 0;
+}
+.alignRight.art-text {
+  background-color: #f9f9f9;
+  border: 1px solid #eee;
+  border-radius: 3px;
+  padding: 1em 1em 0;
+  margin-bottom: 1.5em;
+}
+.alignRight.art-text pre {
+  padding: 0;
+}
+.alignRight {
+  margin: 1em 0;
+}
+.alignRight > *:first-child {
+  border: none;
+  margin: 0;
+  float: right;
+  clear: both;
+}
+.alignRight > *:nth-child(2) {
+  clear: both;
+  display: block;
+  border: none;
+}
+svg {
+  display: block;
+}
+@media print {
+  svg {
+    max-height: 850px;
+    max-width: 660px;
+  }
+}
+svg[font-family~="serif" i], svg [font-family~="serif" i] {
+  font-family: var(--font-serif);
+}
+svg[font-family~="sans-serif" i], svg [font-family~="sans-serif" i] {
+  font-family: var(--font-sans);
+}
+svg[font-family~="monospace" i], svg [font-family~="monospace" i] {
+  font-family: var(--font-mono);
+}
+.alignCenter.art-text {
+  background-color: #f9f9f9;
+  border: 1px solid #eee;
+  border-radius: 3px;
+  padding: 1em 1em 0;
+  margin-bottom: 1.5em;
+}
+.alignCenter.art-text pre {
+  padding: 0;
+}
+.alignCenter {
+  margin: 1em 0;
+}
+.alignCenter > *:first-child {
+  display: table;
+  border: none;
+  margin: 0 auto;
+}
+
+/* lists */
+ol, ul {
+  padding: 0;
+  margin: 0 0 1em 2em;
+}
+ol ol, ul ul, ol ul, ul ol {
+  margin-left: 1em;
+}
+li {
+  margin: 0 0 0.25em 0;
+}
+.ulCompact li {
+  margin: 0;
+}
+ul.empty, .ulEmpty {
+  list-style-type: none;
+}
+ul.empty li, .ulEmpty li {
+  margin-top: 0.5em;
+}
+ul.ulBare, li.ulBare {
+  margin-left: 0em !important;
+}
+ul.compact, .ulCompact,
+ol.compact, .olCompact {
+  line-height: 100%;
+  margin: 0 0 0 2em;
+}
+
+/* definition lists */
+dl {
+}
+dl > dt {
+  float: left;
+  margin-right: 1em;
+}
+/* 
+dl.nohang > dt {
+  float: none;
+}
+*/
+dl > dd {
+  margin-bottom: .8em;
+  min-height: 1.3em;
+}
+dl.compact > dd, .dlCompact > dd {
+  margin-bottom: 0em;
+}
+dl > dd > dl {
+  margin-top: 0.5em;
+  margin-bottom: 0em;
+}
+
+/* links */
+a {
+  text-decoration: none;
+}
+a[href] {
+  color: #22e; /* Arlen: WCAG 2019 */
+}
+a[href]:hover {
+  background-color: #f2f2f2;
+}
+figcaption a[href],
+a[href].selfRef {
+  color: #222;
+}
+/* XXX probably not this:
+a.selfRef:hover {
+  background-color: transparent;
+  cursor: default;
+} */
+
+/* Figures */
+tt, code, pre {
+  background-color: #f9f9f9;
+  font-family: var(--font-mono);
+}
+pre {
+  border: 1px solid #eee;
+  margin: 0;
+  padding: 1em;
+}
+img {
+  max-width: 100%;
+}
+figure {
+  margin: 0;
+}
+figure blockquote {
+  margin: 0.8em 0.4em 0.4em;
+}
+figcaption {
+  font-style: italic;
+  margin: 0 0 1em 0;
+}
+@media screen {
+  pre {
+    overflow-x: auto;
+    max-width: 100%;
+    max-width: calc(100% - 22px);
+  }
+}
+
+/* aside, blockquote */
+aside, blockquote {
+  margin-left: 0;
+  padding: 1.2em 2em;
+}
+blockquote {
+  background-color: #f9f9f9;
+  color: #111; /* Arlen: WCAG 2019 */
+  border: 1px solid #ddd;
+  border-radius: 3px;
+  margin: 1em 0;
+}
+blockquote > *:last-child {
+  margin-bottom: 0;
+}
+cite {
+  display: block;
+  text-align: right;
+  font-style: italic;
+}
+.xref {
+  overflow-wrap: normal;
+}
+
+/* tables */
+table {
+  width: 100%;
+  margin: 0 0 1em;
+  border-collapse: collapse;
+  border: 1px solid #eee;
+}
+th, td {
+  text-align: left;
+  vertical-align: top;
+  padding: 0.5em 0.75em;
+}
+th {
+  text-align: left;
+  background-color: #e9e9e9;
+}
+tr:nth-child(2n+1) > td {
+  background-color: #f5f5f5;
+}
+table caption {
+  font-style: italic;
+  margin: 0;
+  padding: 0;
+  text-align: left;
+}
+table p {
+  /* XXX to avoid bottom margin on table row signifiers. If paragraphs should
+     be allowed within tables more generally, it would be far better to select on a class. */
+  margin: 0;
+}
+
+/* pilcrow */
+a.pilcrow {
+  color: #666; /* Arlen: AHDJ 2019 */
+  text-decoration: none;
+  visibility: hidden;
+  user-select: none;
+  -ms-user-select: none;
+  -o-user-select:none;
+  -moz-user-select: none;
+  -khtml-user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+@media screen {
+  aside:hover > a.pilcrow,
+  p:hover > a.pilcrow,
+  blockquote:hover > a.pilcrow,
+  div:hover > a.pilcrow,
+  li:hover > a.pilcrow,
+  pre:hover > a.pilcrow {
+    visibility: visible;
+  }
+  a.pilcrow:hover {
+    background-color: transparent;
+  }
+}
+
+/* misc */
+hr {
+  border: 0;
+  border-top: 1px solid #eee;
+}
+.bcp14 {
+  font-variant: small-caps;
+}
+
+.role {
+  font-variant: all-small-caps;
+}
+
+/* info block */
+#identifiers {
+  margin: 0;
+  font-size: 0.9em;
+}
+#identifiers dt {
+  width: 3em;
+  clear: left;
+}
+#identifiers dd {
+  float: left;
+  margin-bottom: 0;
+}
+/* Fix PDF info block run off issue */
+@media print {
+  #identifiers dd {
+    max-width: 100%;
+  }
+}
+#identifiers .authors .author {
+  display: inline-block;
+  margin-right: 1.5em;
+}
+#identifiers .authors .org {
+  font-style: italic;
+}
+
+/* The prepared/rendered info at the very bottom of the page */
+.docInfo {
+  color: #666; /* Arlen: WCAG 2019 */
+  font-size: 0.9em;
+  font-style: italic;
+  margin-top: 2em;
+}
+.docInfo .prepared {
+  float: left;
+}
+.docInfo .prepared {
+  float: right;
+}
+
+/* table of contents */
+#toc  {
+  padding: 0.75em 0 2em 0;
+  margin-bottom: 1em;
+}
+nav.toc ul {
+  margin: 0 0.5em 0 0;
+  padding: 0;
+  list-style: none;
+}
+nav.toc li {
+  line-height: 1.3em;
+  margin: 0.75em 0;
+  padding-left: 1.2em;
+  text-indent: -1.2em;
+}
+/* references */
+.references dt {
+  text-align: right;
+  font-weight: bold;
+  min-width: 7em;
+}
+.references dd {
+  margin-left: 8em;
+  overflow: auto;
+}
+
+.refInstance {
+  margin-bottom: 1.25em;
+}
+
+.refSubseries {
+  margin-bottom: 1.25em;
+}
+
+.references .ascii {
+  margin-bottom: 0.25em;
+}
+
+/* index */
+.index ul {
+  margin: 0 0 0 1em;
+  padding: 0;
+  list-style: none;
+}
+.index ul ul {
+  margin: 0;
+}
+.index li {
+  margin: 0;
+  text-indent: -2em;
+  padding-left: 2em;
+  padding-bottom: 5px;
+}
+.indexIndex {
+  margin: 0.5em 0 1em;
+}
+.index a {
+  font-weight: 700;
+}
+/* make the index two-column on all but the smallest screens */
+@media (min-width: 600px) {
+  .index ul {
+    -moz-column-count: 2;
+    -moz-column-gap: 20px;
+  }
+  .index ul ul {
+    -moz-column-count: 1;
+    -moz-column-gap: 0;
+  }
+}
+
+/* authors */
+address.vcard {
+  font-style: normal;
+  margin: 1em 0;
+}
+
+address.vcard .nameRole {
+  font-weight: 700;
+  margin-left: 0;
+}
+address.vcard .label {
+  font-family: var(--font-sans);
+  margin: 0.5em 0;
+}
+address.vcard .type {
+  display: none;
+}
+.alternative-contact {
+  margin: 1.5em 0 1em;
+}
+hr.addr {
+  border-top: 1px dashed;
+  margin: 0;
+  color: #ddd;
+  max-width: calc(100% - 16px);
+}
+
+/* temporary notes */
+.rfcEditorRemove::before {
+  position: absolute;
+  top: 0.2em;
+  right: 0.2em;
+  padding: 0.2em;
+  content: "The RFC Editor will remove this note";
+  color: #9e2a00; /* Arlen: WCAG 2019 */
+  background-color: #ffd; /* Arlen: WCAG 2019 */
+}
+.rfcEditorRemove {
+  position: relative;
+  padding-top: 1.8em;
+  background-color: #ffd; /* Arlen: WCAG 2019 */
+  border-radius: 3px;
+}
+.cref {
+  background-color: #ffd; /* Arlen: WCAG 2019 */
+  padding: 2px 4px;
+}
+.crefSource {
+  font-style: italic;
+}
+/* alternative layout for smaller screens */
+@media screen and (max-width: 1023px) {
+  body {
+    padding-top: 2em;
+  }
+  #title {
+    padding: 1em 0;
+  }
+  h1 {
+    font-size: 24px;
+  }
+  h2 {
+    font-size: 20px;
+    margin-top: -18px;  /* provide offset for in-page anchors */
+    padding-top: 38px;
+  }
+  #identifiers dd {
+    max-width: 60%;
+  }
+  #toc {
+    position: fixed;
+    z-index: 2;
+    top: 0;
+    right: 0;
+    padding: 0;
+    margin: 0;
+    background-color: inherit;
+    border-bottom: 1px solid #ccc;
+  }
+  #toc h2 {
+    margin: -1px 0 0 0;
+    padding: 4px 0 4px 6px;
+    padding-right: 1em;
+    min-width: 190px;
+    font-size: 1.1em;
+    text-align: right;
+    background-color: #444;
+    color: white;
+    cursor: pointer;
+  }
+  #toc h2::before { /* css hamburger */
+    float: right;
+    position: relative;
+    width: 1em;
+    height: 1px;
+    left: -164px;
+    margin: 6px 0 0 0;
+    background: white none repeat scroll 0 0;
+    box-shadow: 0 4px 0 0 white, 0 8px 0 0 white;
+    content: "";
+  }
+  #toc nav {
+    display: none;
+    padding: 0.5em 1em 1em;
+    overflow: auto;
+    height: calc(100vh - 48px);
+    border-left: 1px solid #ddd;
+  }
+}
+
+/* alternative layout for wide screens */
+@media screen and (min-width: 1024px) {
+  body {
+    max-width: 724px;
+    margin: 42px auto;
+    padding-left: 1.5em;
+    padding-right: 29em;
+  }
+  #toc {
+    position: fixed;
+    top: 42px;
+    right: 42px;
+    width: 25%;
+    margin: 0;
+    padding: 0 1em;
+    z-index: 1;
+  }
+  #toc h2 {
+    border-top: none;
+    border-bottom: 1px solid #ddd;
+    font-size: 1em;
+    font-weight: normal;
+    margin: 0;
+    padding: 0.25em 1em 1em 0;
+  }
+  #toc nav {
+    display: block;
+    height: calc(90vh - 84px);
+    bottom: 0;
+    padding: 0.5em 0 0;
+    overflow: auto;
+  }
+  img { /* future proofing */
+    max-width: 100%;
+    height: auto;
+  }
+}
+
+/* pagination */
+@media print {
+  body {
+    width: 100%;
+  }
+  p {
+    orphans: 3;
+    widows: 3;
+  }
+  #n-copyright-notice {
+    border-bottom: none;
+  }
+  #toc, #n-introduction {
+    page-break-before: always;
+  }
+  #toc {
+    border-top: none;
+    padding-top: 0;
+  }
+  figure, pre {
+    page-break-inside: avoid;
+  }
+  figure {
+    overflow: scroll;
+  }
+  .breakable pre {
+    break-inside: auto;
+  }
+  h1, h2, h3, h4, h5, h6 {
+    page-break-after: avoid;
+  }
+  h2+*, h3+*, h4+*, h5+*, h6+* {
+    page-break-before: avoid;
+  }
+  pre {
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    font-size: 10pt;
+  }
+  table {
+    border: 1px solid #ddd;
+  }
+  td {
+    border-top: 1px solid #ddd;
+  }
+}
+
+/* This is commented out here, as the string-set: doesn't
+   pass W3C validation currently */
+/*
+.ears thead .left {
+  string-set: ears-top-left content();
+}
+
+.ears thead .center {
+  string-set: ears-top-center content();
+}
+
+.ears thead .right {
+  string-set: ears-top-right content();
+}
+
+.ears tfoot .left {
+  string-set: ears-bottom-left content();
+}
+
+.ears tfoot .center {
+  string-set: ears-bottom-center content();
+}
+
+.ears tfoot .right {
+  string-set: ears-bottom-right content();
+}
+*/
+
+@page :first {
+  padding-top: 0;
+  @top-left {
+    content: normal;
+    border: none;
+  }
+  @top-center {
+    content: normal;
+    border: none;
+  }
+  @top-right {
+    content: normal;
+    border: none;
+  }
+}
+
+@page {
+  size: A4;
+  margin-bottom: 45mm;
+  padding-top: 20px;
+  /* The following is commented out here, but set appropriately by in code, as
+     the content depends on the document */
+  /*
+  @top-left {
+    content: 'Internet-Draft';
+    vertical-align: bottom;
+    border-bottom: solid 1px #ccc;
+  }
+  @top-left {
+    content: string(ears-top-left);
+    vertical-align: bottom;
+    border-bottom: solid 1px #ccc;
+  }
+  @top-center {
+    content: string(ears-top-center);
+    vertical-align: bottom;
+    border-bottom: solid 1px #ccc;
+  }
+  @top-right {
+    content: string(ears-top-right);
+    vertical-align: bottom;
+    border-bottom: solid 1px #ccc;
+  }
+  @bottom-left {
+    content: string(ears-bottom-left);
+    vertical-align: top;
+    border-top: solid 1px #ccc;
+  }
+  @bottom-center {
+    content: string(ears-bottom-center);
+    vertical-align: top;
+    border-top: solid 1px #ccc;
+  }
+  @bottom-right {
+      content: '[Page ' counter(page) ']';
+      vertical-align: top;
+      border-top: solid 1px #ccc;
+  }
+  */
+
+}
+
+/* Changes introduced to fix issues found during implementation */
+/* Make sure links are clickable even if overlapped by following H* */
+a {
+  z-index: 2;
+}
+/* Separate body from document info even without intervening H1 */
+section {
+  clear: both;
+}
+
+
+/* Top align author divs, to avoid names without organization dropping level with org names */
+.author {
+  vertical-align: top;
+}
+
+/* Leave room in document info to show Internet-Draft on one line */
+#identifiers dt {
+  width: 8em;
+}
+
+/* Don't waste quite as much whitespace between label and value in doc info */
+#identifiers dd {
+  margin-left: 1em;
+}
+
+/* Give floating toc a background color (needed when it's a div inside section */
+#toc {
+  background-color: white;
+}
+
+/* Make the collapsed ToC header render white on gray also when it's a link */
+@media screen and (max-width: 1023px) {
+  #toc h2 a,
+  #toc h2 a:link,
+  #toc h2 a:focus,
+  #toc h2 a:hover,
+  #toc a.toplink,
+  #toc a.toplink:hover {
+    color: white;
+    background-color: #444;
+    text-decoration: none;
+  }
+}
+
+/* Give the bottom of the ToC some whitespace */
+@media screen and (min-width: 1024px) {
+  #toc {
+    padding: 0 0 1em 1em;
+  }
+}
+
+/* Style section numbers with more space between number and title */
+.section-number {
+  padding-right: 0.5em;
+}
+
+/* prevent monospace from becoming overly large */
+tt, code, pre {
+  font-size: 95%;
+}
+
+/* Fix the height/width aspect for ascii art*/
+.sourcecode pre,
+.art-text pre {
+  line-height: 1.12;
+}
+
+
+/* Add styling for a link in the ToC that points to the top of the document */
+a.toplink {
+  float: right;
+  margin-right: 0.5em;
+}
+
+/* Fix the dl styling to match the RFC 7992 attributes */
+dl > dt,
+dl.dlParallel > dt {
+  float: left;
+  margin-right: 1em;
+}
+dl.dlNewline > dt {
+  float: none;
+}
+
+/* Provide styling for table cell text alignment */
+table td.text-left,
+table th.text-left {
+  text-align: left;
+}
+table td.text-center,
+table th.text-center {
+  text-align: center;
+}
+table td.text-right,
+table th.text-right {
+  text-align: right;
+}
+
+/* Make the alternative author contact information look less like just another
+   author, and group it closer with the primary author contact information */
+.alternative-contact {
+  margin: 0.5em 0 0.25em 0;
+}
+address .non-ascii {
+  margin: 0 0 0 2em;
+}
+
+/* With it being possible to set tables with alignment
+  left, center, and right, { width: 100%; } does not make sense */
+table {
+  width: auto;
+}
+
+/* Avoid reference text that sits in a block with very wide left margin,
+   because of a long floating dt label.*/
+.references dd {
+  overflow: visible;
+}
+
+/* Control caption placement */
+caption {
+  caption-side: bottom;
+}
+
+/* Limit the width of the author address vcard, so names in right-to-left
+   script don't end up on the other side of the page. */
+
+address.vcard {
+  max-width: 30em;
+  margin-right: auto;
+}
+
+/* For address alignment dependent on LTR or RTL scripts */
+address div.left {
+  text-align: left;
+}
+address div.right {
+  text-align: right;
+}
+
+/* Provide table alignment support.  We can't use the alignX classes above
+   since they do unwanted things with caption and other styling. */
+table.right {
+ margin-left: auto;
+ margin-right: 0;
+}
+table.center {
+ margin-left: auto;
+ margin-right: auto;
+}
+table.left {
+ margin-left: 0;
+ margin-right: auto;
+}
+
+/* Give the table caption label the same styling as the figcaption */
+caption a[href] {
+  color: #222;
+}
+
+@media print {
+  .toplink {
+    display: none;
+  }
+
+  /* avoid overwriting the top border line with the ToC header */
+  #toc {
+    padding-top: 1px;
+  }
+
+  /* Avoid page breaks inside dl and author address entries */
+  .vcard {
+    page-break-inside: avoid;
+  }
+
+}
+/* Tweak the bcp14 keyword presentation */
+.bcp14 {
+  font-variant: small-caps;
+  font-weight: bold;
+  font-size: 0.9em;
+}
+/* Tweak the invisible space above H* in order not to overlay links in text above */
+ h2 {
+  margin-top: -18px;  /* provide offset for in-page anchors */
+  padding-top: 31px;
+ }
+ h3 {
+  margin-top: -18px;  /* provide offset for in-page anchors */
+  padding-top: 24px;
+ }
+ h4 {
+  margin-top: -18px;  /* provide offset for in-page anchors */
+  padding-top: 24px;
+ }
+/* Float artwork pilcrow to the right */
+@media screen {
+  .artwork a.pilcrow {
+    display: block;
+    line-height: 0.7;
+    margin-top: 0.15em;
+  }
+}
+/* Make pilcrows on dd visible */
+@media screen {
+  dd:hover > a.pilcrow {
+    visibility: visible;
+  }
+}
+/* Make the placement of figcaption match that of a table's caption
+   by removing the figure's added bottom margin */
+.alignLeft.art-text,
+.alignCenter.art-text,
+.alignRight.art-text {
+   margin-bottom: 0;
+}
+.alignLeft,
+.alignCenter,
+.alignRight {
+  margin: 1em 0 0 0;
+}
+/* In print, the pilcrow won't show on hover, so prevent it from taking up space,
+   possibly even requiring a new line */
+@media print {
+  a.pilcrow {
+    display: none;
+  }
+}
+/* Styling for the external metadata */
+div#external-metadata {
+  background-color: #eee;
+  padding: 0.5em;
+  margin-bottom: 0.5em;
+  display: none;
+}
+div#internal-metadata {
+  padding: 0.5em;                       /* to match the external-metadata padding */
+}
+/* Styling for title RFC Number */
+h1#rfcnum {
+  clear: both;
+  margin: 0 0 -1em;
+  padding: 1em 0 0 0;
+}
+/* Make .olPercent look the same as <ol><li> */
+dl.olPercent > dd {
+  margin-bottom: 0.25em;
+  min-height: initial;
+}
+/* Give aside some styling to set it apart */
+aside {
+  border-left: 1px solid #ddd;
+  margin: 1em 0 1em 2em;
+  padding: 0.2em 2em;
+}
+aside > dl,
+aside > ol,
+aside > ul,
+aside > table,
+aside > p {
+  margin-bottom: 0.5em;
+}
+/* Additional page break settings */
+@media print {
+  figcaption, table caption {
+    page-break-before: avoid;
+  }
+}
+/* Font size adjustments for print */
+@media print {
+  body  { font-size: 10pt;      line-height: normal; max-width: 96%; }
+  h1    { font-size: 1.72em;    padding-top: 1.5em; } /* 1*1.2*1.2*1.2 */
+  h2    { font-size: 1.44em;    padding-top: 1.5em; } /* 1*1.2*1.2 */
+  h3    { font-size: 1.2em;     padding-top: 1.5em; } /* 1*1.2 */
+  h4    { font-size: 1em;       padding-top: 1.5em; }
+  h5, h6 { font-size: 1em;      margin: initial; padding: 0.5em 0 0.3em; }
+}
+/* Sourcecode margin in print, when there's no pilcrow */
+@media print {
+  .artwork,
+  .artwork > pre,
+  .sourcecode {
+    margin-bottom: 1em;
+  }
+}
+/* Avoid narrow tables forcing too narrow table captions, which may render badly */
+table {
+  min-width: 20em;
+}
+/* ol type a */
+ol.type-a { list-style-type: lower-alpha; }
+ol.type-A { list-style-type: upper-alpha; }
+ol.type-i { list-style-type: lower-roman; }
+ol.type-I { list-style-type: upper-roman; }
+/* Apply the print table and row borders in general, on request from the RPC,
+and increase the contrast between border and odd row background slightly */
+table {
+  border: 1px solid #ddd;
+}
+td {
+  border-top: 1px solid #ddd;
+}
+tr {
+  break-inside: avoid;
+}
+tr:nth-child(2n+1) > td {
+  background-color: #f8f8f8;
+}
+/* Use style rules to govern display of the TOC. */
+@media screen and (max-width: 1023px) {
+  #toc nav { display: none; }
+  #toc.active nav { display: block; }
+}
+/* Add support for keepWithNext */
+.keepWithNext {
+  break-after: avoid-page;
+  break-after: avoid-page;
+}
+/* Add support for keepWithPrevious */
+.keepWithPrevious {
+  break-before: avoid-page;
+}
+/* Change the approach to avoiding breaks inside artwork etc. */
+figure, pre, table, .artwork, .sourcecode  {
+  break-before: auto;
+  break-after: auto;
+}
+/* Avoid breaks between <dt> and <dd> */
+dl {
+  break-before: auto;
+  break-inside: auto;
+}
+dt {
+  break-before: auto;
+  break-after: avoid-page;
+}
+dd {
+  break-before: avoid-page;
+  break-after: auto;
+  orphans: 3;
+  widows: 3
+}
+span.break, dd.break {
+  margin-bottom: 0;
+  min-height: 0;
+  break-before: auto;
+  break-inside: auto;
+  break-after: auto;
+}
+/* Undo break-before ToC */
+@media print {
+  #toc {
+    break-before: auto;
+  }
+}
+/* Text in compact lists should not get extra bottom margin space,
+   since that would makes the list not compact */
+ul.compact p, .ulCompact p,
+ol.compact p, .olCompact p {
+ margin: 0;
+}
+/* But the list as a whole needs the extra space at the end */
+section ul.compact,
+section .ulCompact,
+section ol.compact,
+section .olCompact {
+  margin-bottom: 1em;                    /* same as p not within ul.compact etc. */
+}
+/* The tt and code background above interferes with for instance table cell
+   backgrounds.  Changed to something a bit more selective. */
+tt, code {
+  background-color: transparent;
+}
+p tt, p code, li tt, li code, dt tt, dt code {
+  background-color: #f8f8f8;
+}
+/* Tweak the pre margin -- 0px doesn't come out well */
+pre {
+   margin-top: 0.5px;
+}
+/* Tweak the compact list text */
+ul.compact, .ulCompact,
+ol.compact, .olCompact,
+dl.compact, .dlCompact {
+  line-height: normal;
+}
+/* Don't add top margin for nested lists */
+li > ul, li > ol, li > dl,
+dd > ul, dd > ol, dd > dl,
+dl > dd > dl {
+  margin-top: initial;
+}
+/* Elements that should not be rendered on the same line as a <dt> */
+/* This should match the element list in writer.text.TextWriter.render_dl() */
+dd > div.artwork:first-child,
+dd > aside:first-child,
+dd > blockquote:first-child,
+dd > figure:first-child,
+dd > ol:first-child,
+dd > div.sourcecode:first-child,
+dd > table:first-child,
+dd > ul:first-child {
+  clear: left;
+}
+/* fix for weird browser behaviour when <dd/> is empty */
+dt+dd:empty::before{
+  content: "\00a0";
+}
+/* Make paragraph spacing inside <li> smaller than in body text, to fit better within the list */
+li > p {
+  margin-bottom: 0.5em
+}
+/* Don't let p margin spill out from inside list items */
+li > p:last-of-type:only-child {
+  margin-bottom: 0;
+}
+</style>
+<link href="rfc-local.css" rel="stylesheet" type="text/css">
+</head>
+<body class="xml2rfc">
+<table class="ears">
+<thead><tr>
+<td class="left">Internet-Draft</td>
+<td class="center">draft-map-pay-01</td>
+<td class="right">July 2026</td>
+</tr></thead>
+<tfoot><tr>
+<td class="left">Larsen</td>
+<td class="center">Expires 18 January 2027</td>
+<td class="right">[Page]</td>
+</tr></tfoot>
+</table>
+<div id="external-metadata" class="document-information"></div>
+<div id="internal-metadata" class="document-information">
+<dl id="identifiers">
+<dt class="label-workgroup">Workgroup:</dt>
+<dd class="workgroup">Network Working Group</dd>
+<dt class="label-published">Published:</dt>
+<dd class="published">
+<time datetime="2026-07-17" class="published">17 July 2026</time>
+    </dd>
+<dt class="label-intended-status">Intended Status:</dt>
+<dd class="intended-status">Standards Track</dd>
+<dt class="label-expires">Expires:</dt>
+<dd class="expires"><time datetime="2027-01-18">18 January 2027</time></dd>
+<dt class="label-authors">Author:</dt>
+<dd class="authors">
+<div class="author">
+      <div class="author-name">J. Larsen</div>
+<div class="org">Independent</div>
+</div>
+</dd>
+</dl>
+</div>
+<h1 id="title">MAP Payments: Negotiation, Settlement-Method Abstraction, Metering, and Disputes</h1>
+<section id="section-abstract">
+      <h2 id="abstract"><a href="#abstract" class="selfRef">Abstract</a></h2>
+<p id="section-abstract-1">Defines payment <em>negotiation and evidence</em> for MAP: quotes, agreements, invoices, settlement proofs, payment receipts, and a dispute-evidence protocol — over a registry of pluggable settlement methods (Lightning, card-processor intents, stablecoins, ACH, Interledger, private credit ledgers). MAP mandates no currency, token, chain, or processor; it standardizes how parties agree on price, prove settlement occurred on the chosen rail, and exchange evidence when they disagree. This replaces the orchestrator-minted-credit designs rejected in the critique (C9).<a href="#section-abstract-1" class="pilcrow">¶</a></p>
+</section>
+<div id="status-of-memo">
+<section id="section-boilerplate.1">
+        <h2 id="name-status-of-this-memo">
+<a href="#name-status-of-this-memo" class="section-name selfRef">Status of This Memo</a>
+        </h2>
+<p id="section-boilerplate.1-1">
+        This Internet-Draft is submitted in full conformance with the
+        provisions of BCP 78 and BCP 79.<a href="#section-boilerplate.1-1" class="pilcrow">¶</a></p>
+<p id="section-boilerplate.1-2">
+        Internet-Drafts are working documents of the Internet Engineering Task
+        Force (IETF). Note that other groups may also distribute working
+        documents as Internet-Drafts. The list of current Internet-Drafts is
+        at <span><a href="https://datatracker.ietf.org/drafts/current/">https://datatracker.ietf.org/drafts/current/</a></span>.<a href="#section-boilerplate.1-2" class="pilcrow">¶</a></p>
+<p id="section-boilerplate.1-3">
+        Internet-Drafts are draft documents valid for a maximum of six months
+        and may be updated, replaced, or obsoleted by other documents at any
+        time. It is inappropriate to use Internet-Drafts as reference
+        material or to cite them other than as "work in progress."<a href="#section-boilerplate.1-3" class="pilcrow">¶</a></p>
+<p id="section-boilerplate.1-4">
+        This Internet-Draft will expire on 18 January 2027.<a href="#section-boilerplate.1-4" class="pilcrow">¶</a></p>
+</section>
+</div>
+<div id="copyright">
+<section id="section-boilerplate.2">
+        <h2 id="name-copyright-notice">
+<a href="#name-copyright-notice" class="section-name selfRef">Copyright Notice</a>
+        </h2>
+<p id="section-boilerplate.2-1">
+            Copyright (c) 2026 IETF Trust and the persons identified as the
+            document authors. All rights reserved.<a href="#section-boilerplate.2-1" class="pilcrow">¶</a></p>
+<p id="section-boilerplate.2-2">
+            This document is subject to BCP 78 and the IETF Trust's Legal
+            Provisions Relating to IETF Documents
+            (<span><a href="https://trustee.ietf.org/license-info">https://trustee.ietf.org/license-info</a></span>) in effect on the date of
+            publication of this document. Please review these documents
+            carefully, as they describe your rights and restrictions with
+            respect to this document. Code Components extracted from this
+            document must include Revised BSD License text as described in
+            Section 4.e of the Trust Legal Provisions and are provided without
+            warranty as described in the Revised BSD License.<a href="#section-boilerplate.2-2" class="pilcrow">¶</a></p>
+</section>
+</div>
+<div id="toc">
+<section id="section-toc.1">
+        <a href="#" onclick="scroll(0,0)" class="toplink">▲</a><h2 id="name-table-of-contents">
+<a href="#name-table-of-contents" class="section-name selfRef">Table of Contents</a>
+        </h2>
+<nav class="toc"><ul class="compact toc ulBare ulEmpty">
+<li class="compact toc ulBare ulEmpty" id="section-toc.1-1.1">
+            <p id="section-toc.1-1.1.1" class="keepWithNext"><a href="#section-1" class="auto internal xref">1</a>.  <a href="#name-requirements-language" class="internal xref">Requirements Language</a></p>
+</li>
+          <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.2">
+            <p id="section-toc.1-1.2.1" class="keepWithNext"><a href="#section-2" class="auto internal xref">2</a>.  <a href="#name-model-and-data-semantics" class="internal xref">Model and data semantics</a></p>
+</li>
+          <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.3">
+            <p id="section-toc.1-1.3.1" class="keepWithNext"><a href="#section-3" class="auto internal xref">3</a>.  <a href="#name-message-flow" class="internal xref">Message flow</a></p>
+</li>
+          <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.4">
+            <p id="section-toc.1-1.4.1"><a href="#section-4" class="auto internal xref">4</a>.  <a href="#name-quotes-and-agreements" class="internal xref">Quotes and agreements</a></p>
+<ul class="compact toc ulBare ulEmpty">
+<li class="compact toc ulBare ulEmpty" id="section-toc.1-1.4.2.1">
+                <p id="section-toc.1-1.4.2.1.1"><a href="#section-4.1" class="auto internal xref">4.1</a>.  <a href="#name-payment-references-exported" class="internal xref">Payment references (exported reference types)</a></p>
+</li>
+            </ul>
+</li>
+          <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.5">
+            <p id="section-toc.1-1.5.1"><a href="#section-5" class="auto internal xref">5</a>.  <a href="#name-metering-and-incremental-se" class="internal xref">Metering and incremental settlement</a></p>
+<ul class="compact toc ulBare ulEmpty">
+<li class="compact toc ulBare ulEmpty" id="section-toc.1-1.5.2.1">
+                <p id="section-toc.1-1.5.2.1.1"><a href="#section-5.1" class="auto internal xref">5.1</a>.  <a href="#name-watermark-semantics-and-ver" class="internal xref">Watermark semantics and verification</a></p>
+</li>
+              <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.5.2.2">
+                <p id="section-toc.1-1.5.2.2.1"><a href="#section-5.2" class="auto internal xref">5.2</a>.  <a href="#name-pause-resume-and-cancel" class="internal xref">Pause, resume, and cancel</a></p>
+</li>
+            </ul>
+</li>
+          <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.6">
+            <p id="section-toc.1-1.6.1"><a href="#section-6" class="auto internal xref">6</a>.  <a href="#name-settlement-methods" class="internal xref">Settlement methods</a></p>
+<ul class="compact toc ulBare ulEmpty">
+<li class="compact toc ulBare ulEmpty" id="section-toc.1-1.6.2.1">
+                <p id="section-toc.1-1.6.2.1.1"><a href="#section-6.1" class="auto internal xref">6.1</a>.  <a href="#name-registry-specification-requ" class="internal xref">Registry (Specification Required; initial entries)</a></p>
+</li>
+              <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.6.2.2">
+                <p id="section-toc.1-1.6.2.2.1"><a href="#section-6.2" class="auto internal xref">6.2</a>.  <a href="#name-prepay-and-escrow-terms-1-a" class="internal xref">Prepay and escrow (terms 1 and 2)</a></p>
+<ul class="compact toc ulBare ulEmpty">
+<li class="compact toc ulBare ulEmpty" id="section-toc.1-1.6.2.2.2.1">
+                    <p id="section-toc.1-1.6.2.2.2.1.1"><a href="#section-6.2.1" class="auto internal xref">6.2.1</a>.  <a href="#name-receipt-kinds-and-invoice-p" class="internal xref">Receipt kinds and invoice phases (additive fields)</a></p>
+</li>
+                  <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.6.2.2.2.2">
+                    <p id="section-toc.1-1.6.2.2.2.2.1"><a href="#section-6.2.2" class="auto internal xref">6.2.2</a>.  <a href="#name-terms-1-prepaid" class="internal xref">Terms 1 — prepaid</a></p>
+</li>
+                  <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.6.2.2.2.3">
+                    <p id="section-toc.1-1.6.2.2.2.3.1"><a href="#section-6.2.3" class="auto internal xref">6.2.3</a>.  <a href="#name-terms-2-escrow" class="internal xref">Terms 2 — escrow</a></p>
+</li>
+                  <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.6.2.2.2.4">
+                    <p id="section-toc.1-1.6.2.2.2.4.1"><a href="#section-6.2.4" class="auto internal xref">6.2.4</a>.  <a href="#name-paycredit-ledger-escrow-ext" class="internal xref">`pay:credit-ledger` escrow extension</a></p>
+</li>
+                </ul>
+</li>
+            </ul>
+</li>
+          <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.7">
+            <p id="section-toc.1-1.7.1"><a href="#section-7" class="auto internal xref">7</a>.  <a href="#name-disputes" class="internal xref">Disputes</a></p>
+<ul class="compact toc ulBare ulEmpty">
+<li class="compact toc ulBare ulEmpty" id="section-toc.1-1.7.2.1">
+                <p id="section-toc.1-1.7.2.1.1"><a href="#section-7.1" class="auto internal xref">7.1</a>.  <a href="#name-messages" class="internal xref">Messages</a></p>
+</li>
+              <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.7.2.2">
+                <p id="section-toc.1-1.7.2.2.1"><a href="#section-7.2" class="auto internal xref">7.2</a>.  <a href="#name-third-party-verifiability-a" class="internal xref">Third-party verifiability and CB disclosure</a></p>
+</li>
+              <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.7.2.3">
+                <p id="section-toc.1-1.7.2.3.1"><a href="#section-7.3" class="auto internal xref">7.3</a>.  <a href="#name-mechanical-verification-pro" class="internal xref">Mechanical verification procedure</a></p>
+</li>
+              <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.7.2.4">
+                <p id="section-toc.1-1.7.2.4.1"><a href="#section-7.4" class="auto internal xref">7.4</a>.  <a href="#name-griefing-bounds" class="internal xref">Griefing bounds</a></p>
+</li>
+            </ul>
+</li>
+          <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.8">
+            <p id="section-toc.1-1.8.1"><a href="#section-8" class="auto internal xref">8</a>.  <a href="#name-security-considerations" class="internal xref">Security Considerations</a></p>
+</li>
+          <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.9">
+            <p id="section-toc.1-1.9.1"><a href="#section-9" class="auto internal xref">9</a>.  <a href="#name-iana-style-considerations" class="internal xref">IANA-Style Considerations</a></p>
+</li>
+          <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.10">
+            <p id="section-toc.1-1.10.1"><a href="#section-10" class="auto internal xref">10</a>. <a href="#name-references-selected" class="internal xref">References (selected)</a></p>
+</li>
+          <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.11">
+            <p id="section-toc.1-1.11.1"><a href="#appendix-A" class="auto internal xref"></a><a href="#name-authors-address" class="internal xref">Author's Address</a></p>
+</li>
+        </ul>
+</nav>
+</section>
+</div>
+<div id="requirements-language-1">
+<section id="section-1">
+      <h2 id="name-requirements-language">
+<a href="#section-1" class="section-number selfRef">1. </a><a href="#name-requirements-language" class="section-name selfRef">Requirements Language</a>
+      </h2>
+<p id="section-1-1">The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT", "SHOULD", "SHOULD NOT", "RECOMMENDED", "NOT RECOMMENDED", "MAY", and "OPTIONAL" in this document family are to be interpreted as described in BCP 14 [RFC2119] [RFC8174] when, and only when, they appear in all capitals, as shown here. No adaptation or weakening of these terms applies.<a href="#section-1-1" class="pilcrow">¶</a></p>
+</section>
+</div>
+<div id="model-and-data-semantics-2">
+<section id="section-2">
+      <h2 id="name-model-and-data-semantics">
+<a href="#section-2" class="section-number selfRef">2. </a><a href="#name-model-and-data-semantics" class="section-name selfRef">Model and data semantics</a>
+      </h2>
+<p id="section-2-1">Money moves on an external <strong>settlement rail</strong>; MAP moves <strong>signed statements about</strong> that movement. Ownership is explicit:<a href="#section-2-1" class="pilcrow">¶</a></p>
+<ul class="normal">
+<li class="normal" id="section-2-2.1">The <strong>rail</strong> is the sole source of truth for whether value moved. MAP<a href="#section-2-2.1" class="pilcrow">¶</a>
+</li>
+      </ul>
+<p id="section-2-3">proofs are <em>pointers into</em> the rail's truth, verifiable under the method's own rules.<a href="#section-2-3" class="pilcrow">¶</a></p>
+<ul class="normal">
+<li class="normal" id="section-2-4.1">Each party owns its local payment-state view; there is no shared<a href="#section-2-4.1" class="pilcrow">¶</a>
+</li>
+      </ul>
+<p id="section-2-5">payment state machine, no distributed transaction spanning rail and task, and no exactly-once assumption about rail operations — rails duplicate, delay, and fail-after-success, and every flow below is retry-safe under those conditions.<a href="#section-2-5" class="pilcrow">¶</a></p>
+<ul class="normal">
+<li class="normal" id="section-2-6.1">The dual-referenced pair (ExecutionReceipt.payment-ref ↔ PayReceipt)<a href="#section-2-6.1" class="pilcrow">¶</a>
+</li>
+      </ul>
+<p id="section-2-7">is the durable cross-context fact linking work to money; both are append-only events, deduplicated by content address.<a href="#section-2-7" class="pilcrow">¶</a></p>
+<p id="section-2-8">Distinguish three moments explicitly (never conflate them): <strong>agreed</strong> (PAY_AGREE exchanged), <strong>submitted</strong> (payer initiated on the rail), <strong>settled</strong> (proof verifies under the method). Delivery obligations key off <em>settled</em> or off negotiated credit terms — never off <em>submitted</em>.<a href="#section-2-8" class="pilcrow">¶</a></p>
+<p id="section-2-9">Amounts: CBOR decimal fractions (tag 4, integer mantissa/exponent) plus an asset identifier — never floats (core §4.2).<a href="#section-2-9" class="pilcrow">¶</a></p>
+<div class="lang-cddl sourcecode" id="section-2-10">
+<pre>Amount = #6.4([int, int])            ; [exponent, mantissa]
+Asset  = tstr                        ; "iso4217:USD", "asset:sat",
+                                     ; "erc20:&lt;chain&gt;:&lt;addr&gt;", "credit:&lt;mesh&gt;"</pre><a href="#section-2-10" class="pilcrow">¶</a>
+</div>
+</section>
+</div>
+<div id="message-flow-3">
+<section id="section-3">
+      <h2 id="name-message-flow">
+<a href="#section-3" class="section-number selfRef">3. </a><a href="#name-message-flow" class="section-name selfRef">Message flow</a>
+      </h2>
+<div class="sourcecode" id="section-3-1">
+<pre>Requester(payer)                          Provider(payee)
+   | ←------------- PAY_QUOTE ----------- |   (solicited by OFFER, tasks §2)
+   | -- PAY_AGREE {quote-id, method} ---→ |
+   |            ... task executes; usage-update chunks ...
+   | ←------------- PAY_INVOICE --------- |   (final or incremental)
+   |   pay on the rail (out of band)      |
+   | -- PAY_PROOF {invoice-id, proof} --→ |   verify under method rules
+   | ←------------- PAY_RECEIPT --------- |   signed "settled" statement</pre><a href="#section-3-1" class="pilcrow">¶</a>
+</div>
+<p id="section-3-2">Prepaid and escrowed variants reorder steps (§5.2); credit terms (pay-after, net-N) collapse INVOICE/PROOF to post-delivery.<a href="#section-3-2" class="pilcrow">¶</a></p>
+</section>
+</div>
+<div id="quotes-and-agreements-4">
+<section id="section-4">
+      <h2 id="name-quotes-and-agreements">
+<a href="#section-4" class="section-number selfRef">4. </a><a href="#name-quotes-and-agreements" class="section-name selfRef">Quotes and agreements</a>
+      </h2>
+<div class="lang-cddl sourcecode" id="section-4-1">
+<pre>PayQuote = {                          ; msg-type 0x0400
+  1 =&gt; bstr .size 16,                 ; quote-id
+  2 =&gt; uint,                          ; pricing model: 0 flat, 1 per-token
+                                      ;  (in/out rates), 2 per-second,
+                                      ;  3 per-invocation
+  3 =&gt; { * uint =&gt; [Asset, Amount] }, ; rate table keyed by unit code
+  ? 4 =&gt; [Asset, Amount],             ; estimated / maximum total
+  5 =&gt; [+ MethodOffer],
+  6 =&gt; Timestamp,                     ; expiry
+  ? 7 =&gt; uint,                        ; terms: 0 postpaid, 1 prepaid,
+                                      ;  2 escrow, 3 metered-incremental
+  ? 8 =&gt; ExtMap,
+  ? 9 =&gt; bstr .size 32                ; task binding: TaskID (tasks §1)
+}
+MethodOffer = { 1 =&gt; tstr /*method URI, §5*/, 2 =&gt; bstr /*opaque params*/ }
+
+PayAgree = {                          ; msg-type 0x0401
+  1 =&gt; bstr .size 16,                 ; quote-id (binds exact quote bytes
+  2 =&gt; Multihash,                     ;  via quote-envelope digest)
+  3 =&gt; tstr,                          ; chosen method URI
+  ? 4 =&gt; [Asset, Amount]              ; authorized cap (hard ceiling)
+}</pre><a href="#section-4-1" class="pilcrow">¶</a>
+</div>
+<p id="section-4-2">Rate-table <strong>unit codes</strong> (registry; Specification Required, ops §3):<a href="#section-4-2" class="pilcrow">¶</a></p>
+<table class="center" id="table-1">
+        <caption><a href="#table-1" class="selfRef">Table 1</a></caption>
+<thead>
+          <tr>
+            <th class="text-left" rowspan="1" colspan="1">unit</th>
+            <th class="text-left" rowspan="1" colspan="1">meaning</th>
+            <th class="text-left" rowspan="1" colspan="1">used by model</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="text-left" rowspan="1" colspan="1">0</td>
+            <td class="text-left" rowspan="1" colspan="1">flat total (the whole task)</td>
+            <td class="text-left" rowspan="1" colspan="1">0</td>
+          </tr>
+          <tr>
+            <td class="text-left" rowspan="1" colspan="1">1</td>
+            <td class="text-left" rowspan="1" colspan="1">per token in</td>
+            <td class="text-left" rowspan="1" colspan="1">1</td>
+          </tr>
+          <tr>
+            <td class="text-left" rowspan="1" colspan="1">2</td>
+            <td class="text-left" rowspan="1" colspan="1">per token out</td>
+            <td class="text-left" rowspan="1" colspan="1">1</td>
+          </tr>
+          <tr>
+            <td class="text-left" rowspan="1" colspan="1">3</td>
+            <td class="text-left" rowspan="1" colspan="1">per millisecond of wall time</td>
+            <td class="text-left" rowspan="1" colspan="1">2</td>
+          </tr>
+          <tr>
+            <td class="text-left" rowspan="1" colspan="1">4</td>
+            <td class="text-left" rowspan="1" colspan="1">per invocation</td>
+            <td class="text-left" rowspan="1" colspan="1">3</td>
+          </tr>
+        </tbody>
+      </table>
+<p id="section-4-4">Units price a SINGLE counted unit (per token, per millisecond — not per-1k), so every billed amount is an exact <code>uint counter × Amount</code> product: no rounding rule exists anywhere in this document, by construction. <strong>Same-exponent rule</strong>: all Amounts in one quote's rate table MUST share one decimal exponent and MUST be in one Asset; <code>cumulative-billed</code> and invoice amounts derived from them carry that same exponent, so verifiers compare mantissas directly (an exponent mismatch is a rejection, never a conversion).<a href="#section-4-4" class="pilcrow">¶</a></p>
+<p id="section-4-5">A signed PAY_AGREE referencing the quote digest is the enforceable agreement both sides hold; ASSIGN carries its reference (tasks §2.1). Quotes are binding until expiry (unlike descriptor PricingHints, which are advertisements only). The authorized cap is a hard constraint: usage beyond it without a fresh agreement is unbillable — the requester-side runaway-cost defense.<a href="#section-4-5" class="pilcrow">¶</a></p>
+<p id="section-4-6">Task binding (key 9): when a PAY_QUOTE answers an OFFER that carries a TaskID (tasks §2), key 9 MUST be present and equal that TaskID, and the requester MUST treat a mismatching or absent binding as a quote for a different task (reject or re-quote). Quotes without key 9 are standing quotes: they MAY be agreed to and then bound to a task only via the ASSIGN's PayAgreeRef. This closes quote replay across tasks; replay of the quote bytes themselves is already excluded by the envelope msg-id and the PAY_AGREE digest binding.<a href="#section-4-6" class="pilcrow">¶</a></p>
+<div id="payment-references-exported-ref-1">
+<section id="section-4.1">
+        <h3 id="name-payment-references-exported">
+<a href="#section-4.1" class="section-number selfRef">4.1. </a><a href="#name-payment-references-exported" class="section-name selfRef">Payment references (exported reference types)</a>
+        </h3>
+<p id="section-4.1-1">Other documents refer to payment state by identity only (ops §2). The following types are the canonical cross-context references; digests are computed over the <strong>received envelope bytes</strong> of the referenced message (core invariant I1 — never over a re-serialization):<a href="#section-4.1-1" class="pilcrow">¶</a></p>
+<div class="lang-cddl sourcecode" id="section-4.1-2">
+<pre>PayQuoteRef = {                       ; reference to a PAY_QUOTE
+  1 =&gt; bstr .size 16,                 ; quote-id
+  2 =&gt; Multihash                      ; digest of received PAY_QUOTE envelope
+}
+PayAgreeRef = {                       ; reference to a PAY_AGREE
+  1 =&gt; bstr .size 16,                 ; quote-id
+  2 =&gt; Multihash                      ; digest of received PAY_AGREE envelope
+}
+PayRef = {                            ; pre-quote pricing expectation (OFFER)
+  ? 1 =&gt; uint,                        ; acceptable pricing model (as PayQuote.2)
+  ? 2 =&gt; [Asset, Amount],             ; maximum acceptable total
+  ? 3 =&gt; [+ tstr],                    ; acceptable settlement method URIs (§5)
+  ? 4 =&gt; PayAgreeRef                  ; standing agreement to price under
+}                                     ; at least one member MUST be present</pre><a href="#section-4.1-2" class="pilcrow">¶</a>
+</div>
+<p id="section-4.1-3"><code>Quote.2</code> (tasks §2) is a <code>PayQuoteRef</code>; <code>Assign.6</code> (tasks §2.1) is a <code>PayAgreeRef</code>; <code>Offer.4</code> (tasks §2) is a <code>PayRef</code>. A <code>PayRef</code> is an expectation, not a commitment: a provider MAY quote outside it, and the requester's remedy is simply not to agree.<a href="#section-4.1-3" class="pilcrow">¶</a></p>
+</section>
+</div>
+</section>
+</div>
+<div id="metering-and-incremental-settlem-5">
+<section id="section-5">
+      <h2 id="name-metering-and-incremental-se">
+<a href="#section-5" class="section-number selfRef">5. </a><a href="#name-metering-and-incremental-se" class="section-name selfRef">Metering and incremental settlement</a>
+      </h2>
+<p id="section-5-1">For streaming work, usage-update chunks (tasks §3, kind 3) carry running <code>{tokens-in, tokens-out, ms}</code>. Under terms 3 (metered-incremental) the provider MAY issue incremental PAY_INVOICEs at usage watermarks; the requester tops up with PAY_PROOFs. If credit is exhausted, the provider pauses the stream with ERROR 6001 (retryable) and a final unpaid watermark; the requester either pays or CANCELs, owing usage to the last <strong>countersigned checkpoint</strong> (tasks §11) — the checkpoint is what makes "pay for what was delivered" well-defined for both sides. The exact pause/resume/cancel mechanics (no new message type; resume is the covering PAY_PROOF) are §4.2. Invoices are idempotent by invoice-id: re-sending an invoice or a proof MUST NOT double-bill or double-settle (receivers dedup; rails are consulted by proof, not by count).<a href="#section-5-1" class="pilcrow">¶</a></p>
+<div class="lang-cddl sourcecode" id="section-5-2">
+<pre>PayInvoice = { 1 =&gt; bstr .size 16 /*invoice-id*/, 2 =&gt; bstr /*quote-id*/,
+  3 =&gt; [Asset, Amount], ? 4 =&gt; UsageWatermark, 5 =&gt; bstr /*method
+  payload: e.g. BOLT12 offer, processor intent id*/, 6 =&gt; Timestamp,
+  ? 7 =&gt; uint /*escrow phase, terms 2 only: 1 hold, 2 release — §5.2.1*/ }
+PayProof   = { 1 =&gt; bstr /*invoice-id*/, 2 =&gt; tstr /*method*/,
+  3 =&gt; bstr /*proof payload: preimage, intent confirmation, tx ref*/ }
+PayReceipt = { 1 =&gt; bstr /*invoice-id*/, 2 =&gt; [Asset, Amount],
+  3 =&gt; Timestamp, ? 4 =&gt; Multihash /*proof digest*/,
+  ? 5 =&gt; uint /*kind: 0 settled (default), 1 held, 2 released,
+               3 refunded — §5.2.1; unknown values MUST be rejected*/ }
+
+UsageWatermark = {                    ; PayInvoice key 4 (terms 3 only)
+  1 =&gt; TaskID,                        ; the metered task this invoice bills
+  2 =&gt; uint,                          ; through-chunk-seq: highest chunk-seq
+                                      ;  covered by this invoice (inclusive)
+  3 =&gt; Usage,                         ; CUMULATIVE usage since task start at
+                                      ;  that point (tasks §4 Complete key 4
+                                      ;  shape: {1 tokens-in, 2 tokens-out,
+                                      ;  3 ttft-ms, 4 wall-ms})
+  4 =&gt; [Asset, Amount]                ; cumulative-billed: total billed
+}                                     ;  through and including THIS invoice</pre><a href="#section-5-2" class="pilcrow">¶</a>
+</div>
+<div id="watermark-semantics-and-verifica-1">
+<section id="section-5.1">
+        <h3 id="name-watermark-semantics-and-ver">
+<a href="#section-5.1" class="section-number selfRef">5.1. </a><a href="#name-watermark-semantics-and-ver" class="section-name selfRef">Watermark semantics and verification</a>
+        </h3>
+<p id="section-5.1-1">A watermark is <strong>cumulative since task start</strong>, never a delta: a re-sent invoice is byte-identical (idempotency falls out), each invoice is independently verifiable, and monotonicity is a component-wise <code>&gt;=</code>. All four keys are REQUIRED when the watermark is present. Under terms 3 (metered-incremental) every PAY_INVOICE MUST carry key 4; under any other terms key 4 MUST be absent.<a href="#section-5.1-1" class="pilcrow">¶</a></p>
+<p id="section-5.1-2"><code>cumulative-billed</code> (key 4) MUST equal the agreed rate table applied to the cumulative usage (key 3) under the agreed pricing model (§3):<a href="#section-5.1-2" class="pilcrow">¶</a></p>
+<ul class="normal">
+<li class="normal" id="section-5.1-3.1">model 1 (per-token):  <code>tokens-in × rate[1] + tokens-out × rate[2]</code><a href="#section-5.1-3.1" class="pilcrow">¶</a>
+</li>
+          <li class="normal" id="section-5.1-3.2">model 2 (per-second): <code>wall-ms × rate[3]</code> (rate unit 3 is per<a href="#section-5.1-3.2" class="pilcrow">¶</a>
+</li>
+        </ul>
+<p id="section-5.1-4">MILLISECOND — §3 unit codes — so the product is exact)<a href="#section-5.1-4" class="pilcrow">¶</a></p>
+<ul class="normal">
+<li class="normal" id="section-5.1-5.1">model 3 (per-invocation): <code>invocations × rate[4]</code> (one invocation per<a href="#section-5.1-5.1" class="pilcrow">¶</a>
+</li>
+        </ul>
+<p id="section-5.1-6">task in this revision)<a href="#section-5.1-6" class="pilcrow">¶</a></p>
+<p id="section-5.1-7">All products are exact (uint counter × decimal-fraction rate under the §3 same-exponent rule); no rounding is defined or permitted. The invoice <code>amount</code> (key 3) MUST equal this invoice's <code>cumulative-billed</code> minus the <code>cumulative-billed</code> of the last invoice the requester settled for this task (zero for the first).<a href="#section-5.1-7" class="pilcrow">¶</a></p>
+<p id="section-5.1-8">The requester MUST verify, in order, before paying:<a href="#section-5.1-8" class="pilcrow">¶</a></p>
+<ol start="1" type="1" class="normal type-1" id="section-5.1-9">
+<li id="section-5.1-9.1">presence: key 4 present iff terms 3 — else ERROR <strong>6009</strong> (core §9,<a href="#section-5.1-9.1" class="pilcrow">¶</a>
+</li>
+        </ol>
+<p id="section-5.1-10">invoice-watermark violation);<a href="#section-5.1-10" class="pilcrow">¶</a></p>
+<ol start="1" type="1" class="normal type-1" id="section-5.1-11">
+<li id="section-5.1-11.1">task binding: <code>TaskID</code> equals the task bound by the agreement — else<a href="#section-5.1-11.1" class="pilcrow">¶</a>
+</li>
+        </ol>
+<p id="section-5.1-12">ERROR 6007;<a href="#section-5.1-12" class="pilcrow">¶</a></p>
+<ol start="1" type="1" class="normal type-1" id="section-5.1-13">
+<li id="section-5.1-13.1">monotonicity: <code>through-chunk-seq</code>, every <code>Usage</code> component, and<a href="#section-5.1-13.1" class="pilcrow">¶</a>
+</li>
+        </ol>
+<p id="section-5.1-14"><code>cumulative-billed</code> are <code>&gt;=</code> the last ACCEPTED watermark's — else 6009;<a href="#section-5.1-14" class="pilcrow">¶</a></p>
+<ol start="1" type="1" class="normal type-1" id="section-5.1-15">
+<li id="section-5.1-15.1">meter consistency: the watermark's <code>Usage</code> equals the usage carried by<a href="#section-5.1-15.1" class="pilcrow">¶</a>
+</li>
+        </ol>
+<p id="section-5.1-16">the latest received usage-update chunk (tasks §3, kind 3) with <code>chunk-seq &lt;= through-chunk-seq</code> — a provider MUST meter (emit the kind-3 chunk) before it bills — else 6009;<a href="#section-5.1-16" class="pilcrow">¶</a></p>
+<ol start="1" type="1" class="normal type-1" id="section-5.1-17">
+<li id="section-5.1-17.1">arithmetic: the model formula above and the amount-delta rule — else<a href="#section-5.1-17.1" class="pilcrow">¶</a>
+</li>
+        </ol>
+<p id="section-5.1-18">6009;<a href="#section-5.1-18" class="pilcrow">¶</a></p>
+<ol start="1" type="1" class="normal type-1" id="section-5.1-19">
+<li id="section-5.1-19.1">cap: <code>cumulative-billed</code> does not exceed the PAY_AGREE authorized cap<a href="#section-5.1-19.1" class="pilcrow">¶</a>
+</li>
+        </ol>
+<p id="section-5.1-20">(§3) — else ERROR 6005.<a href="#section-5.1-20" class="pilcrow">¶</a></p>
+<p id="section-5.1-21">A rejected invoice is not settled and does not advance the accepted watermark.<a href="#section-5.1-21" class="pilcrow">¶</a></p>
+</section>
+</div>
+<div id="pause-resume-and-cancel-1">
+<section id="section-5.2">
+        <h3 id="name-pause-resume-and-cancel">
+<a href="#section-5.2" class="section-number selfRef">5.2. </a><a href="#name-pause-resume-and-cancel" class="section-name selfRef">Pause, resume, and cancel</a>
+        </h3>
+<p id="section-5.2-1">Metered settlement introduces <strong>no new message type</strong>: pause, resume, and cancel are expressed entirely with messages already defined (ERROR, PAY_PROOF, FLOW_CREDIT, CANCEL). The exhaustion signal is <em>proof absence</em>, exactly as in the postpaid flow — a requester that cannot or will not pay an invoice simply withholds its PAY_PROOF; there is no "insufficient" message.<a href="#section-5.2-1" class="pilcrow">¶</a></p>
+<p id="section-5.2-2"><strong>Pause</strong> is a provider-local decision, not a wire handshake. A provider MAY pause the stream whenever it holds an unpaid outstanding watermark (billed minus settled), and it SIGNALS the pause with ERROR <strong>6001</strong> (retryable) whose detail map (core §9 key 5) carries the final unpaid watermark as <code>{1 =&gt; UsageWatermark}</code>. RECOMMENDED policy: pause when the unpaid amount would exceed the stream's granted flow credit (core §8.1) or the provider's own per-stream exposure limit — so that unpaid delivery is bounded by exactly the backpressure MAP already provides. While paused, the provider MUST NOT emit further billable CHUNKs, MUST NOT re-issue a new invoice-id for already-billed usage (the paused invoice stands, idempotent by id — the 6001 watermark merely restates the outstanding position so a requester that missed the invoice can reconstruct it), and MUST NOT advance the watermark.<a href="#section-5.2-2" class="pilcrow">¶</a></p>
+<p id="section-5.2-3"><strong>Resume</strong> requires no marker: the covering <strong>PAY_PROOF</strong> IS the resume trigger. When the provider observes a PAY_PROOF that settles the outstanding invoice(s) which caused the pause, it settles (PAY_RECEIPT) and continues streaming from the exact watermark — no gap and no double-bill, since the watermark is cumulative and monotonic. The next CHUNK the requester receives is itself the observable resume. A metered stream also remains governed by FLOW_CREDIT throughout: a requester that wishes to stop receiving (and thus being billed) MAY simply stop granting credit, starving the stream through the existing core §8.1 mechanism.<a href="#section-5.2-3" class="pilcrow">¶</a></p>
+<p id="section-5.2-4"><strong>Cancel</strong>: on CANCEL (tasks §2, msg-type 0x020C) instead of top-up, the amount owed anchors to the last countersigned checkpoint (tasks §8.2 key 5 usage, billed under the same §4.1 formula), which both sides hold signed — never to an unpaid watermark the requester never countersigned. The owed amount is therefore always ≤ the final unpaid watermark: a dying or malicious stream can claim payment only for delivery the requester has already acknowledged at a checkpoint.<a href="#section-5.2-4" class="pilcrow">¶</a></p>
+<p id="section-5.2-5">PAY_RECEIPT is the payee's signed past-tense fact "this invoice settled"; it feeds ExecutionReceipt.payment-ref and is the payer's permanent proof of payment independent of rail-side record retention.<a href="#section-5.2-5" class="pilcrow">¶</a></p>
+</section>
+</div>
+</section>
+</div>
+<div id="settlement-methods-6">
+<section id="section-6">
+      <h2 id="name-settlement-methods">
+<a href="#section-6" class="section-number selfRef">6. </a><a href="#name-settlement-methods" class="section-name selfRef">Settlement methods</a>
+      </h2>
+<div id="registry-specification-required-1">
+<section id="section-6.1">
+        <h3 id="name-registry-specification-requ">
+<a href="#section-6.1" class="section-number selfRef">6.1. </a><a href="#name-registry-specification-requ" class="section-name selfRef">Registry (Specification Required; initial entries)</a>
+        </h3>
+<table class="center" id="table-2">
+          <caption><a href="#table-2" class="selfRef">Table 2</a></caption>
+<thead>
+            <tr>
+              <th class="text-left" rowspan="1" colspan="1">URI</th>
+              <th class="text-left" rowspan="1" colspan="1">Rail</th>
+              <th class="text-left" rowspan="1" colspan="1">Proof semantics</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="text-left" rowspan="1" colspan="1">
+                <code>pay:lightning-bolt12</code>
+</td>
+              <td class="text-left" rowspan="1" colspan="1">Lightning</td>
+              <td class="text-left" rowspan="1" colspan="1">invoice payment preimage</td>
+            </tr>
+            <tr>
+              <td class="text-left" rowspan="1" colspan="1">
+                <code>pay:stripe-intent</code>
+</td>
+              <td class="text-left" rowspan="1" colspan="1">card processors</td>
+              <td class="text-left" rowspan="1" colspan="1">intent id + processor confirmation fetchable by payee</td>
+            </tr>
+            <tr>
+              <td class="text-left" rowspan="1" colspan="1">
+                <code>pay:erc20-stablecoin</code>
+</td>
+              <td class="text-left" rowspan="1" colspan="1">EVM stablecoins</td>
+              <td class="text-left" rowspan="1" colspan="1">tx hash + chain/confirmations params</td>
+            </tr>
+            <tr>
+              <td class="text-left" rowspan="1" colspan="1">
+                <code>pay:ach</code>
+</td>
+              <td class="text-left" rowspan="1" colspan="1">ACH</td>
+              <td class="text-left" rowspan="1" colspan="1">trace number; settled = rail-final (days)</td>
+            </tr>
+            <tr>
+              <td class="text-left" rowspan="1" colspan="1">
+                <code>pay:interledger</code>
+</td>
+              <td class="text-left" rowspan="1" colspan="1">Interledger/Web Monetization</td>
+              <td class="text-left" rowspan="1" colspan="1">STREAM receipt</td>
+            </tr>
+            <tr>
+              <td class="text-left" rowspan="1" colspan="1">
+                <code>pay:credit-ledger</code>
+</td>
+              <td class="text-left" rowspan="1" colspan="1">private mesh ledger</td>
+              <td class="text-left" rowspan="1" colspan="1">ledger-operator-signed entry</td>
+            </tr>
+            <tr>
+              <td class="text-left" rowspan="1" colspan="1">
+                <code>pay:x402</code>
+</td>
+              <td class="text-left" rowspan="1" colspan="1">x402 (HTTP-native stablecoin; EIP-3009 authorizations, facilitator settle)</td>
+              <td class="text-left" rowspan="1" colspan="1">signed transfer authorization; settled = facilitator/chain settlement</td>
+            </tr>
+          </tbody>
+        </table>
+<p id="section-6.1-2">Each entry's defining document specifies: params schema, proof schema, verification procedure, finality/reversal model, and refund reference format. Reversibility is a <em>method property</em> the payee prices in (an ACH "settled" can still reverse; a preimage cannot) — MAP surfaces it, never hides it.<a href="#section-6.1-2" class="pilcrow">¶</a></p>
+<p id="section-6.1-3">Method definition — <code>pay:credit-ledger</code> (added 2026-07-06 from TASK-009). A named ledger operator (a mesh-configured AgentID, trusted BY DESIGN for this method — the payee prices that trust in). Params (MethodOffer.2): none required for the MVP. Proof payload (PayProof.3): CBOR <code>[entry-bytes, sig]</code> where<a href="#section-6.1-3" class="pilcrow">¶</a></p>
+<div class="sourcecode" id="section-6.1-4">
+<pre>entry-bytes = enc(["MAPLedgerEntry", invoice-id, payer-AgentID,
+                   payee-AgentID, [Asset, Amount], ts])
+sig         = Ed25519 by the operator over entry-bytes</pre><a href="#section-6.1-4" class="pilcrow">¶</a>
+</div>
+<p id="section-6.1-5">Verification (payee): <code>verify_strict</code> <code>sig</code> against the operator AgentID, then the entry's invoice-id / payer / payee / [Asset, Amount] MUST equal the invoice being settled. Finality: instant and irreversible within the ledger (no chargeback path); balances move exactly once per invoice-id (operator dedups). Refund reference: a fresh entry in the reverse direction (out of MVP scope).<a href="#section-6.1-5" class="pilcrow">¶</a></p>
+<p id="section-6.1-6">Method definition — <code>pay:x402</code> (added 2026-07-14, ARCHITECT DESIGN; see CHANGELOG). Settles via the x402 protocol (x402.org, Apache-2.0): the payer signs an exact-amount, time-boxed, single-use on-chain transfer authorization (EIP-3009 <code>transferWithAuthorization</code> for EVM stablecoins such as USDC) and the payee — directly or through a payee-chosen <strong>facilitator</strong> service's <code>/verify</code> and <code>/settle</code> endpoints — executes it on chain. MAP adopts x402's <em>settlement payload and facilitator model only</em>: x402's own HTTP 402/<code>X-PAYMENT</code> request loop is NOT used between MAP peers (PAY_QUOTE / PAY_AGREE / PAY_INVOICE already carry the negotiation with stronger binding); it remains appropriate at a gateway (ops §5) that fronts external x402-priced HTTP services as MAP capabilities.<a href="#section-6.1-6" class="pilcrow">¶</a></p>
+<p id="section-6.1-7">Asset/amount mapping: the quote's <code>Asset</code> MUST be the <code>erc20:&lt;chain&gt;:&lt;addr&gt;</code> form (§1) naming the token the scheme settles, and the Amount exponent MUST be the token's decimals negated (USDC ⇒ −6), so the mantissa IS the atomic unit count — the §3 exact-arithmetic rules apply unchanged.<a href="#section-6.1-7" class="pilcrow">¶</a></p>
+<p id="section-6.1-8">Params (MethodOffer.2, deterministic-CBOR map):<a href="#section-6.1-8" class="pilcrow">¶</a></p>
+<div class="lang-cddl sourcecode" id="section-6.1-9">
+<pre>X402Params = {
+  1 =&gt; uint,            ; x402Version (1 in this revision)
+  2 =&gt; tstr,            ; scheme ("exact" in this revision)
+  3 =&gt; tstr,            ; network id (e.g. "base", "base-sepolia")
+  4 =&gt; tstr,            ; payTo: payee on-chain address
+  ? 5 =&gt; tstr,          ; facilitator base URL (informative — payee's choice)
+  ? 6 =&gt; uint           ; max authorization validity the payee accepts (s)
+}</pre><a href="#section-6.1-9" class="pilcrow">¶</a>
+</div>
+<p id="section-6.1-10">Proof payload (PayProof.3, deterministic-CBOR map):<a href="#section-6.1-10" class="pilcrow">¶</a></p>
+<div class="lang-cddl sourcecode" id="section-6.1-11">
+<pre>X402Proof = {
+  1 =&gt; bstr             ; the x402 PaymentPayload, verbatim (the JSON bytes
+                        ;   an X-PAYMENT header would carry, base64-decoded):
+                        ;   scheme/network + the signed EIP-3009 authorization
+}</pre><a href="#section-6.1-11" class="pilcrow">¶</a>
+</div>
+<p id="section-6.1-12"><strong>Invoice binding (MAP-specific MUST):</strong> the authorization's 32-byte nonce MUST be <code>SHA-256("MAP-x402-nonce" || invoice-id)</code>; the payee MUST verify it. This binds the authorization to exactly one MAP invoice, and the chain's single-use-nonce rule then enforces exactly-once settlement across retries (layered under MAP's invoice-id idempotency, not replacing it).<a href="#section-6.1-12" class="pilcrow">¶</a></p>
+<p id="section-6.1-13">Verification (payee): decode the payload; check x402Version/scheme/network/ <code>payTo</code> against the offered params, the token contract against the quote's Asset, <code>value</code> == the invoice Amount mantissa (atomic units), the nonce rule above, and a validity window covering now + expected settle latency; then settle (facilitator <code>/settle</code> or direct submission). <strong>A successful <code>/verify</code> alone is NOT settlement</strong> — the payee MUST NOT reply PAY_RECEIPT (or release anything priced) before the settlement succeeds/confirms per its params. Finality: reversal-resistant once the transfer confirms; the facilitator is a payee-chosen, payee-trusted intermediary (the payer's exposure is bounded by the exact-amount, time-boxed, single-use authorization) — reversibility and facilitator trust are method properties the payee prices in, per this section's doctrine. Refund reference: the tx hash of a reverse transfer (out of MVP scope).<a href="#section-6.1-13" class="pilcrow">¶</a></p>
+</section>
+</div>
+<div id="prepay-and-escrow-terms-1-and-2-1">
+<section id="section-6.2">
+        <h3 id="name-prepay-and-escrow-terms-1-a">
+<a href="#section-6.2" class="section-number selfRef">6.2. </a><a href="#name-prepay-and-escrow-terms-1-a" class="section-name selfRef">Prepay and escrow (terms 1 and 2)</a>
+        </h3>
+<p id="section-6.2-1">Both variants move settlement BEFORE delivery. Neither adds a message type (the same doctrine as §4.2): they are reorderings of the §2 flow plus two additive optional fields — the invoice <code>phase</code> and the receipt <code>kind</code> (§5.2.1). What they demand of the rail differs: prepay needs nothing beyond §5.1; escrow is a <strong>method capability</strong> — only methods that support conditional holds (hold-invoice Lightning, processor auth-then-capture, contract escrow, the §5.2.4 credit-ledger extension) may be offered in a terms-2 quote, and including a MethodOffer in a terms-2 quote asserts that the offered instance supports it. MAP's role is unchanged in kind: the rail holds and moves the money; MAP defines the signed statements, their ordering, and the canonical release trigger both parties can evaluate — <strong>COMPLETE + verified transcript-root</strong> (tasks §4).<a href="#section-6.2-1" class="pilcrow">¶</a></p>
+<p id="section-6.2-2">A quote under terms 1 or 2 MUST carry key 4 (estimated/maximum total): it is the amount settled or held up front, under the §3 same-exponent rule. Terms are exclusive; combined metered-escrow (a held ceiling drawn down by watermarks) is not defined in this revision.<a href="#section-6.2-2" class="pilcrow">¶</a></p>
+<div id="receipt-kinds-and-invoice-phases-1">
+<section id="section-6.2.1">
+          <h4 id="name-receipt-kinds-and-invoice-p">
+<a href="#section-6.2.1" class="section-number selfRef">6.2.1. </a><a href="#name-receipt-kinds-and-invoice-p" class="section-name selfRef">Receipt kinds and invoice phases (additive fields)</a>
+          </h4>
+<p id="section-6.2.1-1"><code>PayReceipt</code> key 5 <code>kind</code>: 0 settled (the default when absent — all pre-existing receipts are unchanged), 1 held, 2 released, 3 refunded. Receivers MUST reject a receipt with an unrecognized kind (fail-closed; ERROR 6010). Only kinds 0 and 2 are settlement statements and feed <code>ExecutionReceipt.payment-ref</code>; kind 1 is the payee's signed statement that a conforming hold exists on the rail; kind 3 records a return of held funds to the payer.<a href="#section-6.2.1-1" class="pilcrow">¶</a></p>
+<p id="section-6.2.1-2"><code>PayInvoice</code> key 7 <code>phase</code>: 1 hold, 2 release. Key 7 MUST be present iff the governing agreement's terms are 2 (the mirror of the §4.1 watermark presence rule); a violation is ERROR 6010 (escrow violation, core §9).<a href="#section-6.2.1-2" class="pilcrow">¶</a></p>
+</section>
+</div>
+<div id="terms-1--prepaid-1">
+<section id="section-6.2.2">
+          <h4 id="name-terms-1-prepaid">
+<a href="#section-6.2.2" class="section-number selfRef">6.2.2. </a><a href="#name-terms-1-prepaid" class="section-name selfRef">Terms 1 — prepaid</a>
+          </h4>
+<div class="sourcecode" id="section-6.2.2-1">
+<pre>Requester(payer)                          Provider(payee)
+   | ←---- PAY_QUOTE {terms 1} ---------- |
+   | -- PAY_AGREE ----------------------→ |
+   | ←---- PAY_INVOICE ------------------ |   amount = quote key 4 total
+   |   pay on the rail (out of band)      |
+   | -- PAY_PROOF ----------------------→ |   verify under method rules
+   | ←---- PAY_RECEIPT {settled} -------- |
+   |            ... task executes ...     |
+   | ←------------- COMPLETE ------------ |</pre><a href="#section-6.2.2-1" class="pilcrow">¶</a>
+</div>
+<p id="section-6.2.2-2">Rules: the single PAY_INVOICE MUST equal the quote's key 4 total and carries no watermark (§4.1) and no phase key (§5.2.1). The provider MUST NOT begin billable execution before the invoice is <em>settled</em> — delivery keys off settled (§1), which is precisely what the payer buys with a prepay. An amount other than the quoted total is ERROR 6010. Excess of prepay over eventual usage is not overbilling (the payer agreed the total; dispute claim 3 does not apply); non-delivery after settlement is dispute claim 0, with the receipt and the absent COMPLETE as evidence, remedied by the method's refund reference or the mesh's §6 process.<a href="#section-6.2.2-2" class="pilcrow">¶</a></p>
+</section>
+</div>
+<div id="terms-2--escrow-1">
+<section id="section-6.2.3">
+          <h4 id="name-terms-2-escrow">
+<a href="#section-6.2.3" class="section-number selfRef">6.2.3. </a><a href="#name-terms-2-escrow" class="section-name selfRef">Terms 2 — escrow</a>
+          </h4>
+<p id="section-6.2.3-1">Escrow adds a fourth moment to §1's three: <strong>held</strong> — value locked on the rail such that the payer cannot unilaterally reclaim it, the payee cannot unilaterally claim it, and a defined expiry returns it to the payer. Under terms 2, delivery obligations key off <em>held</em>; final settlement keys off <em>released</em>.<a href="#section-6.2.3-1" class="pilcrow">¶</a></p>
+<div class="sourcecode" id="section-6.2.3-2">
+<pre>Requester(payer)                          Provider(payee)
+   | ←---- PAY_QUOTE {terms 2} ---------- |
+   | -- PAY_AGREE ----------------------→ |
+   | ←---- PAY_INVOICE {phase 1 hold} --- |   amount = quote key 4 total
+   |   place hold on the rail (oob)       |
+   | -- PAY_PROOF {hold proof} ---------→ |   verify hold under method
+   | ←---- PAY_RECEIPT {kind 1 held} ---- |
+   |            ... task executes ...     |
+   | ←------------- COMPLETE ------------ |   transcript-root (tasks §4)
+   |   verify COMPLETE + transcript-root  |
+   | ←---- PAY_INVOICE {phase 2 release}- |   amount = final owed ≤ held
+   |   authorize release on the rail (oob)|
+   | -- PAY_PROOF {release proof} ------→ |
+   | ←---- PAY_RECEIPT {kind 2 released}- |   remainder refunds to payer</pre><a href="#section-6.2.3-2" class="pilcrow">¶</a>
+</div>
+<p id="section-6.2.3-3">Escrow is <strong>two invoice rounds</strong>, each the standard invoice→proof→receipt unit: hold and release carry distinct invoice-ids, both bound to the same quote-id, and §4's idempotency rules apply per round unchanged (a re-sent hold or release invoice is byte-identical; a re-delivered proof settles nothing twice).<a href="#section-6.2.3-3" class="pilcrow">¶</a></p>
+<p id="section-6.2.3-4">The requester MUST verify, in order, before acting on a terms-2 invoice:<a href="#section-6.2.3-4" class="pilcrow">¶</a></p>
+<ol start="1" type="1" class="normal type-1" id="section-6.2.3-5">
+<li id="section-6.2.3-5.1">phase: key 7 present and ∈ {1, 2}, per §5.2.1 — else ERROR 6010;<a href="#section-6.2.3-5.1" class="pilcrow">¶</a>
+</li>
+            <li id="section-6.2.3-5.2">task binding: as §4.1 check 2 — else 6007;<a href="#section-6.2.3-5.2" class="pilcrow">¶</a>
+</li>
+            <li id="section-6.2.3-5.3">hold invoices: amount equals the quote key 4 total, and no prior hold<a href="#section-6.2.3-5.3" class="pilcrow">¶</a>
+</li>
+          </ol>
+<p id="section-6.2.3-6">exists for this agreement (one hold per agreement) — else 6010;<a href="#section-6.2.3-6" class="pilcrow">¶</a></p>
+<ol start="1" type="1" class="normal type-1" id="section-6.2.3-7">
+<li id="section-6.2.3-7.1">release invoices: a COMPLETE for the bound task has been received AND<a href="#section-6.2.3-7.1" class="pilcrow">¶</a>
+</li>
+          </ol>
+<p id="section-6.2.3-8">its transcript-root verified (tasks §4) — the canonical release trigger. A release invoice before that MUST NOT be paid: 6010;<a href="#section-6.2.3-8" class="pilcrow">¶</a></p>
+<ol start="1" type="1" class="normal type-1" id="section-6.2.3-9">
+<li id="section-6.2.3-9.1">release amount: ≤ the held amount; and if the task ended by CANCEL,<a href="#section-6.2.3-9.1" class="pilcrow">¶</a>
+</li>
+          </ol>
+<p id="section-6.2.3-10">exactly the §4.1 formula applied to the last countersigned checkpoint's usage (the §4.2 cancel anchor) — else 6010;<a href="#section-6.2.3-10" class="pilcrow">¶</a></p>
+<ol start="1" type="1" class="normal type-1" id="section-6.2.3-11">
+<li id="section-6.2.3-11.1">cap: as §4.1 check 6 — else 6005.<a href="#section-6.2.3-11.1" class="pilcrow">¶</a>
+</li>
+          </ol>
+<p id="section-6.2.3-12"><strong>Authorization symmetry</strong> (the property that makes a hold an escrow and not a transfer): the rail/operator MUST NOT move held funds to the payee without a payer-signed release authorization bound to (hold-invoice-id, release-invoice-id, amount) — the payee cannot self-release; and held funds MUST NOT return to the payer before expiry without a payee-signed refund authorization — the payer cannot unwind a hold it granted. At release, the remainder (held minus released) returns to the payer in the same rail operation. A payer that verifies COMPLETE and then withholds its release signature is dispute claim 2 (non-payment), with the kind-1 receipt, the signed COMPLETE, and the transcript as evidence — MAP makes the lie expensive to sustain (§6); the method and mesh make it remediable.<a href="#section-6.2.3-12" class="pilcrow">¶</a></p>
+<p id="section-6.2.3-13"><strong>Expiry</strong>: every hold MUST carry an expiry (method params); at expiry, unreleased funds return to the payer in full, and a release fails on the rail thereafter (ERROR 6002 at the MAP layer). Payees SHOULD price the expiry at deadline + expected release latency with margin — an expiry shorter than the task deadline is self-harm, not a protocol violation.<a href="#section-6.2.3-13" class="pilcrow">¶</a></p>
+<p id="section-6.2.3-14">Failure matrix (honest-party exposure is bounded in every row): COMPLETE never arrives → expiry refunds the payer (dispute claim 0 if a record matters); CANCEL → release invoice for the checkpoint-anchored amount, remainder refunded (a kind-3 receipt for the remainder is OPTIONAL); provider vanishes → expiry refund; payer vanishes after COMPLETE → dispute claim 2, and the payee's loss is bounded by work it can prove it delivered. The payee's exposure is bounded by the hold (it never works beyond held value); the payer's by the expiry (money returns absent its own signature).<a href="#section-6.2.3-14" class="pilcrow">¶</a></p>
+</section>
+</div>
+<div id="paycredit-ledger-escrow-exten-1">
+<section id="section-6.2.4">
+          <h4 id="name-paycredit-ledger-escrow-ext">
+<a href="#section-6.2.4" class="section-number selfRef">6.2.4. </a><a href="#name-paycredit-ledger-escrow-ext" class="section-name selfRef">`pay:credit-ledger` escrow extension</a>
+          </h4>
+<p id="section-6.2.4-1">The §5.1 credit-ledger method supports terms 2 with three additional operator-signed entry forms (same <code>[entry-bytes, sig]</code> proof envelope and verification rules as §5.1). Params (MethodOffer.2) under terms 2: <code>{? 1 =&gt; uint}</code> — maximum hold validity the operator accepts, seconds.<a href="#section-6.2.4-1" class="pilcrow">¶</a></p>
+<div class="sourcecode" id="section-6.2.4-2">
+<pre>hold-entry    = enc(["MAPLedgerHold", hold-invoice-id, payer, payee,
+                     [Asset, Amount], expiry-ts, ts])
+release-auth  = enc(["MAPLedgerReleaseAuth", hold-invoice-id,
+                     release-invoice-id, [Asset, Amount]])
+                ; signed by the PAYER, presented to the operator
+refund-auth   = enc(["MAPLedgerRefundAuth", hold-invoice-id])
+                ; signed by the PAYEE (pre-expiry refund)
+release-entry = enc(["MAPLedgerRelease", hold-invoice-id,
+                     release-invoice-id, payer, payee,
+                     [Asset, Amount], ts])
+refund-entry  = enc(["MAPLedgerRefund", hold-invoice-id, payer,
+                     [Asset, Amount], ts])</pre><a href="#section-6.2.4-2" class="pilcrow">¶</a>
+</div>
+<p id="section-6.2.4-3">Operator rules: a hold moves Amount from the payer's balance into an escrow bucket keyed by hold-invoice-id (idempotent by that id; insufficient balance → no entry). A release requires a valid payer <code>release-auth</code> over exactly this (hold, release, amount) triple, amount ≤ held, and now &lt; expiry; it atomically credits the amount to the payee, returns the remainder to the payer, and closes the hold (idempotent by release-invoice-id). A refund requires expiry passed OR a valid payee <code>refund-auth</code>, returns the held amount to the payer, and closes the hold. The hold entry is the PAY_PROOF payload for the phase-1 invoice; the release entry for the phase-2 invoice.<a href="#section-6.2.4-3" class="pilcrow">¶</a></p>
+<p id="section-6.2.4-4"><code>pay:credit-ledger</code> deliberately accommodates community meshes running reputation-priced barter or operator-run tabs — with the ledger operator named and chosen, not smuggled in as protocol (the fix for C9's accidental central bank).<a href="#section-6.2.4-4" class="pilcrow">¶</a></p>
+</section>
+</div>
+</section>
+</div>
+</section>
+</div>
+<div id="disputes-7">
+<section id="section-7">
+      <h2 id="name-disputes">
+<a href="#section-7" class="section-number selfRef">7. </a><a href="#name-disputes" class="section-name selfRef">Disputes</a>
+      </h2>
+<p id="section-7-1">Scope: MAP adjudicates <em>evidence availability</em>, not outcomes. The protocol's whole job here is that each party can (a) state a precise claim bound to a precise agreement, (b) hand over the signed artifacts that bear on it, and (c) let ANY third party the disputants choose (mesh arbiter, method-level chargeback, court) check the claim mechanically without trusting either disputant. Timeboxes, arbiter selection, and remedies are mesh/method policy — deliberately outside this document. Design goal: make lying <em>expensive to sustain</em> — every step of a MAP payment leaves a signed artifact the liar must contradict.<a href="#section-7-1" class="pilcrow">¶</a></p>
+<div id="messages-1">
+<section id="section-7.1">
+        <h3 id="name-messages">
+<a href="#section-7.1" class="section-number selfRef">7.1. </a><a href="#name-messages" class="section-name selfRef">Messages</a>
+        </h3>
+<div class="lang-cddl sourcecode" id="section-7.1-1">
+<pre>PayDispute = {                        ; msg-type 0x0405; either party
+  1 =&gt; bstr .size 16,                 ; dispute-id (fresh)
+  2 =&gt; bstr .size 16,                 ; invoice-id under dispute
+  3 =&gt; uint,                          ; claim code (registry, §8):
+                                      ;  0 non-delivery, 1 output-mismatch,
+                                      ;  2 non-payment, 3 overbilling,
+                                      ;  4 terms breach
+  4 =&gt; PayAgreeRef,                   ; the governing agreement (§3.1) —
+                                      ;  anchors quote, terms, cap, task
+  ? 5 =&gt; bstr .size 32,               ; TaskID, if the agreement is bound
+  ? 6 =&gt; tstr .size (0..1024),        ; free-text statement (never evidence)
+  7 =&gt; Timestamp
+}
+
+PayDisputeEvidence = {                ; msg-type 0x0406; both parties
+  1 =&gt; bstr .size 16,                 ; dispute-id
+  2 =&gt; [+ EvidenceItem],
+  ? 3 =&gt; bool                         ; more available (chunk under
+}                                     ;  FLOW_CREDIT, core §8.1)
+
+EvidenceItem = {
+  1 =&gt; uint,                          ; kind (registry, §8):
+                                      ;  0 PAY_QUOTE envelope
+                                      ;  1 PAY_AGREE envelope
+                                      ;  2 PAY_INVOICE envelope
+                                      ;  3 PAY_PROOF envelope
+                                      ;  4 PAY_RECEIPT envelope
+                                      ;  5 countersigned checkpoint
+                                      ;     (Checkpoint + the requester
+                                      ;      countersignature, tasks §8.2)
+                                      ;  6 COMPLETE envelope
+                                      ;  7 ExecutionReceipt (dual-signed,
+                                      ;     trust §3)
+                                      ;  8 method artifact (ledger entry,
+                                      ;     release-auth, x402 payload,
+                                      ;     gateway upstream evidence …)
+                                      ;  9 CHUNK envelope (tasks §3) —
+                                      ;     delivered-transcript evidence
+                                      ;     for claim 1
+  2 =&gt; bstr,                          ; the artifact VERBATIM: for envelope
+                                      ;  kinds, the received envelope bytes
+                                      ;  (core I1 — never re-serialized)
+  ? 3 =&gt; bstr .size 32                ; the session channel binding (CB)
+}                                     ;  under which an in-session envelope
+                                      ;  was signed — see §6.2</pre><a href="#section-7.1-1" class="pilcrow">¶</a>
+</div>
+<p id="section-7.1-2">Unrecognized claim codes and evidence kinds MUST be rejected (fail-closed). Disputes are idempotent by dispute-id; re-sent evidence messages MUST NOT duplicate items in the verifier's view (dedup by item content address). Opening a dispute does not suspend other machinery by itself; a party refusing to continue a flow pending resolution signals ERROR 6003 (dispute opened). A receipt with outcome 4 (disputed, trust §3) records the event on the trust plane either way, whoever proves right.<a href="#section-7.1-2" class="pilcrow">¶</a></p>
+</section>
+</div>
+<div id="third-party-verifiability-and-cb-1">
+<section id="section-7.2">
+        <h3 id="name-third-party-verifiability-a">
+<a href="#section-7.2" class="section-number selfRef">7.2. </a><a href="#name-third-party-verifiability-a" class="section-name selfRef">Third-party verifiability and CB disclosure</a>
+        </h3>
+<p id="section-7.2-1">Inner-signed artifacts (ExecutionReceipts, checkpoint countersignatures — decision-9-style signatures over stated bytes) are verifiable by anyone from the bytes alone. Envelope artifacts are COSE_Sign1 over the received bytes with <code>external_aad</code> = the session channel binding (CB) when sent in-session (core §7.3) — so a third party CANNOT verify them without the CB. Therefore: an EvidenceItem carrying an in-session envelope MUST include key 3 (the CB value); out-of-session envelopes (empty external_aad) omit it. Disclosing a CB post-hoc is safe — it is an HKDF output, not key material, and reveals nothing about session traffic keys — and it is <em>useful</em>: all in-session items verifying under the SAME disclosed CB are thereby proven to come from one session between the two disputants. A verifier MUST treat an in-session item whose CB is absent or fails verification as unavailable evidence, not as a verified artifact.<a href="#section-7.2-1" class="pilcrow">¶</a></p>
+</section>
+</div>
+<div id="mechanical-verification-procedur-1">
+<section id="section-7.3">
+        <h3 id="name-mechanical-verification-pro">
+<a href="#section-7.3" class="section-number selfRef">7.3. </a><a href="#name-mechanical-verification-pro" class="section-name selfRef">Mechanical verification procedure</a>
+        </h3>
+<p id="section-7.3-1">Given a PayDispute and both parties' evidence sets, a verifier (either disputant, or any third party) proceeds: authenticate every item per §6.2 against the AgentIDs bound by the agreement (item signers MUST be the disputants or the method's named operator; anything else is discarded); resolve the agreement (kind-1 item matching PayAgreeRef's digest, and its kind-0 quote matching the agreement's quote digest — the 6006 machinery); then evaluate the claim:<a href="#section-7.3-1" class="pilcrow">¶</a></p>
+<ul class="normal">
+<li class="normal" id="section-7.3-2.1">
+            <strong>0 non-delivery</strong> (payer claims): supported iff the payer's evidence<a href="#section-7.3-2.1" class="pilcrow">¶</a>
+</li>
+        </ul>
+<p id="section-7.3-3">shows value moved — a settled PAY_RECEIPT (kind 0/2) or verified proof — AND the payee's evidence contains NO countersigned checkpoint and no COMPLETE for the bound task. This is rebuttal-shaped: absence is never proven, so the claim <em>stands unrebutted</em> if the payee, who by construction holds the countersigned artifacts if delivery happened, produces none.<a href="#section-7.3-3" class="pilcrow">¶</a></p>
+<ul class="normal">
+<li class="normal" id="section-7.3-4.1">
+            <strong>1 output-mismatch</strong> (payer claims): supported iff the COMPLETE's<a href="#section-7.3-4.1" class="pilcrow">¶</a>
+</li>
+        </ul>
+<p id="section-7.3-5">transcript-root does not equal the root recomputed (tasks §8.1) over the delivered transcript the payer presents, at or before the COMPLETE's chunk range. Fully mechanical.<a href="#section-7.3-5" class="pilcrow">¶</a></p>
+<ul class="normal">
+<li class="normal" id="section-7.3-6.1">
+            <strong>2 non-payment</strong> (payee claims): rebuttal-shaped dual of claim 0:<a href="#section-7.3-6.1" class="pilcrow">¶</a>
+</li>
+        </ul>
+<p id="section-7.3-7">stands unless the payer produces a verifying PAY_PROOF / receipt / release-auth covering the invoice (escrow: the release round).<a href="#section-7.3-7" class="pilcrow">¶</a></p>
+<ul class="normal">
+<li class="normal" id="section-7.3-8.1">
+            <strong>3 overbilling</strong> (payer claims): supported iff an invoice's<a href="#section-7.3-8.1" class="pilcrow">¶</a>
+</li>
+        </ul>
+<p id="section-7.3-9">cumulative-billed (or a terms-1/2 amount) exceeds the §4.1 formula applied to the highest COUNTERSIGNED usage (checkpoint key 5) in evidence, under the agreement's rate table — exact arithmetic, no tolerance. (Watermarks the payer accepted but did not countersign bill validly under §4.1; overbilling is measured against what the payer ACKNOWLEDGED, which is why checkpoints exist.)<a href="#section-7.3-9" class="pilcrow">¶</a></p>
+<ul class="normal">
+<li class="normal" id="section-7.3-10.1">
+            <strong>4 terms breach</strong> (either): supported iff the evidence itself<a href="#section-7.3-10.1" class="pilcrow">¶</a>
+</li>
+        </ul>
+<p id="section-7.3-11">exhibits a violation of §3–§5.2 rules that existing verifiers detect mechanically: quote-digest mismatch (6006), cap breach (6005), watermark violation (6009), escrow-phase/prepaid violation (6010), invalid proof (6008). The claim names the rule; the verifier re-runs the corresponding check over the presented artifacts.<a href="#section-7.3-11" class="pilcrow">¶</a></p>
+<p id="section-7.3-12">The verdict vocabulary is three-valued: <strong>supported</strong>, <strong>rebutted</strong>, or <strong>insufficient evidence</strong> — MAP never emits remedies. Both rebuttal-shaped claims (0, 2) resolve against the party that withholds artifacts it must hold if honest; that asymmetry is the availability doctrine doing its work.<a href="#section-7.3-12" class="pilcrow">¶</a></p>
+</section>
+</div>
+<div id="griefing-bounds-1">
+<section id="section-7.4">
+        <h3 id="name-griefing-bounds">
+<a href="#section-7.4" class="section-number selfRef">7.4. </a><a href="#name-griefing-bounds" class="section-name selfRef">Griefing bounds</a>
+        </h3>
+<p id="section-7.4-1">A dispute is itself a signed artifact: frivolous disputants accumulate their own evidence trail (§7), and outcome-4 receipts weigh against both parties' trust projections pending resolution (trust §5). Evidence volume rides FLOW_CREDIT (§6.1 <code>more</code> chunking) — a party cannot flood; a verifier MAY cap total evidence size as local policy and rule "insufficient" beyond it.<a href="#section-7.4-1" class="pilcrow">¶</a></p>
+</section>
+</div>
+</section>
+</div>
+<div id="security-considerations-8">
+<section id="section-8">
+      <h2 id="name-security-considerations">
+<a href="#section-8" class="section-number selfRef">8. </a><a href="#name-security-considerations" class="section-name selfRef">Security Considerations</a>
+      </h2>
+<p id="section-8-1">Proof replay: proofs bind to invoice-ids; invoice-ids bind to quote digests; core replay rules (§7) cover the envelopes — a captured proof re-settles nothing. Price-switch: quotes are bound by digest in PAY_AGREE, so a payee cannot substitute terms. Griefing via disputes: disputes are signed and receiptable; frivolous disputants accumulate their own evidence trail. Sanctions/AML/KYC obligations attach to settlement methods and their operators, not to the negotiation layer; gateways and method implementations MUST NOT be assumed compliance-free (ops §9). Metadata: invoices reveal counterparties and amounts to rail operators per the chosen method — surface this in method definitions so zone policy can exclude rails inconsistent with the task's sensitivity.<a href="#section-8-1" class="pilcrow">¶</a></p>
+</section>
+</div>
+<div id="iana-style-considerations-9">
+<section id="section-9">
+      <h2 id="name-iana-style-considerations">
+<a href="#section-9" class="section-number selfRef">9. </a><a href="#name-iana-style-considerations" class="section-name selfRef">IANA-Style Considerations</a>
+      </h2>
+<p id="section-9-1">Registers: settlement method URIs (Specification Required); pricing model codes; terms codes; dispute claim codes; dispute evidence-item kinds (§6.1); unit codes for rate tables. The assigned values and the family-wide index are in <code>draft-map-wire-01.md</code> §3.18, §3.19, and §3.20; in case of divergence the normative definitions in §3, §5.1, and §6 govern.<a href="#section-9-1" class="pilcrow">¶</a></p>
+</section>
+</div>
+<div id="references-selected-10">
+<section id="section-10">
+      <h2 id="name-references-selected">
+<a href="#section-10" class="section-number selfRef">10. </a><a href="#name-references-selected" class="section-name selfRef">References (selected)</a>
+      </h2>
+<p id="section-10-1">[RFC2119] [RFC8174] BCP 14 requirement levels.<a href="#section-10-1" class="pilcrow">¶</a></p>
+</section>
+</div>
+<div id="authors-addresses">
+<section id="appendix-A">
+      <h2 id="name-authors-address">
+<a href="#name-authors-address" class="section-name selfRef">Author's Address</a>
+      </h2>
+<address class="vcard">
+        <div dir="auto" class="left"><span class="fn nameRole">Jesse Larsen</span></div>
+<div dir="auto" class="left"><span class="org">Independent</span></div>
+<div class="email">
+<span>Email:</span>
+<a href="mailto:jesselarsen@gmail.com" class="email">jesselarsen@gmail.com</a>
+</div>
+</address>
+</section>
+</div>
+<script>const toc = document.getElementById("toc");
+toc.querySelector("h2").addEventListener("click", e => {
+  toc.classList.toggle("active");
+});
+toc.querySelector("nav").addEventListener("click", e => {
+  toc.classList.remove("active");
+});
+</script>
+</body>
+</html>

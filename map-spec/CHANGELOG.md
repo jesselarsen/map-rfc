@@ -8,6 +8,56 @@ version that carries it). No revision to date contains a breaking change.
 
 ---
 
+## I-D submission readiness: author metadata, render hardening, nits, SUBMISSION.md (TASK-031) — 2026-07-18
+
+Editorial only. No wire, registry, code-point, or normative-mechanism change;
+frozen test vectors byte-stable; no CDDL block altered. Takes the existing
+`build/` render pipeline from "renders" to "submittable".
+
+### Editorial (drafts)
+
+- **All 11 drafts** — front-matter gains `author: Jesse Larsen` /
+  `email: jesselarsen@gmail.com` / `ipr: trust200902` (renders into the front
+  page + Authors' Addresses).
+- **Section-heading casing normalized** to Title Case across the family
+  ("Security Considerations", "IANA-Style Considerations") — several drafts had
+  lowercase "considerations".
+- **Missing required sections added** (concise, correct pointer sections):
+  Security Considerations + IANA Considerations to `draft-map-index-01`,
+  `draft-map-intro-01`, `draft-map-wire-01`; IANA Considerations to
+  `draft-map-arch-01` and `draft-map-ops-01`. Every draft now has Abstract,
+  Security Considerations, IANA Considerations, References, and Authors'
+  Addresses (verified by `build/nits.py`).
+
+### Tooling (render-only; no draft mutation)
+
+- **`build/md2rfc.py`** hardened: reads author/email/ipr from front-matter
+  (was a hardcoded placeholder); reads sources as UTF-8 (was cp1252 —
+  mojibaked every §/—); drops the document H1 past leading blanks and the
+  hand-written "Status of This Memo" preamble (xml2rfc regenerates the correct
+  boilerplate); routes `## Abstract` into RFC front matter; strips
+  author-written `N.` section numbers so xml2rfc's numbering is authoritative
+  (was "1.16. 14. Security Considerations"); emits `version="3"` (fixes the
+  empty Authors' Address block); declares the independent stream only for
+  categories the ISE accepts (info/exp/historic).
+- **`build/nits.py`** (new) — stdlib mechanical pre-submission check (required
+  sections; >72-char and non-ASCII line counts).
+- **`build/requirements.txt`** (new, `xml2rfc==3.34.0`), **`build/README.md`**
+  (new). The whole `build/` pipeline + rendered `.xml/.txt/.html` for all 11
+  drafts are now tracked (were inadvertently under a blanket `build/`
+  gitignore; narrowed to ignore only transient artifacts).
+- **`map-spec/SUBMISSION.md`** (new) — the ISE/Datatracker submission
+  checklist, plus the cover-note disclosures (CB-exporter stand-in;
+  single-author preprint status) and the three tracked pre-submission items:
+  the std/bcp-category vs independent-stream conflict (an author decision),
+  the 192 >72-char lines (diagram/CDDL/table reformatting), and formalizing
+  References into a normative/informative `<back>` split.
+
+The render is idempotent (fixed date; a second `render.py` run is
+byte-identical).
+
+---
+
 ## Paid demo: prepaid-gated rfc-title-o-matic × paying map-requester (TASK-030) — 2026-07-18
 
 Additive change (implementation/demo only; no wire, registry, or normative

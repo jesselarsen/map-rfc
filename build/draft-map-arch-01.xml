@@ -1,0 +1,161 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rfc docName="draft-map-arch-01" category="info" ipr="trust200902" version="3" submissionType="independent">
+  <front>
+    <title abbrev="draft-map-arch-01">The Manolito Agent Protocol (MAP): Architecture, Requirements, and Threat Model</title>
+    <author initials="J." surname="Larsen" fullname="Jesse Larsen"><organization>Independent</organization><address><email>jesselarsen@gmail.com</email></address></author>
+    <date year="2026" month="July" day="17"/>
+    <abstract><t>The Manolito Agent Protocol (MAP) is a family of specifications for a decentralized, permissionless network of autonomous AI agents. MAP evolves the capability-oriented spirit of the historical Manolito (MP2P) file-sharing network into a modern agent fabric: participants advertise <em>what they can do</em> &#8212; models, tools, memory domains, compute &#8212; and requesters route work by semantic capability, verifiable evidence of past behavior, price, and locally measured performance. This document defines the architecture, design goals and non-goals, the system and trust models, the threat model, the privacy model (including data-sensitivity zones), scalability targets, and the map of companion documents. It contains no wire formats; those are defined in draft-map-core-01 and its siblings.</t></abstract>
+  </front>
+  <middle>
+<section anchor="introduction-and-heritage-1" numbered="true">
+<name>Introduction and Heritage</name>
+<t>Manolito/MP2P (c. 2001) demonstrated that a flat, serverless, UDP-centric network of consumer nodes could sustain search and exchange at scale with minimal per-node state. MAP retains three MP2P instincts &#8212; decentralization without supernodes, lightweight signed messages, tolerance of extreme churn &#8212; and discards its obsolete mechanics (cleartext UDP, file-hash indexing, no identity layer). The essential inversion, taken from the attached design work: MP2P asked &quot;who has this file?&quot;; MAP asks &quot;who can do this task?&quot;. The network is a <strong>capability graph</strong>.</t>
+<t>MAP is a <em>protocol</em>, not a product. &quot;Hermes&quot; and similar orchestrators are implementations that speak MAP; nothing in these documents privileges any implementation.</t>
+</section>
+<section anchor="requirements-language-2" numbered="true">
+<name>Requirements Language</name>
+<t>The key words &quot;MUST&quot;, &quot;MUST NOT&quot;, &quot;REQUIRED&quot;, &quot;SHALL&quot;, &quot;SHALL NOT&quot;, &quot;SHOULD&quot;, &quot;SHOULD NOT&quot;, &quot;RECOMMENDED&quot;, &quot;NOT RECOMMENDED&quot;, &quot;MAY&quot;, and &quot;OPTIONAL&quot; in this document family are to be interpreted as described in BCP 14 [RFC2119] [RFC8174] when, and only when, they appear in all capitals, as shown here. No adaptation or weakening of these terms applies.</t>
+</section>
+<section anchor="terminology-3" numbered="true">
+<name>Terminology</name>
+<ul><li><strong>Agent</strong>: a protocol participant identified by an AgentID. May act as</li></ul>
+<t>Requester, Provider, Relay, Gateway, or several at once.</t>
+<ul><li><strong>AgentID</strong>: a self-certifying identifier derived from an Ed25519 public</li></ul>
+<t>key (draft-map-identity-01).</t>
+<ul><li><strong>Requester / Provider</strong>: the party commissioning a task / the party</li></ul>
+<t>executing it. Roles are per-task, not per-node.</t>
+<ul><li><strong>Orchestrator</strong>: application logic on a requester that decomposes,</li></ul>
+<t>routes, and merges tasks. Out of protocol scope except where it emits MAP messages.</t>
+<ul><li><strong>Descriptor</strong>: a signed, content-addressed advertisement of an agent&#x27;s</li></ul>
+<t>stable properties (draft-map-discovery-01).</t>
+<ul><li><strong>Capability</strong>: a registered hierarchical URI naming a service class,</li></ul>
+<t>e.g. <tt>map:cap:inference/text-generation</tt> (draft-map-discovery-01 &#167;4).</t>
+<ul><li><strong>Envelope</strong>: the signed CBOR/COSE container for every MAP message</li></ul>
+<t>(draft-map-core-01).</t>
+<ul><li><strong>Receipt</strong>: dual-signed evidence of a completed interaction</li></ul>
+<t>(draft-map-trust-01).</t>
+<ul><li><strong>Zone</strong>: a data-sensitivity class constraining where payloads may flow</li></ul>
+<t>(&#167;8).</t>
+<ul><li><strong>Mesh</strong>: a connected deployment of MAP agents sharing bootstrap and</li></ul>
+<t>policy; meshes MAY federate (draft-map-ops-01).</t>
+</section>
+<section anchor="design-goals-4" numbered="true">
+<name>Design Goals</name>
+<t>G1. <strong>Decentralized and permissionless.</strong> No central authority, registry server, or global PKI is required to join, advertise, discover, or transact. (Governed <em>namespaces</em> &#8212; the capability ontology, code-point registries &#8212; are documents and processes, not runtime services.)</t>
+<t>G2. <strong>Self-certifying identity.</strong> Every artifact that matters &#8212; descriptor, task assignment, checkpoint, receipt, payment message &#8212; is signed and verifiable offline against the sender&#x27;s AgentID.</t>
+<t>G3. <strong>Capability-first semantics.</strong> Discovery, negotiation, and routing operate on capabilities and constraints, never on addresses as such.</t>
+<t>G4. <strong>Local trust.</strong> No global reputation exists. Each agent computes its own trust from evidence it can verify. Identity does not imply reputation; anonymous participation is permitted and simply starts with none.</t>
+<t>G5. <strong>Transport agnosticism.</strong> MAP runs over any ordered, bidirectional, mutually authenticated, encrypted, multiplexed byte stream. libp2p over QUIC is the RECOMMENDED substrate; TCP+TLS/Noise and WebSocket bindings are normative; future transports slot in without protocol change.</t>
+<t>G6. <strong>Secure and private by default.</strong> All traffic encrypted; all control messages signed; replay-protected; metadata minimized; data-sensitivity zones enforced by protocol rule, not convention.</t>
+<t>G7. <strong>Cryptographic agility.</strong> Algorithms are named by negotiated suite identifiers; the protocol survives replacement of any primitive, including migration to post-quantum signatures/KEMs.</t>
+<t>G8. <strong>Extensible without forking.</strong> Unknown non-critical extensions are ignored and preserved; critical extensions are negotiated; all code points live in registries with defined policies.</t>
+<t>G9. <strong>Economically open.</strong> Payment <em>negotiation</em> is standardized; payment <em>settlement</em> is pluggable (Lightning, card processors, stablecoins, ACH, Interledger, private ledgers). The protocol never mandates a currency, chain, or processor.</t>
+<t>G10. <strong>Operable at scale and at the edge.</strong> Target: 10^9 identities, 10^7 concurrently reachable providers per mesh, individual nodes as small as a single-board computer. Mechanisms whose cost grows super-logarithmically with network size are excluded from the mandatory core (&#167;9).</t>
+<t>G11. <strong>Honest about churn and failure.</strong> Mobile, NATed, intermittently connected agents are first-class; every long-lived operation defines timeout, resumption, and compensation behavior.</t>
+<section anchor="non-goals-1" numbered="true">
+<name>Non-Goals</name>
+<ul><li>Model training or fine-tuning coordination.</li><li>General-purpose file sharing (content transfer exists only in service of</li></ul>
+<t>tasks).</t>
+<ul><li>A native token, blockchain, or consensus layer.</li><li>Global, objective reputation scores.</li><li>Guaranteeing the <em>semantic quality</em> of AI outputs &#8212; MAP makes behavior</li></ul>
+<t><em>attributable and evidence-bearing</em>, not correct.</t>
+<ul><li>Backward wire compatibility with legacy Manolito clients (a conceptual</li></ul>
+<t>migration guide is provided in draft-map-ops-01 &#167;7).</t>
+</section>
+</section>
+<section anchor="system-model-5" numbered="true">
+<name>System Model</name>
+<sourcecode>+---------------------------------------------------------------+
+| Application     Orchestrators, IDE plugins, agent runtimes    |
++---------------------------------------------------------------+
+| MAP Semantics   Tasks &amp; streaming (tasks) | Trust (trust)     |
+|                 Payments (pay)            | Federation (ops)  |
++---------------------------------------------------------------+
+| MAP Discovery   Descriptors, ontology, DHT records, status    |
++---------------------------------------------------------------+
+| MAP Core        Envelope, negotiation, sessions, errors,      |
+|                 flow control, extension framework             |
++---------------------------------------------------------------+
+| MAP Identity    AgentIDs, delegation, rotation, revocation    |
++---------------------------------------------------------------+
+| Substrate       libp2p (Kademlia, gossipsub, AutoNAT, relay,  |
+|                 hole punching) / QUIC / TCP+TLS / WebSocket   |
++---------------------------------------------------------------+</sourcecode>
+<t>Roles: <strong>Relays</strong> forward encrypted traffic for unreachable peers (they see ciphertext and coarse metadata only). <strong>Gateways</strong> re-advertise external services (e.g., a hosted-API bridge) into a mesh, with mandatory provenance labeling. <strong>Bootstrap peers</strong> are ordinary agents listed out-of-band; they hold no authority.</t>
+</section>
+<section anchor="trust-model-assumptions-6" numbered="true">
+<name>Trust Model (Assumptions)</name>
+<t>T1. No participant is trusted by default; the network is assumed to contain actively malicious, colluding, well-resourced adversaries. T2. Every protocol-relevant claim MUST be independently verifiable or explicitly marked as an unverifiable assertion (e.g., a rating). T3. Identity is cheap unless a mesh applies admission costs; therefore no mechanism may assume identities are scarce (Sybil-aware design). T4. Trust decisions are local. Two honest agents may legitimately disagree about a third. T5. Reputation derives only from evidence signed by counterparties, weighted by the evaluator&#x27;s trust in those counterparties. T6. Transports provide confidentiality and integrity between endpoints once established; endpoint <em>identity binding</em> is MAP&#x27;s responsibility (channel binding, draft-map-core-01 &#167;7.3). T7. The cryptographic primitives of the negotiated suite are sound; clocks are loosely synchronized (&#177;120 s); no global time authority exists. T8. Availability of any single peer, relay, or bootstrap node is never assumed.</t>
+</section>
+<section anchor="threat-model-7" numbered="true">
+<name>Threat Model</name>
+<t>Adversary capabilities considered: create unlimited identities; observe and inject on any public network path; participate as provider, requester, relay, and gateway simultaneously; collude; replay recorded traffic; run modified implementations; control substantial compute. Out of scope: global passive adversaries deanonymizing via traffic timing across the entire Internet (mitigated only partially, &#167;8.3); compromise of a victim&#x27;s own endpoint.</t>
+<t>Threat catalog with primary mitigations (normative details in the cited documents):</t>
+<table><thead><tr><th>#</th><th>Threat</th><th>Primary mitigations</th><th>Spec</th></tr></thead><tbody><tr><td>TH1</td><td>Sybil flooding of discovery/trust</td><td>Admission cost options (PoW/VDF ticket, stake, vouching); per-observer evidence-based trust; rate limits</td><td>trust &#167;5, discovery &#167;7</td></tr><tr><td>TH2</td><td>Eclipse of a victim&#x27;s routing view</td><td>Disjoint-path Kademlia lookups; bucket diversity by IP prefix; multiple bootstrap sources; signed descriptor CIDs verified end-to-end</td><td>discovery &#167;8</td></tr><tr><td>TH3</td><td>Replay of signed messages</td><td>msg-id uniqueness cache + timestamp window; session sequence numbers; channel binding</td><td>core &#167;7</td></tr><tr><td>TH4</td><td>MITM / identity misbinding</td><td>Transport handshake keys MUST equal/chain to AgentID; channel-bound envelopes</td><td>core &#167;7.3, identity &#167;5</td></tr><tr><td>TH5</td><td>Spam / resource exhaustion</td><td>Credit-based flow control; per-peer rate limits; puzzle-gated expensive queries; quotas before reservation</td><td>core &#167;8, tasks &#167;6</td></tr><tr><td>TH6</td><td>Poisoned models / model substitution</td><td>Model content hashes (multihash) in descriptors; output commitments; redundant execution &amp; canary audits</td><td>discovery &#167;5, trust &#167;8</td></tr><tr><td>TH7</td><td>Prompt injection via delegated content</td><td>Sandbox class advertisement; tool calls require requester-signed capability tokens with caveats; zone limits on raw data</td><td>tasks &#167;7, arch &#167;8</td></tr><tr><td>TH8</td><td>Malicious checkpoint injection</td><td>Requester-countersigned checkpoints; opaque state restricted to Zone &#8804;1 or attested executors</td><td>tasks &#167;8.3</td></tr><tr><td>TH9</td><td>Payment fraud (non-delivery / non-payment)</td><td>Signed quotes &amp; agreements; metered receipts; escrow-capable methods; dispute evidence = transcript roots</td><td>pay &#167;5&#8211;6</td></tr><tr><td>TH10</td><td>Reputation manipulation (self-praise, ballot stuffing, badmouthing)</td><td>No self-reported scores; dual-signed receipts; issuer-trust weighting; collusion analysis</td><td>trust &#167;7&#8211;8</td></tr><tr><td>TH11</td><td>Routing-layer attacks (query bias, record suppression)</td><td>Query multiple shards/replicas; signed records with seq numbers; client-side cross-checks</td><td>discovery &#167;8</td></tr><tr><td>TH12</td><td>Metadata leakage (fingerprints, intent, social graph)</td><td>Bucketed hardware fields; selective receipt disclosure; relayed/decoy queries; zone gating</td><td>&#167;8.3, discovery &#167;9</td></tr><tr><td>TH13</td><td>Identity theft / key compromise</td><td>Key hierarchy with offline roots; rotation &amp; revocation records; short-lived session keys</td><td>identity &#167;7</td></tr><tr><td>TH14</td><td>Downgrade of version/suite</td><td>Negotiation transcript bound into session; minimum-version policy</td><td>core &#167;6.4</td></tr><tr><td>TH15</td><td>Malicious tool execution on providers</td><td>Sandbox mandatory for Zone-2 execution; tool allowlists; authorization round-trip</td><td>tasks &#167;7</td></tr></tbody></table>
+<t>Formal analysis plan: the session-establishment, channel-binding, and delegation subsystems SHOULD be modeled in Tamarin or ProVerif before the family advances maturity; the state machines in core/tasks are specified to be directly translatable (draft-map-ops-01 &#167;6.3).</t>
+</section>
+<section anchor="privacy-model-8" numbered="true">
+<name>Privacy Model</name>
+<section anchor="zones-normative-1" numbered="true">
+<name>Zones (normative)</name>
+<t>Every payload-bearing object carries a zone label; every peer relationship has a zone level assigned by local policy.</t>
+<ul><li><strong>Zone 0 &#8212; Local</strong>: this device only. Never leaves the host.</li><li><strong>Zone 1 &#8212; Trusted</strong>: explicitly allowlisted peers (own fleet, partners).</li></ul>
+<t>Raw proprietary data (source code, documents, embeddings of them) MAY flow here.</t>
+<ul><li><strong>Zone 2 &#8212; Community</strong>: authenticated but untrusted mesh peers. Only</li></ul>
+<t>abstracted or non-sensitive payloads.</t>
+<ul><li><strong>Zone 3 &#8212; Open</strong>: anonymous/ephemeral counterparties and public</li></ul>
+<t>gateways.</t>
+<t>Rule Z1: An agent MUST NOT transmit an object to a peer whose zone level exceeds the object&#x27;s zone label. Rule Z2: A provider MUST NOT forward received task content to a higher-numbered zone than it was received under (no laundering); delegation carries the label. Rule Z3: Zone violations are protocol errors (code 2004) and receipt-recordable events.</t>
+</section>
+<section anchor="data-minimization-requirements-1" numbered="true">
+<name>Data minimization requirements</name>
+<ul><li>Descriptors: hardware in coarse buckets (e.g., VRAM class &#8712; {&#8804;8, 16, 24,</li></ul>
+<t>32, 48, 64, 96, 128, &gt;128} GB); exact figures OPTIONAL and zone-gated; no serials, hostnames, or OS fingerprints.</t>
+<ul><li>No latency, load, or trust figures in long-lived records (they are either</li></ul>
+<t>meaningless or volatile &#8212; see critique C3/C6).</t>
+<ul><li>Receipts disclose to chosen audiences on request; global broadcast of</li></ul>
+<t>receipts is NOT RECOMMENDED.</t>
+<ul><li>Intermediate task data MUST be deleted after settlement unless retention</li></ul>
+<t>is negotiated.</t>
+</section>
+<section anchor="residual-risks-honest-statement-1" numbered="true">
+<name>Residual risks (honest statement)</name>
+<t>DHT queries reveal interest in a capability to the queried nodes; status queries reveal requester&#8211;candidate pairs; relays learn traffic timing. Mitigations offered (shard sampling, relayed queries, decoy traffic, ephemeral identities per draft-map-identity-01 &#167;8) reduce but do not eliminate these. Deployments with strong anonymity needs SHOULD run MAP over an anonymity network and use Zone-3 ephemeral identities.</t>
+</section>
+</section>
+<section anchor="scalability-analysis-and-targets-9" numbered="true">
+<name>Scalability Analysis and Targets</name>
+<t>Costs in the mandatory core are bounded as follows (N = mesh size, P = providers of a capability):</t>
+<ul><li>Discovery lookup: O(log N) DHT hops; hot capabilities sharded so any</li></ul>
+<t>single key holds O(P / S) records for S shards (discovery &#167;6).</t>
+<ul><li>Stable-record maintenance: one descriptor republish per agent per hour &#8212;</li></ul>
+<t>~278 puts/s per million agents mesh-wide, absorbed by the DHT.</t>
+<ul><li>Volatile state: pulled on demand from a shortlist (typically &#8804; 10 status</li></ul>
+<t>queries per routing decision); optional presence gossip is topic-scoped and rate-limited to &#8805;30 s intervals.</t>
+<ul><li>Per-connection state: O(active sessions), independent of N.</li><li>Trust: evidence storage is local and prunable; no global convergence</li></ul>
+<t>required (EigenTrust-style global iteration is explicitly OPTIONAL and off the critical path).</t>
+<t>Anything violating these bounds (global broadcast, per-second global republish, global consensus) is excluded from mandatory conformance &#8212; this is the structural fix for critique C3.</t>
+</section>
+<section anchor="conformance-classes-10" numbered="true">
+<name>Conformance Classes</name>
+<ul><li><strong>MAP-Core</strong> (REQUIRED): identity + core envelope/sessions/errors.</li><li><strong>MAP-Discovery</strong>: descriptors, ontology, DHT/status planes.</li><li><strong>MAP-Tasks</strong>: task lifecycle, streaming, tools, checkpoints.</li><li><strong>MAP-Trust</strong>: receipts and evidence exchange.</li><li><strong>MAP-Pay</strong>: payment negotiation (&#8805;1 settlement method).</li><li><strong>MAP-Fed</strong>: federation gateways.</li></ul>
+<t>A conforming <em>provider</em> implements Core+Discovery+Tasks; a conforming <em>requester</em> Core+Discovery+Tasks; Trust and Pay are RECOMMENDED for public meshes. Test-suite structure: draft-map-ops-01 &#167;6.</t>
+</section>
+<section anchor="document-map-11" numbered="true">
+<name>Document Map</name>
+<table><thead><tr><th>Document</th><th>Scope</th><th>Depends on</th></tr></thead><tbody><tr><td>draft-map-index-01</td><td>family cover/index: document list, reading order, submission status</td><td>&#8212;</td></tr><tr><td>draft-map-intro-01</td><td>introduction &amp; motivation; problem statement, critique thesis, reading guide</td><td>&#8212;</td></tr><tr><td>draft-map-arch-01</td><td>this document</td><td>&#8212;</td></tr><tr><td>draft-map-wire-01</td><td>wire PDU layering diagram &amp; master registry index (all assigned code points)</td><td>all</td></tr><tr><td>draft-map-core-01</td><td>envelope, negotiation, sessions, errors, flow control, extension framework, transport bindings</td><td>identity</td></tr><tr><td>draft-map-identity-01</td><td>AgentID, key hierarchy, delegation, rotation, revocation, DID/WebAuthn interop</td><td>&#8212;</td></tr><tr><td>draft-map-discovery-01</td><td>descriptors, capability ontology, two-plane discovery, NAT traversal profile</td><td>core</td></tr><tr><td>draft-map-tasks-01</td><td>negotiation, inference &amp; streaming, tools, checkpoints, delegation, memory/context</td><td>core, discovery</td></tr><tr><td>draft-map-trust-01</td><td>receipts, evidence exchange, admission costs, trust computation guidance</td><td>core</td></tr><tr><td>draft-map-pay-01</td><td>quotes, agreements, proofs, receipts, settlement-method registry, disputes</td><td>core, tasks</td></tr><tr><td>draft-map-ops-01</td><td>registries &amp; governance, federation, interop/testing, reference implementation, migration</td><td>all</td></tr></tbody></table>
+</section>
+<section anchor="security-considerations-12" numbered="true">
+<name>Security Considerations</name>
+<t>This entire document is a security consideration; see &#167;6&#8211;&#167;8 and the per-document Security Considerations sections.</t>
+</section>
+<section anchor="iana-considerations-13" numbered="true">
+<name>IANA Considerations</name>
+<t>This document requests no IANA actions. It defines the MAP architecture and threat model, not wire mechanisms or registries. The consolidated registry index for the family is <tt>draft-map-wire-01</tt>; each registry is defined and populated by its owning protocol document.</t>
+</section>
+<section anchor="references-selected-14" numbered="true">
+<name>References (selected)</name>
+<t>[RFC2119] [RFC8174] BCP 14 requirement levels. [RFC8032] EdDSA. [RFC7748] X25519. [RFC8439] ChaCha20-Poly1305. [RFC5869] HKDF. [RFC8949] CBOR. [RFC8610] CDDL. [RFC9052]/[RFC9053] COSE. [RFC9000] QUIC. [RFC6762] mDNS (.local reservation). libp2p specifications (Kademlia, gossipsub v1.1, AutoNAT, Circuit Relay v2, DCUtR). W3C DID Core; did:key method. UCAN spec (informative). Manolito/MP2P historical documentation (informative).</t>
+</section>
+  </middle>
+  <back></back>
+</rfc>

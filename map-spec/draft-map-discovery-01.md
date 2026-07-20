@@ -3,6 +3,9 @@ title: "MAP Discovery: Agent Descriptors, Capability Ontology, and Two-Plane Dis
 docname: draft-map-discovery-01
 category: std
 submissiontype: independent
+author: Jesse Larsen
+email: jesselarsen@gmail.com
+ipr: trust200902
 ---
 
 # MAP Discovery and Service Advertisement
@@ -301,7 +304,7 @@ relayed bytes are ciphertext (arch §5). Mobile/intermittent agents SHOULD
 set short descriptor validity and rely on RESUME (tasks §8) rather than
 session persistence.
 
-## 11. Security considerations
+## 11. Security Considerations
 
 Descriptor spoofing is prevented by signatures; descriptor *flooding* by
 per-peer ingestion rate limits and admission costs (trust §5); stale-record
@@ -320,7 +323,7 @@ across sessions and shards, defeating bucket coarseness. Such optional
 fields MUST instead travel on the Zone-3 ephemeral identity (§9(d)) or in a
 direct, mutually-authenticated channel, never in a public descriptor.
 
-## 12. IANA-style considerations
+## 12. IANA-Style Considerations
 
 Registries established: MAP Capability Ontology; MAP CapEntry Parameter
 keys (per branch); MAP HardwareClass code points; MAP Sandbox Classes. The

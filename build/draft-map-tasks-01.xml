@@ -1,0 +1,250 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rfc docName="draft-map-tasks-01" category="std" ipr="trust200902" version="3">
+  <front>
+    <title abbrev="draft-map-tasks-01">MAP Tasks: Negotiation, Streaming Inference, Tools, Checkpoints, and Delegation</title>
+    <author initials="J." surname="Larsen" fullname="Jesse Larsen"><organization>Independent</organization><address><email>jesselarsen@gmail.com</email></address></author>
+    <date year="2026" month="July" day="17"/>
+    <abstract><t>Defines the task layer of MAP: offer/quote/assign negotiation (with an optional bidding extension), streaming inference with credit-based flow control, tool invocation gated by requester-issued capability tokens, Merkle-committed transcripts with countersigned checkpoints, failure recovery by transcript replay, task delegation with budget and zone propagation, distributed memory/context retrieval, cancellation, and the task state machines for both roles.</t></abstract>
+  </front>
+  <middle>
+<section anchor="requirements-language-1" numbered="true">
+<name>Requirements Language</name>
+<t>The key words &quot;MUST&quot;, &quot;MUST NOT&quot;, &quot;REQUIRED&quot;, &quot;SHALL&quot;, &quot;SHALL NOT&quot;, &quot;SHOULD&quot;, &quot;SHOULD NOT&quot;, &quot;RECOMMENDED&quot;, &quot;NOT RECOMMENDED&quot;, &quot;MAY&quot;, and &quot;OPTIONAL&quot; in this document family are to be interpreted as described in BCP 14 [RFC2119] [RFC8174] when, and only when, they appear in all capitals, as shown here. No adaptation or weakening of these terms applies.</t>
+</section>
+<section anchor="model-2" numbered="true">
+<name>Model</name>
+<t>A <strong>task</strong> is a unit of remote work bound to one (requester, provider) pair, one capability, and one TaskID. Orchestration &#8212; decomposing a goal into a DAG of tasks, merging results &#8212; is application logic; MAP sees only tasks and (optionally) their parent/child delegation links. This keeps the protocol small and leaves merge strategy, scoring, and scheduling as local policy (critique C5), while giving orchestrators everything they need: verifiable per-task evidence, deterministic error semantics, and resumability.</t>
+<t>TaskID = 32 random bytes chosen by the requester; it is the idempotency key: a provider receiving ASSIGN for a known TaskID MUST NOT start a second execution and SHOULD respond with current state.</t>
+<t>Data ownership (normative): the requester is the source of truth for task <em>terms</em> (constraints, grants, budget); the provider is the source of truth for <em>execution state</em>; the countersigned transcript commitment (&#167;8) is the only <em>shared</em> durable fact, and every cross-party claim &#8212; completion, usage, dispute &#8212; MUST be expressible against it. Neither party&#x27;s local view is authoritative for the other; there is no distributed transaction between them, only signed messages, idempotent retries, and compensations (cancel-and-pay-to-boundary, &#167;11). Ordering guarantees are scoped, never global: <tt>seq</tt> per session direction, <tt>chunk-seq</tt> per task.</t>
+</section>
+<section anchor="negotiation-3" numbered="true">
+<name>Negotiation</name>
+<sourcecode>Requester                              Provider
+   | -- OFFER {task summary} ----------&#8594; |    (may be skipped: direct ASSIGN
+   | &#8592;-------------- QUOTE {terms} ----- |     under a standing agreement)
+   | -- ASSIGN {full task, terms ref} -&#8594; |
+   | &#8592;------------------- ACCEPT ------- |    (or REJECT{code})</sourcecode>
+<sourcecode type="cddl">Offer = {
+  1 =&gt; TaskID,
+  2 =&gt; CapURI,
+  3 =&gt; TaskConstraints,
+  ? 4 =&gt; PayRef,            ; pricing expectation (pay &#167;3.1)
+  ? 5 =&gt; Timestamp,         ; offer expiry
+  ? 6 =&gt; ExtMap             ; negotiated extensions (e.g. ext-bid, &#167;2.2)
+}
+TaskConstraints = {
+  ? 1 =&gt; uint,              ; max-context-tokens (hard)
+  ? 2 =&gt; uint,              ; max-output-tokens
+  ? 3 =&gt; uint,              ; deadline: wall-clock ms budget (hard)
+  ? 4 =&gt; uint,              ; ttft-ms guarantee requested (hard)
+  ? 5 =&gt; ZoneLabel,         ; task zone label (hard; &#167;9)
+  ? 6 =&gt; uint,              ; min sandbox class (hard)
+  ? 7 =&gt; Multihash,         ; required model weights digest (hard if set)
+  ? 8 =&gt; ExtMap
+}
+Quote = { 1 =&gt; TaskID, ? 2 =&gt; PayQuoteRef /*pay &#167;3.1; absent = gratis or
+          settlement out of band &#8212; payment is optional at the protocol
+          layer*/,
+          3 =&gt; uint /*guaranteed ttft-ms*/,
+          4 =&gt; Timestamp /*expiry*/, ? 5 =&gt; ExtMap }
+Accept = { }                                 ; empty content map
+Reject = { 1 =&gt; uint /*reason-code, &#167;14*/ }</sourcecode>
+<t>(Accept/Reject content maps assigned 2026-07-06 from TASK-007 FR-1; the negotiation diagram above showed them only inline.)</t>
+<t>Fields marked <em>hard</em> MUST be satisfiable or the provider MUST REJECT (3xxx/4xxx); accepting then violating them is receipt-recordable breach. The quoted <tt>ttft-ms</tt> adopts design3&#x27;s guarantee discipline: if the first CHUNK does not arrive within guarantee &#215; 1.1, the requester SHOULD CANCEL (5001, retryable at other peers), fail over, and record the miss.</t>
+<section anchor="assign-and-payload-transport-1" numbered="true">
+<name>ASSIGN and payload transport</name>
+<sourcecode type="cddl">Assign = {
+  1 =&gt; TaskID, 2 =&gt; CapURI, 3 =&gt; TaskConstraints,
+  4 =&gt; InputSpec, 5 =&gt; FlowInit, ? 6 =&gt; PayAgreeRef /*pay &#167;3.1*/, ? 7 =&gt; ExtMap }
+InputSpec = {
+  ? 1 =&gt; bstr,              ; inline input (&lt;= negotiated size)
+  ? 2 =&gt; [+ Multihash],     ; content-addressed blocks to fetch (Zone&lt;=1
+  ? 3 =&gt; [+ ContextRef]     ;   for proprietary payloads; &#167;9)
+}
+FlowInit = { 1 =&gt; uint /*msg credits*/, 2 =&gt; uint /*byte credits*/ }</sourcecode>
+</section>
+<section anchor="bidding-extension-optional-ext-1" numbered="true">
+<name>Bidding extension (OPTIONAL, extension key 1 = `ext-bid`)</name>
+<t>Where markets are wanted, OFFER MAY be broadcast to k candidates; QUOTEs compete; the requester&#x27;s selection function is local policy. <tt>ext-bid</tt> (extension key 1, core &#167;5.1) is negotiated in HELLO (core &#167;6.1 key 3) before use; peers that did not negotiate it MUST ignore its ExtMap entry.</t>
+<t>The extension adds a single ExtMap entry (Offer key 6 / Quote key 5) keyed by the extension code point:</t>
+<sourcecode type="cddl">BidExt = {                            ; ExtMap value under ext key 1
+  1 =&gt; Timestamp,                     ; bid-deadline (QUOTEs after are late)
+  ? 2 =&gt; uint                         ; queue-wait-ms (advertised backlog)
+}</sourcecode>
+<t><tt>bid-deadline</tt> (in an OFFER) bounds how long the requester collects QUOTEs; a provider&#x27;s QUOTE received after it MAY be dropped. <tt>queue-wait-ms</tt> (in a QUOTE) is the provider&#x27;s advertised current backlog, an input to the requester&#x27;s local selection function only.</t>
+<t>No auction clearing rules are standardized: selection stays local policy (they were dimensionally incoherent in the source designs &#8212; critique C5), so this extension defines fields, never a mechanism.</t>
+<t>Security Considerations. <tt>queue-wait-ms</tt> is self-reported and therefore untrusted (critique C1): a provider can under-report backlog to win bids (&quot;bid-sniping&quot;). The requester&#x27;s only defense is the trust projection &#8212; persistent under-delivery against advertised wait surfaces as poorer outcomes in dual-signed ExecutionReceipts (trust &#167;8), so the lie is checkable ex post and repricing is local policy. <tt>bid-deadline</tt> is not a commitment device; it does not bind the provider.</t>
+</section>
+</section>
+<section anchor="streaming-chunk-4" numbered="true">
+<name>Streaming: CHUNK</name>
+<sourcecode type="cddl">Chunk = {
+  1 =&gt; TaskID,
+  2 =&gt; uint,                ; chunk-seq, from 0, dense
+  3 =&gt; uint,                ; kind: 0 output-text, 1 output-bytes,
+                            ;  2 log, 3 usage-update, 4 tool-io
+  4 =&gt; bstr,                ; content
+  ? 5 =&gt; bool               ; fin &#8212; last chunk of this kind
+}</sourcecode>
+<t>Chunks flow under FLOW_CREDIT (core &#167;8.1). A <tt>usage-update</tt> (kind 3) chunk&#x27;s <tt>content</tt> is the deterministic CBOR encoding (core &#167;4.2) of a <tt>Usage</tt> map &#8212; the &#167;4 Complete key 4 shape <tt>{1 tokens-in, 2 tokens-out, 3 ttft-ms, 4 wall-ms}</tt> &#8212; with counters CUMULATIVE since task start; these are the meter readings pay &#167;4.1 verifies watermarked invoices against, so a metered provider MUST emit one at or before each watermark it bills. Ordering is per <tt>chunk-seq</tt>; the transcript (&#167;8.1) is defined over output-kind chunks in seq order, making audits unambiguous.</t>
+</section>
+<section anchor="complete-and-output-commitment-5" numbered="true">
+<name>COMPLETE and output commitment</name>
+<sourcecode type="cddl">Complete = {
+  1 =&gt; TaskID, 2 =&gt; uint /*outcome: 0 ok, 1 partial, 2 failed*/,
+  3 =&gt; Multihash,           ; transcript-root (&#167;8.1) &#8212; output commitment
+  4 =&gt; { 1 =&gt; uint, 2 =&gt; uint, 3 =&gt; uint, 4 =&gt; uint },
+                            ; tokens-in/out, ttft-ms, wall-ms (claimed)
+  ? 5 =&gt; ExtMap }</sourcecode>
+<t>The requester verifies the transcript root against received chunks; match &#8658; it SHOULD issue/countersign the RECEIPT (trust &#167;3) and settle (pay &#167;5). Mismatch &#8658; 5000 + dispute path (pay &#167;6). The signed COMPLETE is the provider&#x27;s non-repudiable claim of what it produced (TH6, TH9).</t>
+</section>
+<section anchor="ranking-guidance-informative-6" numbered="true">
+<name>Ranking guidance (informative)</name>
+<t>Requesters typically shortlist via stable-plane constraints, refresh with STATUS, then rank by a local utility over: own-measured RTT/TTFT history, evidence-based trust per capability (trust &#167;7), quoted price, and current queue. Weights are yours; publishing them invites gaming. Hard constraints are protocol; utility is not.</t>
+</section>
+<section anchor="reservations-capability-mapca-7" numbered="true">
+<name>Reservations (capability `map:cap:schedule/reservation`)</name>
+<t>Optional lease primitive for scarce resources: a requester sends RESERVE for a capability during a time window; the provider answers with a LEASE (granted / rejected / revoked). A granted lease is referenced by an ASSIGN&#x27;s PayAgreeRef-adjacent flow (the lease id) and obliges the provider as below. Providers MAY require reservations by advertising <tt>accepting = 2</tt> in STATUS. Leases are soft state with expiry; no distributed scheduler is defined (Kubernetes-style global scheduling is a non-goal &#8212; the mesh converges via prices and queues).</t>
+<t>Message types: RESERVE <tt>0x020F</tt>, LEASE <tt>0x0210</tt>, LEASE_RELEASE <tt>0x0211</tt> (core &#167;5).</t>
+<sourcecode type="cddl">Reserve = {                           ; msg-type 0x020F
+  1 =&gt; bstr .size 16,                 ; rsv-id (requester-chosen, unique)
+  2 =&gt; CapURI,                        ; reserved capability
+  3 =&gt; Timestamp,                     ; window start (from)
+  4 =&gt; Timestamp,                     ; window end (until)
+  ? 5 =&gt; TaskConstraints,             ; the work the lease will admit
+  ? 6 =&gt; PayRef,                      ; holding-cost expectation (pay &#167;3.1)
+  ? 7 =&gt; ExtMap
+}
+Lease = {                             ; msg-type 0x0210
+  1 =&gt; bstr .size 16,                 ; rsv-id (echoes the Reserve)
+  2 =&gt; uint,                          ; status: 0 granted, 1 rejected, 2 revoked
+  ? 3 =&gt; [Timestamp, Timestamp],      ; granted window [from, until]
+  ? 4 =&gt; PayQuoteRef,                 ; price of the hold (pay &#167;3.1)
+  ? 5 =&gt; ExtMap
+}
+LeaseRelease = {                      ; msg-type 0x0211
+  1 =&gt; bstr .size 16,                 ; rsv-id
+  ? 2 =&gt; uint                         ; reason code (informational)
+}</sourcecode>
+<t>State machine (per rsv-id): <strong>Requested</strong> (RESERVE sent) &#8594; <strong>Granted</strong> (LEASE status 0) &#8594; <strong>Active</strong> (during <tt>[from, until]</tt>) &#8594; <strong>Released</strong> (LEASE_RELEASE) / <strong>Expired</strong> (past <tt>until</tt>) / <strong>Revoked</strong> (LEASE status 2). A RESERVE MAY instead be answered with LEASE status 1 (<strong>Rejected</strong>), a terminal state.</t>
+<t>Normative rules:</t>
+<ul><li>The rsv-id is the idempotency key: a repeated RESERVE with the same</li></ul>
+<t>rsv-id and an identical window MUST be treated as a retransmission (the same LEASE re-sent), and a RESERVE reusing an rsv-id with a <em>different</em> window MUST be rejected (LEASE status 1) &#8212; silently re-scoping a live lease is forbidden.</t>
+<ul><li>A granted LEASE&#x27;s window (key 3, when present) MUST fall within the</li></ul>
+<t>RESERVE&#x27;s requested <tt>[from, until]</tt>; a grant outside it is invalid and the requester MUST treat it as a rejection.</t>
+<ul><li>While a lease is Active, the provider MUST ACCEPT a conforming ASSIGN</li></ul>
+<t>that references it (a task within the reserved capability and window and the RESERVE&#x27;s constraints). A provider that fails to admit conforming work inside the window has missed the lease; the miss is receipt-recordable as a Failed outcome (outcome 1, trust &#167;3) so the broken commitment is scored.</t>
+<ul><li>A LEASE for an rsv-id whose requested window already lies entirely in</li></ul>
+<t>the past MUST be status 1 (rejected).</t>
+<ul><li>LEASE_RELEASE is idempotent by rsv-id and voluntary; a released or</li></ul>
+<t>expired lease confers no obligation.</t>
+<t>Overlapping reservations for the same resource are provider policy, not protocol &#8212; a provider MAY reject (status 1) or admit them at its own risk.</t>
+<t>Security Considerations. The abuse is <strong>reservation squatting</strong>: cheaply holding scarce capacity to deny it to others. The mitigation is economic, not protocol-structural &#8212; RESERVE carries a <tt>PayRef</tt> (key 6) so the provider MAY price the hold (a non-refundable or escrowed holding cost via the pay layer, pay &#167;3), making squatting cost money. A provider under sustained lease-DoS SHOULD fall back to shorter windows and higher holding costs; both are local policy. Because a missed lease is receipt-recordable, a provider that grants leases it cannot honor accrues negative trust (trust &#167;8), which bounds over-committing.</t>
+</section>
+<section anchor="tool-invocation-8" numbered="true">
+<name>Tool invocation</name>
+<t>Direction inversion is the crux: during execution the <em>provider</em> asks the <em>requester</em> for permission to run a tool. Authorization is a capability token &#8212; a DelegationCert (identity &#167;4) issued by the requester, pinned to this TaskID, naming allowed tool URIs and caveats:</t>
+<sourcecode>Provider                              Requester
+   | -- TOOL_CALL {task, tool-uri,  --&#8594; |  policy check (allowlist, zone,
+   |               args-digest}         |  sandbox class, budget)
+   | &#8592;- TOOL_GRANT {DelegationCert  --- |  caveats: task-id, tool-uri,
+   |               w/ caveats} -------- |  args-digest, expiry (&lt;=60s),
+   | -- TOOL_RESULT {output, digest} -&#8594; |  max-invocations</sourcecode>
+<t>Rules: providers MUST NOT execute tools absent a valid unexpired grant whose caveats cover the exact call (args-digest binds the arguments); grants are single-task, non-redelegable by default; Zone-2 execution additionally requires SecurityProfile sandbox &#8805; container and the tool on the provider&#x27;s advertised allowlist (TH7, TH15). Tool I/O appears in the transcript as kind-4 chunks &#8212; auditable end to end.</t>
+</section>
+<section anchor="checkpoints-transcripts-and-re-9" numbered="true">
+<name>Checkpoints, transcripts, and resumption</name>
+<section anchor="transcript-commitment-1" numbered="true">
+<name>Transcript commitment</name>
+<t><tt>transcript-root</tt> = the Merkle root (suite hash H) over the output/tool chunks (kinds 0, 1, 4) in <tt>chunk-seq</tt> order, constructed as follows:</t>
+<sourcecode>leaf(c)        = H(0x00 || enc([c.chunk-seq, c.kind, c.content]))
+                 ; enc = deterministic CBOR (core &#167;4.2) of the triple &#8212;
+                 ; bare concatenation would be ambiguous across
+                 ; variable-length fields
+parent(l, r)   = H(0x01 || l || r)      ; domain-separated from leaves
+odd node       = promoted unchanged to the next level
+empty root     = H(0x00 || enc([]))     ; zero output chunks</sourcecode>
+<t>Incremental, streaming-friendly, and shared by checkpoints, COMPLETE, receipts, and disputes &#8212; one commitment structure everywhere. The 0x00/ 0x01 domain separation prevents leaf/interior confusion attacks; the CBOR leaf encoding makes leaves injective in (seq, kind, content).</t>
+</section>
+<section anchor="checkpoint--checkpointack-1" numbered="true">
+<name>CHECKPOINT / CHECKPOINT_ACK</name>
+<sourcecode type="cddl">Checkpoint = {
+  1 =&gt; TaskID, 2 =&gt; uint /*through chunk-seq*/,
+  3 =&gt; Multihash /*transcript-root so far*/,
+  ? 4 =&gt; bstr /*opaque engine state &#8212; Zone&lt;=1 or attested only*/,
+  ? 5 =&gt; { usage as in Complete.4 } }</sourcecode>
+<t>Providers SHOULD checkpoint every N output tokens (default 512) or at tool boundaries. The requester replies CHECKPOINT_ACK containing its <em>own signature over (TaskID, chunk-seq, root)</em> &#8212; the countersignature that makes a checkpoint a valid resumption point (critique C11: never resume from state attested only by the party that just failed or may be malicious).</t>
+</section>
+<section anchor="resumption-1" numbered="true">
+<name>Resumption</name>
+<t>On provider loss, the requester selects a successor and sends RESUME: {TaskID, last countersigned checkpoint, the output transcript so far (inline or content-addressed), original ASSIGN terms}. The successor re-warms by <strong>transcript replay</strong> &#8212; reprocessing prompt + prior output as context &#8212; and continues from chunk-seq+1. Determinism across heterogeneous engines is not assumed; the seam at the resumption point is permitted and visible in the transcript (marked by a kind-2 log chunk).</t>
+</section>
+<section anchor="opaque-state--kv-cache-extensi-1" numbered="true">
+<name>Opaque state / KV-cache (extension key 2 = `ext-kvx`)</name>
+<t>Engine-state blobs (Checkpoint.4) MAY shortcut re-warm <strong>only</strong> between peers running the identical engine+model+quantization, and only within Zone &#8804;1 or with TEE attestation &#8212; normative resumption remains replay (critique C10). <tt>ext-kvx</tt> (extension key 2, core &#167;5.1) is HELLO-negotiated (core &#167;6.1 key 3) and never required for conformance.</t>
+<t>Payload container (the only structure this revision fixes):</t>
+<sourcecode type="cddl">KvxExt = {                            ; ExtMap value under ext key 2
+  1 =&gt; uint,                          ; container version
+  2 =&gt; bstr                           ; opaque engine-state blob
+}</sourcecode>
+<t>A receiver MUST reject a <tt>KvxExt</tt> outside Zone &#8804;1 unless the sender is TEE-attested (zone enforcement, &#167;9). Engine-fingerprint matching (which engine+model+quantization tuples are interchangeable) and the blob&#x27;s internal format are <strong>deferred</strong>: this section reserves the code point and the container; full semantics are future work. An implementation that does not understand a received <tt>KvxExt</tt> MUST fall back to replay resumption.</t>
+</section>
+</section>
+<section anchor="zone-enforcement-normative-10" numbered="true">
+<name>Zone enforcement (normative)</name>
+<t>The task zone label (Constraints.5) governs everything attached to the task: ASSIGN MUST NOT go to a peer whose zone level exceeds the label (arch Z1); InputSpec content-addressed fetches of proprietary blocks are Zone &#8804;1; TOOL_GRANTs inherit the label; DELEGATE (&#167;10) propagates it and MAY only tighten it (Z2). Violations: 2004, non-retryable, receiptable. The Git-workspace extension (<tt>ext-git</tt>, extension key 3, core &#167;5.1, from design3) &#8212; shallow, path-scoped, token-gated clone/push over a dedicated stream &#8212; is defined for Zone &#8804;1 only and MUST be rejected in Zone &#8805;2. <tt>ext-git</tt> is HELLO-negotiated (core &#167;6.1 key 3). Payload container:</t>
+<sourcecode type="cddl">GitExt = {                            ; ExtMap value under ext key 3
+  1 =&gt; uint,                          ; container version
+  2 =&gt; bstr                           ; opaque git-workspace parameters
+}</sourcecode>
+<t>A receiver MUST reject a <tt>GitExt</tt> in Zone &#8805;2 (2004, non-retryable, receiptable). The clone/push protocol details (shallow depth, path scoping, token gating, stream framing) are <strong>deferred</strong>: this reserves the code point, the container, and the zone restriction; full semantics are future work. Peers that did not negotiate <tt>ext-git</tt> MUST ignore its ExtMap entry.</t>
+</section>
+<section anchor="delegation-of-tasks-11" numbered="true">
+<name>Delegation of tasks</name>
+<t>A provider MAY subcontract via DELEGATE-linked child tasks when the ASSIGN carries caveat <tt>delegable &#8805; 1</tt>. The child ASSIGN embeds the parent chain (delegation depth decrements; budget caveats split; zone tightens-only). The root requester&#x27;s receipt evidence names the whole chain, so accountability survives subcontracting. Default is non-delegable.</t>
+</section>
+<section anchor="cancellation-12" numbered="true">
+<name>Cancellation</name>
+<t>CANCEL content <tt>{ 1 =&gt; TaskID, 2 =&gt; uint /<em>reason-code, &#167;14</em>/ }</tt> (field numbers assigned 2026-07-06 from TASK-007 FR-1) from either side; provider stops within one chunk boundary, emits a final CHECKPOINT and COMPLETE(outcome=partial). Usage to the countersigned boundary is payable (pay &#167;4); this makes cancellation cheap to honor and removes the incentive to ignore it.</t>
+</section>
+<section anchor="memory--context-retrieval-13" numbered="true">
+<name>Memory / context retrieval</name>
+<t>Peers advertising MemoryTopics (discovery &#167;2) serve:</t>
+<sourcecode type="cddl">CtxQuery = { 1 =&gt; tstr /*domain*/, 2 =&gt; tstr /*embedding-model id*/,
+             3 =&gt; [+ float16/float32 as bstr] /*query vector(s)*/,
+             4 =&gt; uint /*top-k*/, ? 5 =&gt; float-as-decimal /*min-sim*/ }
+CtxResult = { 1 =&gt; [+ { 1 =&gt; bstr /*text*/, 2 =&gt; int /*sim milli*/ ,
+             ? 3 =&gt; Multihash /*provenance*/ } ] }</sourcecode>
+<t>The embedding-model id MUST match an advertised MemoryTopic (similarity across embedding spaces is undefined &#8212; critique). Thresholds are query parameters, not protocol constants. Retrieved context enters InputSpec as ContextRefs with provenance, so poisoned context is attributable (TH6/TH7).</t>
+</section>
+<section anchor="task-state-machines-14" numbered="true">
+<name>Task state machines</name>
+<t>Requester view:</t>
+<sourcecode>CREATED -OFFER&#8594; QUOTED -ASSIGN&#8594; PENDING -ACCEPT&#8594; ACTIVE
+   |               |               |&#8208;REJECT&#8594; FAILED(f)      ACTIVE -CHUNK*&#8594; ACTIVE
+   |               &#9492;-expiry&#8594; FAILED(f)                      ACTIVE -CHECKPOINT/ACK&#8594; ACTIVE
+   &#9492;(direct ASSIGN)&#8594; PENDING                                ACTIVE -provider loss&#8594; SUSPENDED
+SUSPENDED -RESUME(new peer)&#8594; ACTIVE        ACTIVE -COMPLETE(ok)&#8594; DELIVERED
+ACTIVE|SUSPENDED -CANCEL&#8594; CANCELLED        DELIVERED -verify root&#8594; SETTLING -pay/receipt&#8594; CLOSED
+any -unrecoverable 2xxx/5xxx&#8594; FAILED       DELIVERED -root mismatch&#8594; DISPUTED (pay &#167;6)</sourcecode>
+<t>Provider view: IDLE &#8594; QUOTING &#8594; COMMITTED (on ACCEPT; resources reserved) &#8594; EXECUTING &#8644; CHECKPOINTING &#8594; DELIVERED &#8594; SETTLED, with CANCELLED and FAILED exits mirroring the above. Providers MUST bound COMMITTED-without- ASSIGN-traffic by the quote expiry.</t>
+</section>
+<section anchor="error-handling-and-retries-15" numbered="true">
+<name>Error handling and retries</name>
+<t>Retryable-at-same-peer: 4000/4001 (backoff per <tt>retry-after-ms</tt>), 1005. Retry-elsewhere: 5001 TTFT miss, 4002, 3001. Non-retryable without change: 2xxx, 3002, 5004, 5005. Idempotent re-ASSIGN with the same TaskID is always safe (&#167;1). Orchestrator fallback chains (local &#8594; trusted mesh &#8594; gateway) are thereby deterministic &#8212; the property design3 wanted from &quot;aggressive fallbacks&quot;, now grounded in error semantics.</t>
+</section>
+<section anchor="security-considerations-16" numbered="true">
+<name>Security Considerations</name>
+<t>Tool gating (&#167;7) and zone rules (&#167;9) are the primary injection/exfiltration controls; transcripts+countersigned checkpoints give attributable execution and safe resumption; flow credit bounds provider exposure; TaskID idempotency prevents replayed ASSIGN double-execution (with core &#167;7). Providers remain exposed to semantically malicious <em>inputs</em> &#8212; sandboxing requirements are the floor, not a guarantee; meshes SHOULD gate Zone-2 tool execution behind stricter sandbox classes than the default.</t>
+</section>
+<section anchor="iana-style-considerations-17" numbered="true">
+<name>IANA-Style Considerations</name>
+<t>Registers: chunk kinds; reservation/lease fields; caveat keys <tt>delegable</tt>, <tt>budget</tt>, <tt>args-digest</tt>; extensions <tt>ext-bid</tt> (key 1, complete, &#167;2.2), <tt>ext-kvx</tt> (key 2, stub, &#167;8.4), <tt>ext-git</tt> (key 3, stub, &#167;9) &#8212; assigned in core &#167;5.1. The assigned values and the family-wide index are in <tt>draft-map-wire-01.md</tt> &#167;3.13, &#167;3.14, and &#167;3.15 (extension keys in &#167;3.4); in case of divergence the normative definitions in &#167;3, &#167;6, &#167;7, &#167;8, and &#167;9 govern.</t>
+</section>
+<section anchor="references-selected-18" numbered="true">
+<name>References (selected)</name>
+<t>[RFC2119] [RFC8174] BCP 14 requirement levels.</t>
+</section>
+  </middle>
+  <back></back>
+</rfc>

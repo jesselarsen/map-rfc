@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rfc docName="draft-map-index-01" category="info" ipr="trust200902" version="3" submissionType="independent">
+  <front>
+    <title abbrev="draft-map-index-01">MAP: Family Index and Submission Overview</title>
+    <author initials="J." surname="Larsen" fullname="Jesse Larsen"><organization>Independent</organization><address><email>jesselarsen@gmail.com</email></address></author>
+    <date year="2026" month="July" day="17"/>
+    <abstract><t>The Manolito Agent Protocol (MAP) is a family of specifications for a decentralized, permissionless network of autonomous AI agents. MAP evolves the capability-oriented spirit of the historical Manolito (MP2P) file-sharing network into a modern agent fabric in which participants advertise <em>what they can do</em> &#8212; models, tools, memory domains, compute &#8212; and requesters route work by semantic capability, verifiable evidence of past behavior, price, and locally measured performance. This document is the <strong>cover/index</strong> for the MAP family: it lists the companion documents, states the reading order, and records the submission status. Each companion document carries its own normative text; this index defines no wire format, code point, or protocol behavior.</t></abstract>
+  </front>
+  <middle>
+<section anchor="family-overview-1" numbered="true">
+<name>Family overview</name>
+<t>MAP is written as a set of focused Internet-Drafts rather than one monolith, so each concern (identity, transport, discovery, tasks, trust, payments, operations) can advance and be reviewed independently while sharing one envelope, one identity model, and one registry index. The shared technical foundations are:</t>
+<ul><li>a self-certifying Ed25519 identity (AgentID &#8801; did:key &#8801; libp2p PeerID);</li><li>a deterministic CBOR + COSE_Sign1 signed envelope with downgrade-resistant</li></ul>
+<t>negotiation and channel binding;</t>
+<ul><li>a family-wide registry index (<tt>draft-map-wire-01</tt>) that is the single</li></ul>
+<t>source of truth for every assigned code point;</t>
+<ul><li>evidence-based local trust (dual-signed ExecutionReceipts) rather than</li></ul>
+<t>self-asserted reputation.</t>
+<t>The motivation, problem statement, and design critique are in <tt>draft-map-intro-01</tt> and <tt>01-design-critique.md</tt>; the architecture, trust model, and threat catalog are in <tt>draft-map-arch-01</tt>.</t>
+</section>
+<section anchor="document-index-2" numbered="true">
+<name>Document index</name>
+<t>This is a set of <strong>10 Internet-Drafts</strong> submitted as a group to the IETF Independent Stream. The table below is the authoritative scope/dependency map (also carried in <tt>draft-map-arch-01</tt> &#167;11).</t>
+<table><thead><tr><th>Document</th><th>Class</th><th>Scope</th><th>Depends on</th></tr></thead><tbody><tr><td>draft-map-index-01</td><td>Informational</td><td>this cover/index document</td><td>&#8212;</td></tr><tr><td>draft-map-intro-01</td><td>Informational</td><td>introduction &amp; motivation; problem statement, critique thesis, reading guide</td><td>&#8212;</td></tr><tr><td>draft-map-arch-01</td><td>Informational</td><td>architecture, system &amp; trust model, threat catalog, zones &amp; privacy, scalability, conformance classes</td><td>&#8212;</td></tr><tr><td>draft-map-wire-01</td><td>Informational (reference)</td><td>wire PDU layering diagram &amp; master registry index (all assigned code points)</td><td>all</td></tr><tr><td>draft-map-core-01</td><td>Standards</td><td>envelope, negotiation, sessions, errors, flow control, extension framework, transport bindings</td><td>identity</td></tr><tr><td>draft-map-identity-01</td><td>Standards</td><td>AgentID, key hierarchy, delegation, rotation, revocation, DID/WebAuthn interop</td><td>&#8212;</td></tr><tr><td>draft-map-discovery-01</td><td>Standards</td><td>descriptors, capability ontology, two-plane discovery, NAT traversal profile</td><td>core</td></tr><tr><td>draft-map-tasks-01</td><td>Standards</td><td>negotiation, inference &amp; streaming, tools, checkpoints, delegation, memory/context</td><td>core, discovery</td></tr><tr><td>draft-map-trust-01</td><td>Standards</td><td>receipts, evidence exchange, admission costs, trust computation guidance</td><td>core</td></tr><tr><td>draft-map-pay-01</td><td>Standards</td><td>quotes, agreements, proofs, receipts, settlement-method registry, disputes</td><td>core, tasks</td></tr><tr><td>draft-map-ops-01</td><td>BCP</td><td>registries &amp; governance, federation, interop/testing, reference implementation, migration</td><td>all</td></tr></tbody></table>
+</section>
+<section anchor="reading-order-3" numbered="true">
+<name>Reading order</name>
+<ol><li><tt>draft-map-intro-01</tt> &#8212; why, and what was rejected (read first).</li><li><tt>draft-map-arch-01</tt> &#8212; goals, non-goals, trust model, threats.</li><li><tt>draft-map-core-01</tt> &#8212; the envelope and session model everything else builds on.</li><li>Per-area: <tt>draft-map-identity-01</tt>, <tt>draft-map-discovery-01</tt>,</li></ol>
+<t><tt>draft-map-tasks-01</tt>, <tt>draft-map-trust-01</tt>, <tt>draft-map-pay-01</tt>.</t>
+<ol><li><tt>draft-map-wire-01</tt> &#8212; the registry index; consult whenever a code point is</li></ol>
+<t>in question (it is the single source of truth for assignments).</t>
+<ol><li><tt>draft-map-ops-01</tt> &#8212; governance, registries, federation, and the</li></ol>
+<t>formal-analysis / interop program that gates publication.</t>
+</section>
+<section anchor="submission-status-4" numbered="true">
+<name>Submission status</name>
+<t>The family is intended for the IETF Independent Stream (each draft&#x27;s <tt>submissiontype: independent</tt> front-matter records this). Registry ownership and the pre/post-publication authority split are defined in <tt>draft-map-ops-01</tt> &#167;3.5. Submission is gated on the two-independent-implementation criterion (<tt>draft-map-ops-01</tt> &#167;6.1): both reference implementations (<tt>map-rs</tt>, <tt>map-go</tt>) pass the full test-vector set and the live pairwise interop matrix (16/16). The documents remain in draft pending human/expert review.</t>
+</section>
+<section anchor="security-considerations-5" numbered="true">
+<name>Security Considerations</name>
+<t>This document is a family index and defines no protocol mechanisms of its own; it therefore introduces no new security considerations. MAP&#x27;s security model is normative in the protocol documents: <tt>draft-map-core-01</tt> (envelope integrity, session channel binding, anti-replay), <tt>draft-map-identity-01</tt> (agent identity and delegation attenuation), <tt>draft-map-trust-01</tt> (receipt-based, self-reported-trust-free reputation), and <tt>draft-map-pay-01</tt> (settlement evidence and disputes). <tt>draft-map-arch-01</tt> states the family threat model.</t>
+</section>
+<section anchor="iana-considerations-6" numbered="true">
+<name>IANA Considerations</name>
+<t>This document requests no IANA actions. The consolidated registry index for the family is <tt>draft-map-wire-01</tt>; individual registries are defined and populated by the protocol documents.</t>
+</section>
+<section anchor="references-selected-7" numbered="true">
+<name>References (selected)</name>
+<t>[BCP14] BCP 14 requirement levels (RFC 2119 / RFC 8174). [RFC2026] BCP 78 (copyright). [RFC8179] BCP 79 (IPR). The companion MAP documents listed in &#167;2.</t>
+</section>
+  </middle>
+  <back></back>
+</rfc>
