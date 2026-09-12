@@ -8,6 +8,9 @@ access and can run builds, tests, and tooling; the submission target is the
 **IETF Independent Submission stream (ISE)** per `map-spec/SUBMISSION.md`.
 If either changes, adjust the shared preamble accordingly.
 
+What to do with the findings once they arrive — the triage gate, the fix
+order, and the blast-radius checklist — is `map-spec/REVIEW-PROCESS.md`.
+
 The point of splitting the review into roles is that a single "review my RFC"
 pass spends its attention on prose. Each role below owns one surface where a
 specific, already-visible failure mode lives, and each should be run in its own
