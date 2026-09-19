@@ -56,9 +56,9 @@ for non-login/non-interactive shells automatically.)
 | `delegation.pv` | P3 (Q4), reachability (Q5) | Q4 **true**, Q5 reachable | `results/delegation.log` |
 | `delegation-control.pv` | P3 control | Q4 **false** (trace) | `results/delegation-control.log` |
 | `pay-auth.pv` | P4 (Q1), reachability (Q2) | Q1 **true**, Q2 reachable | `results/pay-auth.log` |
-| `pay-auth-control-onesided.pv` | P4 control | Q1 **false** (trace) | `results/pay-auth-control-onesided.log` |
-| `pay-dispute.pv` | P5 (Q3), reachability (Q4) | Q3 **true**, Q4 reachable | `results/pay-dispute.log` |
-| `pay-meter.pv` | P6 (Q-overbill, Q-underpay, Q-bind), reachability (Q-reach) | Q-overbill **true**, Q-underpay **true**, Q-bind **true**, Q-reach reachable | `results/pay-meter.out` |
+| `pay-auth-control-onesided.pv` | P4 control | **does not discriminate** — Q1 true, identical to the honest model | `results/pay-auth-control-onesided.log` |
+| `pay-dispute.pv` | P5 (Q3), reachability (Q4) | **Q4 unreachable (vacuous)** — Q3 is proved over zero traces | `results/pay-dispute.log` |
+| `pay-meter.pv` | P6 (Q-overbill, Q-underpay, Q-bind), reachability (Q-reach) | **Q-reach unreachable (vacuous)** — all three positives are over an empty trace set | `results/pay-meter.out` |
 
 Reproduce all eight in one pass:
 
@@ -301,8 +301,14 @@ reachability (honest disputes DO resolve), so Q3 is not vacuous.
 
 ## Results
 
-No counterexample was found for P1–P5 in the honest models (Q1/Q2/Q4 all
-`true`; Q3/Q5 confirm reachability, so this is not a vacuous result). The
+No counterexample was found for P1 and P3 in the honest models. **P2 as
+shipped is vacuous** (the CB-collision query is true by symbolic term
+structure, and its different-msgid filter excludes the one collision the model
+admits); it becomes meaningful, and strictly stronger, once the HELLO_ACK
+carries its own fresh responder nonce and the query is the injective
+correspondence. **P4, P5 and P6 are vacuous**: P4's antecedent events all fire
+in the same process branch as its conclusion, and P5's and P6's guarded events
+are unreachable — see the Files table. The
 three mandatory negative controls (hello-cb downgrade, hello-cb relay,
 delegation widening) and the P4 onesided control fail as designed, with the
 exact witnessing traces captured in `results/`. **No BLOCKING finding to

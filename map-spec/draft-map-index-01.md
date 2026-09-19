@@ -11,8 +11,8 @@ ipr: trust200902
 # MAP: Family Index and Submission Overview
 
 **Status of This Memo:** This document is an Internet-Draft-style preprint
-published for open-source community review. Two independent interoperating
-implementations pass the full live interop matrix (ops §6.1). It has not been
+published for open-source community review. Two implementations by one
+author, under a source-isolation rule, pass the full live interop matrix (ops §6.1). It has not been
 submitted to the IETF (intended independent stream; see ops §3.5). Distribution
 is unlimited. It expires six months after publication and MUST NOT be cited
 except as "work in progress" pending human/expert review.
@@ -58,8 +58,9 @@ model, and threat catalog are in `draft-map-arch-01`.
 
 ## 2. Document index
 
-This is a set of **10 Internet-Drafts** submitted as a group to the IETF
-Independent Stream. The table below is the authoritative scope/dependency map
+This is a set of **11 documents**. They were written for the IETF Independent
+Stream; see `SUBMISSION.md` for why that stream cannot host the family's
+registries and what the publication path is now. The table below is the authoritative scope/dependency map
 (also carried in `draft-map-arch-01` §11).
 
 | Document | Class | Scope | Depends on |
@@ -90,13 +91,18 @@ Independent Stream. The table below is the authoritative scope/dependency map
 
 ## 4. Submission status
 
-The family is intended for the IETF Independent Stream (each draft's
-`submissiontype: independent` front-matter records this). Registry ownership
-and the pre/post-publication authority split are defined in `draft-map-ops-01`
-§3.5. Submission is gated on the two-independent-implementation criterion
-(`draft-map-ops-01` §6.1): both reference implementations (`map-rs`, `map-go`)
-pass the full test-vector set and the live pairwise interop matrix (16/16).
-The documents remain in draft pending human/expert review.
+The family was written for the IETF Independent Stream (each draft's
+`submissiontype: independent` front-matter records this). That stream cannot
+create the ~20 IANA registries this family defines, nor grant the registration
+policies they use (RFC 8726 §2/§4/§5), so the family's registries are stewarded
+outside the RFC series per `draft-map-ops-01` §3.5 and only narrow, registry-free
+extracts are submitted. `SUBMISSION.md` records the current plan.
+
+Both reference implementations (`map-rs`, `map-go`) pass the full test-vector
+set and the live pairwise interop matrix (26/26 — 16 core, 6 task, 4 pay), which
+meets `draft-map-ops-01` §6.1 mechanically; both are the work of one author, so
+the independence criterion is not met substantively. The documents remain in
+draft pending human/expert review.
 
 ## 5. Security Considerations
 

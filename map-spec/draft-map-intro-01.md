@@ -11,8 +11,8 @@ ipr: trust200902
 # MAP Introduction and Motivation
 
 **Status of This Memo:** This document is an Internet-Draft-style preprint
-published for open-source community review. Two independent interoperating
-implementations pass the full live interop matrix (ops §6.1). It has not been
+published for open-source community review. Two implementations by one
+author, under a source-isolation rule, pass the full live interop matrix (ops §6.1). It has not been
 submitted to the IETF (intended independent stream; see ops §3.5). Distribution
 is unlimited. It expires six months after
 publication and MUST NOT be cited except as "work in progress" pending human/
@@ -166,12 +166,18 @@ Implement in the order: identity, core, discovery, tasks, then trust/pay.
 
 ## 6. Status and Maturity
 
-Two independent, separately-authored implementations — `map-rs` (Rust) and
-`map-go` (Go) — reproduce every frozen test vector byte-for-byte and complete
-a live pairwise interop matrix (16/16 scenarios, `interop/MATRIX.md`) over a
-real transport, in both orientations. The core security properties
-(downgrade resistance, channel-binding session separation, delegation
-attenuation) are machine-checked (ops §6.3). Remaining formal work and the
+Two implementations by the same author under a source-isolation rule —
+`map-rs` (Rust) and `map-go` (Go), the latter written from the drafts and the
+frozen vectors without reading Rust source — reproduce every frozen test vector
+byte-for-byte and complete a live pairwise interop matrix (26/26 scenarios:
+16 core, 6 task, 4 pay; `interop/MATRIX.md`) over real transports, in both
+orientations. This meets the ops §6.1 criterion mechanically but not
+substantively: two implementations by different parties would be stronger
+evidence, and that is not what this is. Two session-layer properties
+(negotiation recheck, transcript-dependence of the channel binding) and one
+delegation property (scope attenuation over a fixed lattice) have ProVerif
+models with negative controls; see ops §6.3 for exactly what each establishes
+and what it does not. Remaining formal work and the
 deferred extension semantics are listed honestly in the README "Status"
 section and in `ops §6.3` / `ops §8`. The documents remain in draft pending
 human/expert review.

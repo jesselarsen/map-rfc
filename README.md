@@ -10,10 +10,14 @@ payments.
 
 Status: preprint for community review — work in progress. Requirements
 language: BCP 14 (RFC 2119 / RFC 8174), unweakened. The ops §6.1
-advancement gate is **met**: two independent interoperating implementations
-(`map-rs`, `map-go`), byte-exact test-vector parity (TV-001..020 + NV-001..012),
-formal analysis of the core security properties (ops §6.3), and a live
-pairwise interop matrix (16/16, `interop/MATRIX.md`). The documents remain in
+advancement gate is **partially met**: two implementations by the same author
+under a source-isolation rule (`map-rs`, `map-go`), byte-exact test-vector
+parity (TV-001..020 + TV-010b + NV-001..012), formal analysis of two
+session-layer properties and one delegation property (ops §6.3), and a live
+pairwise interop matrix (26/26 — 16 core + 6 task + 4 pay, `interop/MATRIX.md`).
+The rule's "two independent implementations" is met mechanically (the Go
+implementation was written from the drafts and frozen vectors without reading
+Rust source) but not substantively: one author wrote both. The documents remain in
 draft pending human/expert review. Intended publication path is the IETF
 Independent Stream (registry stewardship and submission mechanics: ops §3.5).
 
@@ -33,14 +37,14 @@ Independent Stream (registry stewardship and submission mechanics: ops §3.5).
 | 7 | `map-spec/draft-map-trust-01.md` | Dual-signed ExecutionReceipts, selective evidence disclosure, admission costs, graduated bootstrap, local trust computation, challenges, gaming analysis | Standards |
 | 8 | `map-spec/draft-map-pay-01.md` | Payment negotiation & evidence, settlement-method registry (credit-ledger, x402, Lightning, stablecoin, ACH, Interledger), metered streaming settlement with exact watermark billing, pause/resume/cancel, escrow abstraction, disputes | Standards |
 | 9 | `map-spec/draft-map-ops-01.md` | Engineering policy (context/ownership map), registries & change control, federation gateways, conformance & formal-analysis program, reference implementation, migration (incl. HEP-0.1 → MAP), compliance notes | BCP |
-| 9 | `map-spec/test-vectors/map-test-vectors.md` | TV-001…016 signed envelopes + NV-001…010 MUST-reject vectors — real Ed25519 signatures over deterministic CBOR, reproducible from listed seeds (`gen_vectors.py`) | Normative examples |
+| 9 | `map-spec/test-vectors/map-test-vectors.md` | TV-001…020 (incl. TV-010b) signed envelopes + NV-001…012 MUST-reject vectors — real Ed25519 signatures over deterministic CBOR, reproducible from listed seeds (`gen_vectors.py`) | Normative examples |
 | — | `map-spec/CHANGELOG.md` | Per-revision changelog (editorial / additive / breaking) required by ops §4 | — |
 | — | `map-spec/ERRATA.md` | Historical record of every architect ruling, with rationale | — |
 
 The Rust reference implementation lives in `map-rs/` (impl #1); a Go
 reference implementation lives in `map-go/` (impl #2, independently
 written from the specs and vectors). Implementation-specification packages
-for downstream coding agents live in `tasks/` (see `tasks/README.md`, 23
+for downstream coding agents live in `tasks/` (see `tasks/README.md`, 31
 packages authored to date); the live interop harness lives in `interop/`.
 `memory.md` is the cross-session project handoff file. Historical input
 designs are under `input-designs/`.
@@ -115,7 +119,8 @@ go vet ./... && gofmt -l . && go test ./...
 real MAP sessions against each other over TCP, in both orientations,
 across 8 scenarios (echo, replay, sequence-gap, tamper, cross-session
 relay, version-disjoint handshake, foreign-session-id rejection, and a
-delegated handshake) — **16/16 passing**. See `interop/MATRIX.md` for the
+delegated handshake), plus 3 task and 2 pay scenarios over libp2p/QUIC —
+**26/26 passing** (16 core + 6 task + 4 pay). See `interop/MATRIX.md` for the
 recorded run and `interop/README.md` to reproduce it:
 
 ```
@@ -137,7 +142,9 @@ MAP-Core (required) · MAP-Discovery · MAP-Tasks · MAP-Trust · MAP-Pay ·
 MAP-Fed. A conforming provider or requester implements
 Core + Discovery + Tasks; Trust and Pay are RECOMMENDED on public meshes.
 No document leaves draft status without two independent interoperating
-implementations passing the full matrix (ops §6.1) — **met**, see above.
+implementations passing the full matrix (ops §6.1) — met for the mechanisms
+the matrix exercises, and only mechanically on the independence criterion;
+see the Status note above and the coverage qualification below.
 
 ## Engineering policy
 
@@ -166,13 +173,26 @@ no breaking changes since rev 00.
 
 ## Status
 
-The full protocol — identity, envelope, negotiation, discovery, tasks,
-trust, payments (postpaid, metered-incremental, prepaid, and escrow), the
-dispute-evidence protocol (pay §6), and the x402 paid-API gateway
-composition (ops §5.1) — is specified, implemented twice, and proven to
-interoperate live (16/16 matrix, ops §6.1). All normative code points are
-assigned; all frozen test vectors (TV-001..020, NV-001..012) are reproduced
-byte-for-byte by both implementations.
+The protocol is specified in full. **Implementation and interop coverage is
+narrower than the specification**, and the difference matters:
+
+- **Implemented in both and exercised live by the 26/26 matrix:** envelope and
+  deterministic CBOR, HELLO/negotiation/channel binding, descriptors, task
+  negotiation and streaming, delegation, postpaid and metered-incremental
+  payment.
+- **Implemented in Rust only:** prepaid and escrow terms, the dispute-evidence
+  protocol (pay §6), the x402 rail and the paid-API gateway composition
+  (ops §5.1).
+- **Registered code points with no working codec in either implementation:**
+  tool invocation (TOOL_CALL/GRANT/RESULT), checkpoints (CHECKPOINT,
+  CHECKPOINT_ACK), RESUME, canary challenges, key rotation and revocation
+  (ROTATE/REVOKE). `map-go` additionally lacks STATUS_QUERY/STATUS_REPORT,
+  CAP_QUERY/CAP_RESPONSE and the whole trust-receipt layer
+  (RECEIPT/RECEIPT_ACK/EVIDENCE_QUERY/EVIDENCE_SET).
+
+All normative code points are assigned; all frozen test vectors (TV-001..020
+incl. TV-010b, NV-001..012) are reproduced byte-for-byte by both
+implementations.
 
 Genuinely open work (deferred, not claimed done):
 - **Stub extension semantics**: `ext-kvx` engine-fingerprint matching and
@@ -181,15 +201,13 @@ Genuinely open work (deferred, not claimed done):
 - **Relay / NAT interop scenario**: AutoNAT v2, Circuit Relay v2, and DCUtR
   (discovery §10) are normative for public meshes but no interop scenario
   exercises them yet.
-- **Formal model of the payment/escrow path**: escrow charge-authorization
-  symmetry (pay §5.2) and dispute watermark binding (pay §6) are machine-checked
-  and proved in `formal/` (TASK-027: `pay-auth.pv`, `pay-auth-control-onesided.pv`,
-  `pay-dispute.pv`). The quote→agree→invoice→proof binding and continuous-metering
-  arithmetic (no settled over-bill, settled-not-submitted, PAY_AGREE digest binding)
-  are now also machine-checked and proved (TASK-028: `pay-meter.pv`, P6). The one
-  remaining unmodeled corner is the **checkpoint-anchored cancel accounting**
-  (tasks §8.2/§11 → pay §4.2 cancel); argued structurally, not yet machine-checked
-  (ops §6.3 lists the metering formal work).
+- **Formal model of the payment/escrow path: not yet.** `pay-auth.pv`,
+  `pay-dispute.pv` and `pay-meter.pv` exist as drafts but their reachability
+  queries show the guarded events are unreachable, so their positive results are
+  vacuous; escrow symmetry, dispute binding and metering arithmetic remain
+  unverified. Checkpoint-anchored cancel accounting (tasks §8.2/§11 → pay §4.2)
+  is likewise argued structurally, not machine-checked. See ops §6.3 for what the
+  session-layer and delegation models do establish.
 
 License: Apache-2.0. Naming: "MAP" honors the MP2P
 lineage; "Hermes" remains free as an implementation name.

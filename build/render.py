@@ -38,6 +38,18 @@ DRAFTS = [
 CATEGORY_MAP = {"std": "std", "info": "info", "bcp": "bcp", "exp": "exp"}
 
 
+def warn(name, kind, stderr):
+    """Print xml2rfc's stderr on a SUCCESSFUL run.
+
+    xml2rfc exits 0 while emitting warnings, so capturing stderr only on
+    non-zero return discards exactly the diagnostics worth reading — that is
+    how a silently dropped submissionType attribute stayed invisible.
+    """
+    for line in (stderr or "").splitlines():
+        if line.strip():
+            print(f"[warn] {name} ({kind}): {line.strip()}")
+
+
 def main():
     os.makedirs(BUILD, exist_ok=True)
     script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -63,10 +75,14 @@ def main():
                             stderr=subprocess.PIPE, text=True)
         if r2.returncode != 0:
             failures.append(f"{name}: xml2rfc txt failed: {r2.stderr}")
+        else:
+            warn(name, "txt", r2.stderr)
         r3 = subprocess.run([xml2rfc, xml_path, "--html", "-o", html_path],
                             stderr=subprocess.PIPE, text=True)
         if r3.returncode != 0:
             failures.append(f"{name}: xml2rfc html failed: {r3.stderr}")
+        else:
+            warn(name, "html", r3.stderr)
         print(f"[ok] {name}: xml/txt/html written")
     if failures:
         print("\nFAILURES:")

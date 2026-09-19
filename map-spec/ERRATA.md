@@ -1,4 +1,9 @@
-# MAP Spec Errata — PENDING-ARCHITECT queue
+# MAP Spec Errata — rulings record
+
+Two kinds of entry live here. **RULED** entries dispose of findings from the
+external review of 2026-09-18 (process: `REVIEW-PROCESS.md`; roles:
+`REVIEW-PROMPTS.md`), newest first. **RESOLVED** entries below them are the
+original PENDING-ARCHITECT queue.
 
 The architect role was unstaffed 2026-07-06..2026-07-11. On 2026-07-12 an
 architect session ruled on every queued item (rulings below, spec patched
@@ -12,6 +17,136 @@ is retained as the historical rationale for each ruling.**
 
 Format: `RESOLVED <ruling-date> (was PENDING-ARCHITECT <date> <package>) —
 <issue> — <ruling> — <where implemented>`.
+
+---
+
+## External review, 2026-09-18 — Track 0 rulings
+
+Eight role-based external reviews (`map-spec/REVIEW-PROMPTS.md`) were run
+against HEAD `56bce96`. Rulings below follow `REVIEW-PROCESS.md` Stage 2.
+Track 0 is the claim-vs-reality pass only; Track 1 (removals) and Track 2
+(normative fixes) are ruled separately as they are executed.
+
+RULED 2026-09-18 (review finding R8-06, role 8 — Prior-Art & Positioning) —
+the Independent Submission stream cannot create new IANA registries (RFC 8726
+§4), will not appoint designated experts and therefore cannot grant
+Specification Required or Expert Review policies (§5), and cannot grant
+Standards Action (§2). All ~20 registries in wire §4 use exactly those three
+policies. — RULING: **ACCEPT**, and it is decisive. Relabeling `std` → `info`
+does not fix it; `SUBMISSION.md` never named this blocker. The family's
+registries move to the self-hosted steward process ops §3.5 already describes,
+as the permanent arrangement, and only narrow registry-free extracts are
+submitted. RFC 8726 §4 explicitly contemplates this ("registries are hosted by
+organizations other than IANA"). Editorial; no wire change. — Implemented in
+`SUBMISSION.md` (Stream section rewritten; the registry blocker is now
+MUST-resolve item 0) and `draft-map-index-01` §4.
+
+RULED 2026-09-18 (review finding role 3 — Formal-Methods Auditor) — three of
+the six claimed formal properties are vacuous, and two of those are proved over
+an empty trace set according to the repository's own stored logs
+(`results/pay-dispute.pv.log:64`, `results/pay-meter.out:194` both record the
+reachability event as unreachable while `formal/README.md`'s table claims the
+opposite). P2 as shipped is true by symbolic term structure. Eight planted
+security-check removals — including an initiator accepting an unsigned
+HELLO_ACK and a payer charging on an unsigned release — changed no query
+result. — RULING: **ACCEPT**. The sentence "P1–P6 are machine-checked" was
+false and is removed everywhere it appeared. P4/P5/P6 come out of the claim set
+rather than being rebuilt; sound versions need a real state model, an actual
+watermark, and bounded arithmetic, which is months of work. The P2 repair (one
+responder nonce plus an injective query, verified TRUE by the reviewer) is
+scheduled for Track 2 because it converts the weakest claim into the strongest
+for an afternoon's work. Editorial. — Implemented in `ops` §6.3,
+`SUBMISSION.md`, `README.md`, `draft-map-intro-01` §6, `formal/README.md`
+(results table + the "not a vacuous result" sentence).
+
+RULED 2026-09-18 (review finding R8-08, role 8) — `draft-map-intro-01` §6 and
+`SUBMISSION.md` claim "two independent, separately-authored implementations";
+`git log` shows 63 commits by one author, covering both. — RULING: **ACCEPT**.
+In IETF usage "independent" means different parties. The source-isolation rule
+(Go written from the drafts and frozen vectors without reading Rust source) is
+real and produced at least one genuine catch — Go implemented the foreign-
+SessionID check first and Rust was patched — but it is not two parties. The
+ops §6.1 criterion is now stated as met mechanically and not substantively,
+in both the criterion's own section and every document that cites it.
+Editorial. — Implemented in `ops` §6.1, `draft-map-intro-01` §6,
+`draft-map-index-01` §4, `README.md`, `SUBMISSION.md`.
+
+RULED 2026-09-18 (review findings role 5 and role 6) — `README.md` cited a
+16/16 interop matrix in three places against a recorded 26/26, contradicted
+itself on the TV/NV counts between its own lines, and claimed the protocol is
+"implemented twice" when several registered message classes have no codec in
+either implementation and `map-go` additionally lacks the entire trust-receipt
+layer. `ops` §6.1 additionally asserted that cross-language task and payment
+flows "remain future work" — false since 2026-07-17. — RULING: **ACCEPT**.
+The interop figure is corrected to 26/26 everywhere and `README.md`'s Status
+section now states implementation coverage in three explicit tiers rather than
+as one claim. Editorial. — Implemented in `README.md`, `ops` §6.1,
+`draft-map-index-01` §4, `draft-map-intro-01` §6.
+
+RULED 2026-09-18 (review finding R8-02, role 8) — `arch` §1 cited "the attached
+design work" and `ops` §7.2 was titled "From HEP-0.1 drafts (the attached
+preprint)". Both point at unpublished assistant transcripts under
+`input-designs/`; `01-design-critique.md`'s C1–C15 findings critique that same
+private material and are cited ~25–30 times across nine drafts. — RULING:
+**ACCEPT**. A standalone document cannot cite material its readers cannot
+obtain, and the drafts meanwhile cite no actual prior art at all. The "attached"
+wording is removed now. The `Cn` citations and ops §7.1–§7.3 are ruled for
+removal in Track 1, and an editorial note in ops §7.2 records that pending the
+edit. Editorial. — Implemented in `arch` §1 and `ops` §7.2; Track 1 carries the
+rest.
+
+RULED 2026-09-18 (review finding role 6, seeded item 8) — `CLAUDE.md` stated
+"This is a documentation/spec repository, not a software project — there is no
+build, lint, or test command." — RULING: **ACCEPT**. False since the
+implementations landed, and actively misdirecting: it is the first file a new
+session reads. Rewritten to name both implementations, the render pipeline and
+the interop harness, and to point at `AGENTS.md` for commands. Editorial, out
+of spec scope. — Implemented in `CLAUDE.md`.
+
+RULED 2026-09-18 (review finding role 6, seeded item 7) — `README.md` states
+"License: Apache-2.0" while `map-rs/Cargo.toml` declares
+`license = "MIT OR Apache-2.0"`, and no MIT text exists in the repository. —
+RULING: **DEFER** — author decision, not a copy-edit. An IETF submission cares
+about IPR precision and the two statements cannot both stand. Resolve before
+either draft is submitted, by adding the MIT text or by narrowing the manifest.
+— No change made.
+
+RULED 2026-09-18 (review finding role 1 — ISE Process & Editorial Gatekeeper)
+— `draft-map-wire-01` and `draft-map-ops-01` have no `## Abstract` section and
+render `md2rfc.py`'s generic family placeholder, while `build/nits.py` reports
+them green because it greps for the word "Abstract" anywhere in the rendered
+text. A document-specific abstract is an RFC-Editor requirement. — RULING:
+**ACCEPT**, and the tooling defect is the more important half: a check that
+cannot fail is worse than no check, because it is trusted. `nits.py` now
+detects the placeholder (matched against whitespace-collapsed text, since
+xml2rfc re-wraps it) and hard-fails; verified to go red for exactly those two
+drafts before the abstracts were written, and green after. `render.py` now
+prints xml2rfc's stderr on successful runs as well as failed ones — discarding
+warnings from a zero-exit run is how the dropped `submissionType` attribute
+stayed invisible. Editorial. — Implemented in `draft-map-wire-01`,
+`draft-map-ops-01`, `build/nits.py`, `build/render.py`.
+
+RULED 2026-09-18 (review findings role 2, role 6, role 8 — converging) — all
+eleven Status-of-This-Memo preambles asserted "Two independent interoperating
+implementations pass the full live interop matrix". — RULING: **ACCEPT**, same
+reasoning as the R8-08 ruling above; corrected in all eleven. Editorial. —
+Implemented family-wide.
+
+RULED 2026-09-18 (review findings role 4 R4-01/R4-03/R4-04, role 7 A1/A2/A3,
+role 2 A1) — six exploits were demonstrated or measured against unmodified
+code: a negative `Amount` moves funds from payee to payer; dispute claim 0 is
+rebutted by one self-signed COMPLETE and claim 1 is unilaterally forgeable;
+receipt farming reaches score 0.998 at confidence 501 in 154 ms; tool-grant
+caveats have no assigned code points, so a conforming grant must be rejected by
+every conforming validator; publishing to all 256 shards makes one agent the
+majority of every shortlist; and the identity-pair channel binding is not a
+channel binding under RFC 5056 and is normatively authorized, not merely
+implemented. — RULING: **ACCEPT**, scheduled across Tracks 1 and 2, with
+disposition per item: disputes, escrow, the x402 method definition, crypto
+suite 3 and tool invocation are removed rather than repaired; non-negative
+amounts, shard integrity, issuer weighting, the channel binding and the
+injection treatment are fixed. Wire-affecting; each gets its own ruling as it
+lands. Nothing is submitted while any of these stands. — Track 1/2.
 
 ---
 

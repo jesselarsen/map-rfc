@@ -7,8 +7,12 @@ stdlib-only. Reports, per draft:
   * required I-D sections present (Abstract, Security Considerations, IANA
     Considerations, References, Author's Address);
   * count of body lines longer than 72 characters (idnits flags these);
-  * any non-ASCII byte in the .txt (there should be none — md2rfc numeric-
-    encodes source non-ASCII, and xml2rfc emits ASCII text output).
+  * a document-specific Abstract — a draft whose source has no ``## Abstract``
+    renders md2rfc's generic family placeholder, which satisfies a naive
+    "is the word Abstract present" check while leaving the draft without an
+    abstract. That is a hard nit here;
+  * any non-ASCII byte in the .txt. RFC 7997 permits these in the RFC series,
+    so they are reported for information and never fail the run.
 
 Exit status is non-zero if any *required section* is missing (a hard nit);
 long-line and width warnings are reported but do not fail the run — they are
@@ -26,6 +30,13 @@ REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 BUILD = os.path.join(REPO, "build")
 MAX_LINE = 72
 
+# md2rfc.py substitutes this sentence when a source draft has no "## Abstract"
+# section. It renders under a real "Abstract" heading, so presence-of-heading is
+# not enough to tell a written abstract from a missing one. Keep in sync with
+# md2rfc.py's fallback text. Matched against whitespace-collapsed text, because
+# xml2rfc re-wraps the sentence across lines.
+PLACEHOLDER_ABSTRACT = "part of the MAP (Manolito Agent Protocol) specification family"
+
 REQUIRED = [
     ("Abstract", re.compile(r"^Abstract\s*$", re.M | re.I)),
     ("Security Considerations", re.compile(r"Security Considerations", re.M | re.I)),
@@ -40,6 +51,11 @@ def check(path):
     with io.open(path, encoding="utf-8") as fh:
         text = fh.read()
     missing = [label for label, rx in REQUIRED if not rx.search(text)]
+    if PLACEHOLDER_ABSTRACT in " ".join(text.split()):
+        # The heading is there; the abstract is not. Report it as missing so the
+        # run fails, rather than passing on the placeholder.
+        missing = [m for m in missing if m != "Abstract"]
+        missing.append("Abstract (placeholder, not written)")
     long_lines = [
         (i + 1, len(ln)) for i, ln in enumerate(text.splitlines()) if len(ln) > MAX_LINE
     ]

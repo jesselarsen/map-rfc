@@ -9,7 +9,7 @@
   <middle>
 <section anchor="introduction-and-heritage-1" numbered="true">
 <name>Introduction and Heritage</name>
-<t>Manolito/MP2P (c. 2001) demonstrated that a flat, serverless, UDP-centric network of consumer nodes could sustain search and exchange at scale with minimal per-node state. MAP retains three MP2P instincts &#8212; decentralization without supernodes, lightweight signed messages, tolerance of extreme churn &#8212; and discards its obsolete mechanics (cleartext UDP, file-hash indexing, no identity layer). The essential inversion, taken from the attached design work: MP2P asked &quot;who has this file?&quot;; MAP asks &quot;who can do this task?&quot;. The network is a <strong>capability graph</strong>.</t>
+<t>Manolito/MP2P (c. 2001) demonstrated that a flat, serverless, UDP-centric network of consumer nodes could sustain search and exchange at scale with minimal per-node state. MAP retains three MP2P instincts &#8212; decentralization without supernodes, lightweight signed messages, tolerance of extreme churn &#8212; and discards its obsolete mechanics (cleartext UDP, file-hash indexing, no identity layer). The essential inversion is this: MP2P asked &quot;who has this file?&quot;; MAP asks &quot;who can do this task?&quot;. The network is a <strong>capability graph</strong>.</t>
 <t>MAP is a <em>protocol</em>, not a product. &quot;Hermes&quot; and similar orchestrators are implementations that speak MAP; nothing in these documents privileges any implementation.</t>
 </section>
 <section anchor="requirements-language-2" numbered="true">

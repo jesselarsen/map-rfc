@@ -11,8 +11,8 @@ ipr: trust200902
 # The Manolito Agent Protocol (MAP): Architecture
 
 **Status of This Memo:** This document is an Internet-Draft-style preprint
-published for open-source community review. Two independent interoperating
-implementations pass the full live interop matrix (ops §6.1). It has not been
+published for open-source community review. Two implementations by one
+author, under a source-isolation rule, pass the full live interop matrix (ops §6.1). It has not been
 submitted to the IETF (intended independent stream; see ops §3.5). Distribution
 is unlimited. It expires six months after
 publication and MUST NOT be cited except as "work in progress" pending human/
@@ -42,9 +42,9 @@ network of consumer nodes could sustain search and exchange at scale with
 minimal per-node state. MAP retains three MP2P instincts — decentralization
 without supernodes, lightweight signed messages, tolerance of extreme
 churn — and discards its obsolete mechanics (cleartext UDP, file-hash
-indexing, no identity layer). The essential inversion, taken from the
-attached design work: MP2P asked "who has this file?"; MAP asks "who can do
-this task?". The network is a **capability graph**.
+indexing, no identity layer). The essential inversion is this:
+MP2P asked "who has this file?"; MAP asks "who can do this task?". The network
+is a **capability graph**.
 
 MAP is a *protocol*, not a product. "Hermes" and similar orchestrators are
 implementations that speak MAP; nothing in these documents privileges any

@@ -14,10 +14,12 @@ CBOR + COSE signed messages, libp2p/QUIC transports, two-plane discovery over a
 sharded Kademlia DHT, evidence-based local trust, and settlement-agnostic
 payments.
 
-This is a **documentation/spec repository**, not a software project — there is
-no build, lint, or test command. The "product" is the set of `draft-map-*.md`
-files plus supporting critique and test-vector documents. Work here means
-editing, extending, and keeping these documents internally consistent.
+This repository holds **both the specification and two reference
+implementations**. The specs are `map-spec/draft-map-*.md` plus the test-vector
+and critique documents; `map-rs/` is a Cargo workspace, `map-go/` a Go module,
+`build/` the I-D render pipeline, and `interop/` a live cross-implementation
+matrix. Build and test commands are in `AGENTS.md` — a spec change that touches
+the wire is not done until both implementations and the matrix agree with it.
 
 Read [README.md](README.md) first — it has the full reading order, conformance
 classes, and the "five decisions to know before reading anything." Do not

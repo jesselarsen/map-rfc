@@ -11,8 +11,8 @@ ipr: trust200902
 # MAP Wire Format and Registry Index
 
 **Status of This Memo:** This document is an Internet-Draft-style preprint
-published for open-source community review. Two independent interoperating
-implementations pass the full live interop matrix (ops §6.1). It has not been
+published for open-source community review. Two implementations by one
+author, under a source-isolation rule, pass the full live interop matrix (ops §6.1). It has not been
 submitted to the IETF (intended independent stream; see ops §3.5). Distribution
 is unlimited. It expires six months after
 publication and MUST NOT be cited except as "work in progress" pending human/
@@ -20,6 +20,24 @@ expert review.
 
 
 This document is subject to BCP 78 and BCP 79. The source working tree is distributed under Apache-2.0 (see repository LICENSE); contributors SHOULD disclose relevant IPR per BCP 79. On publication the RFC is copyrighted by the IETF Trust and licensed per the IETF Trust's terms (see draft-map-ops-01 sect. 3.5).
+
+## Abstract
+
+This document is the wire-level reference for the MAP (Manolito Agent Protocol)
+family. It presents the protocol data unit layering — transport frame, signed
+COSE_Sign1 envelope over deterministic CBOR, protected and body headers, and
+message-type-selected content — as a single diagram with the field-level
+detail each layer's owning document specifies, so that an implementer can see
+the whole encoding in one place. It then consolidates every code point the
+family assigns: message types, error codes, body and protected-header keys,
+cryptographic suites, capability-ontology terms, delegation caveats, chunk
+kinds, settlement methods, pricing models, dispute claim codes, and the
+remaining registries, each with its registration policy and a pointer to the
+document that owns it.
+
+This document is an index, not a normative source. Where it disagrees with an
+owning document, the owning document governs. It defines no protocol behavior
+of its own and requests no IANA action of its own.
 
 ## Requirements Language
 

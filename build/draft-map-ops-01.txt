@@ -14,9 +14,25 @@ Expires: 18 January 2027
 
 Abstract
 
-   This document is part of the MAP (Manolito Agent Protocol)
-   specification family.  See draft-map-index-01 for the family overview
-   and reading order.
+   This document covers the operational half of the MAP (Manolito Agent
+   Protocol) family: how the specifications are governed and changed,
+   how their registries are administered, how independently operated
+   meshes federate, how conformance is demonstrated, and how deployments
+   migrate.
+
+   It defines the engineering and data-semantics policy the family is
+   written against; the registration policy, change control and
+   stewardship arrangements for the code-point registries indexed in
+   draft-map-wire-01; the rules governing federation gateways, including
+   the admission, attribution and bounded-spend constraints a gateway
+   must satisfy to bridge two meshes or to front a paid external API;
+   the conformance program — test vectors, negative vectors, the
+   pairwise interoperability matrix, and the formal-analysis effort,
+   together with the advancement rule that gates a document's maturity
+   on two implementations demonstrating interoperation; and guidance for
+   implementers and for migration from predecessor designs.
+
+   This document specifies no wire format and assigns no code points.
 
 Status of This Memo
 
@@ -35,6 +51,13 @@ Status of This Memo
 
    This Internet-Draft will expire on 18 January 2027.
 
+
+
+Larsen                   Expires 18 January 2027                [Page 1]
+
+Internet-Draft              draft-map-ops-01                   July 2026
+
+
 Copyright Notice
 
    Copyright (c) 2026 IETF Trust and the persons identified as the
@@ -49,19 +72,10 @@ Copyright Notice
    described in Section 4.e of the Trust Legal Provisions and are
    provided without warranty as described in the Revised BSD License.
 
-
-
-
-
-Larsen                   Expires 18 January 2027                [Page 1]
-
-Internet-Draft              draft-map-ops-01                   July 2026
-
-
 Table of Contents
 
-   1.  Requirements Language . . . . . . . . . . . . . . . . . . . .   2
-   2.  Scope . . . . . . . . . . . . . . . . . . . . . . . . . . . .   2
+   1.  Requirements Language . . . . . . . . . . . . . . . . . . . .   3
+   2.  Scope . . . . . . . . . . . . . . . . . . . . . . . . . . . .   3
    3.  Engineering policy: bounded contexts and data semantics . . .   3
    4.  Registries and change control . . . . . . . . . . . . . . . .   5
      4.1.  Designated experts  . . . . . . . . . . . . . . . . . . .   6
@@ -79,14 +93,26 @@ Table of Contents
      7.4.  Fuzzing and load  . . . . . . . . . . . . . . . . . . . .  12
    8.  Migration . . . . . . . . . . . . . . . . . . . . . . . . . .  12
      8.1.  From legacy Manolito/MP2P (conceptual)  . . . . . . . . .  12
-     8.2.  From HEP-0.1 drafts (the attached preprint) . . . . . . .  12
+     8.2.  From HEP-0.1 drafts . . . . . . . . . . . . . . . . . . .  12
      8.3.  Coexistence . . . . . . . . . . . . . . . . . . . . . . .  13
-   9.  Reference implementation guidance . . . . . . . . . . . . . .  13
-   10. Compliance and regulatory notes (informative) . . . . . . . .  14
-   11. Security Considerations . . . . . . . . . . . . . . . . . . .  14
+   9.  Reference implementation guidance . . . . . . . . . . . . . .  14
+   10. Compliance and regulatory notes (informative) . . . . . . . .  15
+   11. Security Considerations . . . . . . . . . . . . . . . . . . .  15
    12. IANA Considerations . . . . . . . . . . . . . . . . . . . . .  15
    13. References (selected) . . . . . . . . . . . . . . . . . . . .  15
    Author's Address  . . . . . . . . . . . . . . . . . . . . . . . .  15
+
+
+
+
+
+
+
+
+Larsen                   Expires 18 January 2027                [Page 2]
+
+Internet-Draft              draft-map-ops-01                   July 2026
+
 
 1.  Requirements Language
 
@@ -106,14 +132,6 @@ Table of Contents
    the formal-analysis program, reference-implementation guidance,
    migration from legacy designs, and regulatory notes.
 
-
-
-
-Larsen                   Expires 18 January 2027                [Page 2]
-
-Internet-Draft              draft-map-ops-01                   July 2026
-
-
 3.  Engineering policy: bounded contexts and data semantics
 
    The document family is a deliberate bounded-context decomposition.
@@ -123,24 +141,6 @@ Internet-Draft              draft-map-ops-01                   July 2026
    transcript-root), never by embedded foreign structures.  Context
    integration happens through signed messages and translation
    (gateways, §5), never shared internal models.
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
@@ -541,19 +541,19 @@ Internet-Draft              draft-map-ops-01                   July 2026
    rule: no document leaves draft status without *two independent
    implementations* passing the full matrix against each other.
 
-   *Status (TASK-020, 2026-07-13): the live pairwise matrix is delivered
-   — 16/16, Rust (map-rs) ↔ Go (map-go).* Both implementations complete
-   real MAP sessions against each other over framed TCP, in both
-   orientations (each side as dialer and as listener), across 8
-   scenarios: echo, replay (1003), sequence gap (1003), tamper (2000),
-   cross-session relay (2000 — the live §7.3 anti-relay property),
-   version-disjoint handshake (1001), foreign-SessionID rejection (1006,
-   core §6.1), and delegated handshake with accountable-root resolution
-   (identity §4/§6).  The record, toolchain versions, and reproduction
-   driver are in interop/MATRIX.md.  This is the substantive session-
-   layer matrix; live cross-language task/receipt/payment flows layer on
-   the same session (I2) and remain future work.
-
+   *Status (2026-07-17): the live pairwise matrix is delivered — 26/26
+   (16 core + 6 task + 4 pay), Rust (map-rs) ↔ Go (map-go).* Both
+   implementations complete real MAP sessions against each other over
+   framed TCP, in both orientations (each side as dialer and as
+   listener), across 8 scenarios: echo, replay (1003), sequence gap
+   (1003), tamper (2000), cross-session relay (2000 — the live §7.3
+   anti-relay property), version-disjoint handshake (1001), foreign-
+   SessionID rejection (1006, core §6.1), and delegated handshake with
+   accountable-root resolution (identity §4/§6).  The record, toolchain
+   versions, and reproduction driver are in interop/MATRIX.md.  Cross-
+   language task flows (3 scenarios) and payment flows (2 scenarios:
+   postpaid and metered-incremental) layer on the same session (I2) and
+   are also live, over libp2p/QUIC, in both orientations.
 
 
 
@@ -561,6 +561,17 @@ Larsen                   Expires 18 January 2027               [Page 10]
 
 Internet-Draft              draft-map-ops-01                   July 2026
 
+
+   Two qualifications on the advancement rule.  First, *"two independent
+   implementations" is met mechanically and not substantively*: both are
+   the work of one author, the Go implementation written from the drafts
+   and frozen vectors under a rule forbidding it to read Rust source.
+   That discipline is real — it forces two readings of the same text —
+   but it is not two parties.  Second, the matrix covers the mechanisms
+   it exercises and no others; prepaid and escrow terms, the dispute
+   protocol (pay §6), and the x402 rail have one implementation, and
+   several registered message types have no codec in either.  A document
+   whose mechanisms are not in the matrix has not met this rule.
 
 7.2.  Required negative tests (minimum)
 
@@ -579,31 +590,20 @@ Internet-Draft              draft-map-ops-01                   July 2026
 
 7.3.  Formal analysis program
 
-   *Delivered for P1–P3 (TASK-014, 2026-07-10).* ProVerif 2.05 models at
-   formal/ (repo root): hello-cb.pv (P1 downgrade resistance via the
-   negotiation-recheck + transcript hash, core §6.2; P2 channel-binding
-   session separation, core §7.3 — no two distinguishable sessions ever
-   derive the same CB) and delegation.pv (P3 delegation-chain
-   attenuation is tighten-only, identity §4 / TASK-010 validate_chain,
-   including fail-closed unknown caveats).  Adversary: full active
-   Dolev-Yao network control plus a fully compromised insider (a
-   legitimate registered agent's private key is leaked).  All three
-   properties hold in the honest models (no counterexample found) and
-   each carries a mandatory negative control that fails with a concrete
-   witnessing trace, proving the queries are not vacuous.  No BLOCKING
-   finding.  Full methodology, the property-to-spec mapping, and the
-   abstraction gaps (msg-id/timestamp replay cache, sequence numbers,
-   suite negotiation, chain depth bounded to 2 links, zone attenuation,
-   exporter modeled at exactly the strength of the deployed /map/1.0.0
-   binding per TASK-012 FR-4) are in formal/README.md; captured tool
-   output is under formal/results/.
+   *Status.* ProVerif 2.05 models at formal/ cover session establishment
+   and delegation. hello-cb.pv checks that the initiator's negotiated
+   version is the mutual maximum given the initiator-side recheck
+   implemented in map-session, and that the channel-binding value
+   depends on the handshake transcript; delegation.pv checks that a two-
+   link chain rooted at an honest issuer is accepted only at the scope
+   the root granted, over a fixed three-element capability lattice.  The
+   adversary has full active Dolev-Yao network control plus one
+   compromised insider key.  No counterexample was found in the honest
+   models, and the downgrade, relay and delegation-widening negative
+   controls each fail with a witnessing trace.
 
-   Remaining future formal work (not yet modeled): receipts non-
-   repudiation, the payment binding chain (quote→agree→invoice→proof),
-   reservation obligations, and the msg-id replay cache itself (closing
-   the Q2 gap noted above to a stronger injective session-uniqueness
-   property).  Claims not covered by models or tests are labeled
-   assumptions (arch §7).
+
+
 
 
 
@@ -617,6 +617,27 @@ Larsen                   Expires 18 January 2027               [Page 11]
 
 Internet-Draft              draft-map-ops-01                   July 2026
 
+
+   These models do *not* establish injective anti-relay (the HELLO_ACK
+   freshness needed for that is present in the protocol but was not
+   modeled), do not verify the transcript-hash mechanism of core §6.2
+   itself, and do not cover the fail-closed caveat rule, chain-link
+   binding, validity windows or depth limits of identity §4.  The
+   escrow, dispute and metering models under formal/ (pay-auth.pv, pay-
+   dispute.pv, pay-meter.pv) are *drafts whose reachability guards fail*
+   — their properties are proved over an empty trace set — and are not
+   relied on for any claim in this document.
+
+   Remaining formal work: a sound injective anti-relay property (one
+   responder nonce plus a query change), a real agreement property for
+   negotiation, receipts non-repudiation, the payment binding chain
+   (quote→agree→invoice→proof) rebuilt as a state model, metering
+   arithmetic (which needs bounded enumeration or a tool with natural-
+   number reasoning), reservation obligations, and the msg-id replay
+   cache itself.  Full methodology, the property-to-spec mapping and the
+   abstraction gaps are in formal/README.md; captured tool output is
+   under formal/results/. Claims not covered by models or tests are
+   labeled assumptions (arch §6).
 
 7.4.  Fuzzing and load
 
@@ -636,7 +657,22 @@ Internet-Draft              draft-map-ops-01                   July 2026
    virtues are architectural: no supernodes, tolerance of churn, small
    messages.
 
-8.2.  From HEP-0.1 drafts (the attached preprint)
+8.2.  From HEP-0.1 drafts
+
+   *Editorial note (2026-09-18):* HEP-0.1 is an unpublished design
+   predecessor of this family, and the critique Cn citations in the
+   table below refer to 01-design-critique.md, which is likewise
+   unpublished.  This subsection and §7.1/§7.3 are ruled for removal
+   before publication (see ERRATA.md); a standalone document cannot cite
+   material its readers cannot obtain.
+
+
+
+
+Larsen                   Expires 18 January 2027               [Page 12]
+
+Internet-Draft              draft-map-ops-01                   July 2026
+
 
    +===================+=========================+=====================+
    | HEP-0.1           | MAP                     | Notes               |
@@ -666,14 +702,6 @@ Internet-Draft              draft-map-ops-01                   July 2026
    +-------------------+-------------------------+---------------------+
    | did:hep           | AgentID ≡ did:key       | critique C13        |
    |                   | ≡ libp2p PeerID         |                     |
-
-
-
-Larsen                   Expires 18 January 2027               [Page 12]
-
-Internet-Draft              draft-map-ops-01                   July 2026
-
-
    +-------------------+-------------------------+---------------------+
    | credits/escrow    | PAY_* + settlement      | critique C9         |
    | prose             | registry                |                     |
@@ -689,6 +717,18 @@ Internet-Draft              draft-map-ops-01                   July 2026
 
    A HEP-0.1 prototype bridges via a gateway (G-1..G-4) during
    transition; dual-stack nodes advertise both and prefer MAP sessions.
+
+
+
+
+
+
+
+
+Larsen                   Expires 18 January 2027               [Page 13]
+
+Internet-Draft              draft-map-ops-01                   July 2026
+
 
 9.  Reference implementation guidance
 
@@ -723,13 +763,6 @@ Internet-Draft              draft-map-ops-01                   July 2026
    package.  The Rust workspace map-rs/ (impl #1 toward the §6.1 two-
    implementation rule) is the first target of this process.
 
-
-
-Larsen                   Expires 18 January 2027               [Page 13]
-
-Internet-Draft              draft-map-ops-01                   July 2026
-
-
    Status (TASK-001..003): the map-rs/ scaffold builds and its full test
    suite is green.  The conformance/map-conformance crate reproduces
    TV-001 and TV-002 byte-for-byte from the seeds and rejects the §6.2
@@ -745,6 +778,14 @@ Internet-Draft              draft-map-ops-01                   July 2026
    under the independence rule — no Rust source consulted) reproduces
    every frozen positive vector byte-for-byte from seeds (TV-001..015
    incl.  TV-010b; TV-007 ASSIGN is produce+consume in Go, closing that
+
+
+
+Larsen                   Expires 18 January 2027               [Page 14]
+
+Internet-Draft              draft-map-ops-01                   July 2026
+
+
    ERRATA parity hole on the Go side), consumes them from frozen bytes,
    and rejects NV-001..008 with the required classes, including the §6.2
    canonicality-vs-signature isolation case (NV-003) and scope-widening
@@ -775,17 +816,6 @@ Internet-Draft              draft-map-ops-01                   July 2026
    concentrate trust by construction — G-1/G-2 make that concentration
    visible and priced rather than hidden.
 
-
-
-
-
-
-
-Larsen                   Expires 18 January 2027               [Page 14]
-
-Internet-Draft              draft-map-ops-01                   July 2026
-
-
 12.  IANA Considerations
 
    This document defines the registration policies and change-control
@@ -802,6 +832,15 @@ Internet-Draft              draft-map-ops-01                   July 2026
    [RFC2119] [RFC8174] BCP 14 requirement levels.
 
 Author's Address
+
+
+
+
+
+Larsen                   Expires 18 January 2027               [Page 15]
+
+Internet-Draft              draft-map-ops-01                   July 2026
+
 
    Jesse Larsen
    Independent
@@ -837,4 +876,21 @@ Author's Address
 
 
 
-Larsen                   Expires 18 January 2027               [Page 15]
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Larsen                   Expires 18 January 2027               [Page 16]

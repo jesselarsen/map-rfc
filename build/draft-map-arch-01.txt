@@ -94,13 +94,13 @@ Table of Contents
    instincts — decentralization without supernodes, lightweight signed
    messages, tolerance of extreme churn — and discards its obsolete
    mechanics (cleartext UDP, file-hash indexing, no identity layer).
-   The essential inversion, taken from the attached design work: MP2P
-   asked "who has this file?"; MAP asks "who can do this task?".  The
-   network is a *capability graph*.
+   The essential inversion is this: MP2P asked "who has this file?"; MAP
+   asks "who can do this task?".  The network is a *capability graph*.
 
    MAP is a _protocol_, not a product.  "Hermes" and similar
    orchestrators are implementations that speak MAP; nothing in these
    documents privileges any implementation.
+
 
 
 

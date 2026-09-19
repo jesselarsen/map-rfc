@@ -13,9 +13,23 @@ Expires: 18 January 2027
 
 Abstract
 
-   This document is part of the MAP (Manolito Agent Protocol)
-   specification family.  See draft-map-index-01 for the family overview
-   and reading order.
+   This document is the wire-level reference for the MAP (Manolito Agent
+   Protocol) family.  It presents the protocol data unit layering —
+   transport frame, signed COSE_Sign1 envelope over deterministic CBOR,
+   protected and body headers, and message-type-selected content — as a
+   single diagram with the field-level detail each layer's owning
+   document specifies, so that an implementer can see the whole encoding
+   in one place.  It then consolidates every code point the family
+   assigns: message types, error codes, body and protected-header keys,
+   cryptographic suites, capability-ontology terms, delegation caveats,
+   chunk kinds, settlement methods, pricing models, dispute claim codes,
+   and the remaining registries, each with its registration policy and a
+   pointer to the document that owns it.
+
+   This document is an index, not a normative source.  Where it
+   disagrees with an owning document, the owning document governs.  It
+   defines no protocol behavior of its own and requests no IANA action
+   of its own.
 
 Status of This Memo
 
@@ -34,6 +48,16 @@ Status of This Memo
 
    This Internet-Draft will expire on 18 January 2027.
 
+
+
+
+
+
+Larsen                   Expires 18 January 2027                [Page 1]
+
+Internet-Draft              draft-map-wire-01                  July 2026
+
+
 Copyright Notice
 
    Copyright (c) 2026 IETF Trust and the persons identified as the
@@ -45,22 +69,9 @@ Copyright Notice
    Please review these documents carefully, as they describe your rights
    and restrictions with respect to this document.
 
-
-
-
-
-
-
-
-
-Larsen                   Expires 18 January 2027                [Page 1]
-
-Internet-Draft              draft-map-wire-01                  July 2026
-
-
 Table of Contents
 
-   1.  Requirements Language . . . . . . . . . . . . . . . . . . . .   2
+   1.  Requirements Language . . . . . . . . . . . . . . . . . . . .   3
    2.  Purpose and how to read this document . . . . . . . . . . . .   3
    3.  The MAP Protocol Data Unit (PDU) layering . . . . . . . . . .   3
    4.  Master Registry Index . . . . . . . . . . . . . . . . . . . .   5
@@ -94,17 +105,6 @@ Table of Contents
    9.  References (selected) . . . . . . . . . . . . . . . . . . . .  12
    Author's Address  . . . . . . . . . . . . . . . . . . . . . . . .  12
 
-1.  Requirements Language
-
-   The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
-   "SHOULD", "SHOULD NOT", "RECOMMENDED", "NOT RECOMMENDED", "MAY", and
-   "OPTIONAL" in this document family are to be interpreted as described
-   in BCP 14 [RFC2119] [RFC8174] when, and only when, they appear in all
-   capitals, as shown here.  No adaptation or weakening of these terms
-   applies.
-
-
-
 
 
 
@@ -113,6 +113,15 @@ Larsen                   Expires 18 January 2027                [Page 2]
 
 Internet-Draft              draft-map-wire-01                  July 2026
 
+
+1.  Requirements Language
+
+   The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+   "SHOULD", "SHOULD NOT", "RECOMMENDED", "NOT RECOMMENDED", "MAY", and
+   "OPTIONAL" in this document family are to be interpreted as described
+   in BCP 14 [RFC2119] [RFC8174] when, and only when, they appear in all
+   capitals, as shown here.  No adaptation or weakening of these terms
+   applies.
 
 2.  Purpose and how to read this document
 
@@ -132,15 +141,6 @@ Internet-Draft              draft-map-wire-01                  July 2026
 
    Every MAP message is a signed CBOR/COSE envelope.  The layering, top
    to bottom:
-
-
-
-
-
-
-
-
-
 
 
 

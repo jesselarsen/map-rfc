@@ -1353,7 +1353,7 @@ li > p:last-of-type:only-child {
       <h2 id="name-document-index">
 <a href="#section-2" class="section-number selfRef">2. </a><a href="#name-document-index" class="section-name selfRef">Document index</a>
       </h2>
-<p id="section-2-1">This is a set of <strong>10 Internet-Drafts</strong> submitted as a group to the IETF Independent Stream. The table below is the authoritative scope/dependency map (also carried in <code>draft-map-arch-01</code> §11).<a href="#section-2-1" class="pilcrow">¶</a></p>
+<p id="section-2-1">This is a set of <strong>11 documents</strong>. They were written for the IETF Independent Stream; see <code>SUBMISSION.md</code> for why that stream cannot host the family's registries and what the publication path is now. The table below is the authoritative scope/dependency map (also carried in <code>draft-map-arch-01</code> §11).<a href="#section-2-1" class="pilcrow">¶</a></p>
 <table class="center" id="table-1">
         <caption><a href="#table-1" class="selfRef">Table 1</a></caption>
 <thead>
@@ -1473,7 +1473,8 @@ li > p:last-of-type:only-child {
       <h2 id="name-submission-status">
 <a href="#section-4" class="section-number selfRef">4. </a><a href="#name-submission-status" class="section-name selfRef">Submission status</a>
       </h2>
-<p id="section-4-1">The family is intended for the IETF Independent Stream (each draft's <code>submissiontype: independent</code> front-matter records this). Registry ownership and the pre/post-publication authority split are defined in <code>draft-map-ops-01</code> §3.5. Submission is gated on the two-independent-implementation criterion (<code>draft-map-ops-01</code> §6.1): both reference implementations (<code>map-rs</code>, <code>map-go</code>) pass the full test-vector set and the live pairwise interop matrix (16/16). The documents remain in draft pending human/expert review.<a href="#section-4-1" class="pilcrow">¶</a></p>
+<p id="section-4-1">The family was written for the IETF Independent Stream (each draft's <code>submissiontype: independent</code> front-matter records this). That stream cannot create the ~20 IANA registries this family defines, nor grant the registration policies they use (RFC 8726 §2/§4/§5), so the family's registries are stewarded outside the RFC series per <code>draft-map-ops-01</code> §3.5 and only narrow, registry-free extracts are submitted. <code>SUBMISSION.md</code> records the current plan.<a href="#section-4-1" class="pilcrow">¶</a></p>
+<p id="section-4-2">Both reference implementations (<code>map-rs</code>, <code>map-go</code>) pass the full test-vector set and the live pairwise interop matrix (26/26 — 16 core, 6 task, 4 pay), which meets <code>draft-map-ops-01</code> §6.1 mechanically; both are the work of one author, so the independence criterion is not met substantively. The documents remain in draft pending human/expert review.<a href="#section-4-2" class="pilcrow">¶</a></p>
 </section>
 </div>
 <div id="security-considerations-5">

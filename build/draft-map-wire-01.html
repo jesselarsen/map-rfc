@@ -7,7 +7,8 @@
 <title>MAP Wire Format and Registry Index</title>
 <meta content="Jesse Larsen" name="author">
 <meta content="
-       This document is part of the MAP (Manolito Agent Protocol) specification family. See draft-map-index-01 for the family overview and reading order. 
+       This document is the wire-level reference for the MAP (Manolito Agent Protocol) family. It presents the protocol data unit layering — transport frame, signed COSE_Sign1 envelope over deterministic CBOR, protected and body headers, and message-type-selected content — as a single diagram with the field-level detail each layer's owning document specifies, so that an implementer can see the whole encoding in one place. It then consolidates every code point the family assigns: message types, error codes, body and protected-header keys, cryptographic suites, capability-ontology terms, delegation caveats, chunk kinds, settlement methods, pricing models, dispute claim codes, and the remaining registries, each with its registration policy and a pointer to the document that owns it. 
+       This document is an index, not a normative source. Where it disagrees with an owning document, the owning document governs. It defines no protocol behavior of its own and requests no IANA action of its own. 
     " name="description">
 <meta content="xml2rfc 3.34.0" name="generator">
 <meta content="draft-map-wire-01" name="ietf.draft">
@@ -1247,7 +1248,8 @@ li > p:last-of-type:only-child {
 <h1 id="title">MAP Wire Format and Registry Index</h1>
 <section id="section-abstract">
       <h2 id="abstract"><a href="#abstract" class="selfRef">Abstract</a></h2>
-<p id="section-abstract-1">This document is part of the MAP (Manolito Agent Protocol) specification family. See draft-map-index-01 for the family overview and reading order.<a href="#section-abstract-1" class="pilcrow">¶</a></p>
+<p id="section-abstract-1">This document is the wire-level reference for the MAP (Manolito Agent Protocol) family. It presents the protocol data unit layering — transport frame, signed COSE_Sign1 envelope over deterministic CBOR, protected and body headers, and message-type-selected content — as a single diagram with the field-level detail each layer's owning document specifies, so that an implementer can see the whole encoding in one place. It then consolidates every code point the family assigns: message types, error codes, body and protected-header keys, cryptographic suites, capability-ontology terms, delegation caveats, chunk kinds, settlement methods, pricing models, dispute claim codes, and the remaining registries, each with its registration policy and a pointer to the document that owns it.<a href="#section-abstract-1" class="pilcrow">¶</a></p>
+<p id="section-abstract-2">This document is an index, not a normative source. Where it disagrees with an owning document, the owning document governs. It defines no protocol behavior of its own and requests no IANA action of its own.<a href="#section-abstract-2" class="pilcrow">¶</a></p>
 </section>
 <div id="status-of-memo">
 <section id="section-boilerplate.1">

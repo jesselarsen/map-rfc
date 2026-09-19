@@ -11,8 +11,8 @@ ipr: trust200902
 # MAP Task Execution and Secure Messaging
 
 **Status of This Memo:** This document is an Internet-Draft-style preprint
-published for open-source community review. Two independent interoperating
-implementations pass the full live interop matrix (ops §6.1). It has not been
+published for open-source community review. Two implementations by one
+author, under a source-isolation rule, pass the full live interop matrix (ops §6.1). It has not been
 submitted to the IETF (intended independent stream; see ops §3.5). Distribution
 is unlimited. It expires six months after publication and MUST NOT be cited
 except as "work in progress" pending human/expert review. BCP 14 language

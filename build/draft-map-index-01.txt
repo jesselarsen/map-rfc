@@ -71,7 +71,7 @@ Table of Contents
    3.  Reading order . . . . . . . . . . . . . . . . . . . . . . . .   4
    4.  Submission status . . . . . . . . . . . . . . . . . . . . . .   5
    5.  Security Considerations . . . . . . . . . . . . . . . . . . .   5
-   6.  IANA Considerations . . . . . . . . . . . . . . . . . . . . .   5
+   6.  IANA Considerations . . . . . . . . . . . . . . . . . . . . .   6
    7.  References (selected) . . . . . . . . . . . . . . . . . . . .   6
    Author's Address  . . . . . . . . . . . . . . . . . . . . . . . .   6
 
@@ -116,9 +116,11 @@ Internet-Draft             draft-map-index-01                  July 2026
 
 2.  Document index
 
-   This is a set of *10 Internet-Drafts* submitted as a group to the
-   IETF Independent Stream.  The table below is the authoritative scope/
-   dependency map (also carried in draft-map-arch-01 §11).
+   This is a set of *11 documents*. They were written for the IETF
+   Independent Stream; see SUBMISSION.md for why that stream cannot host
+   the family's registries and what the publication path is now.  The
+   table below is the authoritative scope/dependency map (also carried
+   in draft-map-arch-01 §11).
 
    +========================+=============+=================+=========+
    | Document               |Class        |Scope            |Depends  |
@@ -160,8 +162,6 @@ Internet-Draft             draft-map-index-01                  July 2026
    +------------------------+-------------+-----------------+---------+
    | draft-map-identity-01  |Standards    |AgentID, key     |—        |
    |                        |             |hierarchy,       |         |
-   |                        |             |delegation,      |         |
-   |                        |             |rotation,        |         |
 
 
 
@@ -170,6 +170,8 @@ Larsen                   Expires 18 January 2027                [Page 3]
 Internet-Draft             draft-map-index-01                  July 2026
 
 
+   |                        |             |delegation,      |         |
+   |                        |             |rotation,        |         |
    |                        |             |revocation, DID/ |         |
    |                        |             |WebAuthn interop |         |
    +------------------------+-------------+-----------------+---------+
@@ -216,8 +218,6 @@ Internet-Draft             draft-map-index-01                  July 2026
 
    1.  draft-map-intro-01 — why, and what was rejected (read first).
 
-   2.  draft-map-arch-01 — goals, non-goals, trust model, threats.
-
 
 
 
@@ -225,6 +225,8 @@ Larsen                   Expires 18 January 2027                [Page 4]
 
 Internet-Draft             draft-map-index-01                  July 2026
 
+
+   2.  draft-map-arch-01 — goals, non-goals, trust model, threats.
 
    3.  draft-map-core-01 — the envelope and session model everything
        else builds on.
@@ -244,14 +246,20 @@ Internet-Draft             draft-map-index-01                  July 2026
 
 4.  Submission status
 
-   The family is intended for the IETF Independent Stream (each draft's
-   submissiontype: independent front-matter records this).  Registry
-   ownership and the pre/post-publication authority split are defined in
-   draft-map-ops-01 §3.5.  Submission is gated on the two-independent-
-   implementation criterion (draft-map-ops-01 §6.1): both reference
-   implementations (map-rs, map-go) pass the full test-vector set and
-   the live pairwise interop matrix (16/16).  The documents remain in
-   draft pending human/expert review.
+   The family was written for the IETF Independent Stream (each draft's
+   submissiontype: independent front-matter records this).  That stream
+   cannot create the ~20 IANA registries this family defines, nor grant
+   the registration policies they use (RFC 8726 §2/§4/§5), so the
+   family's registries are stewarded outside the RFC series per draft-
+   map-ops-01 §3.5 and only narrow, registry-free extracts are
+   submitted.  SUBMISSION.md records the current plan.
+
+   Both reference implementations (map-rs, map-go) pass the full test-
+   vector set and the live pairwise interop matrix (26/26 — 16 core, 6
+   task, 4 pay), which meets draft-map-ops-01 §6.1 mechanically; both
+   are the work of one author, so the independence criterion is not met
+   substantively.  The documents remain in draft pending human/expert
+   review.
 
 5.  Security Considerations
 
@@ -264,14 +272,6 @@ Internet-Draft             draft-map-index-01                  July 2026
    free reputation), and draft-map-pay-01 (settlement evidence and
    disputes). draft-map-arch-01 states the family threat model.
 
-6.  IANA Considerations
-
-   This document requests no IANA actions.  The consolidated registry
-   index for the family is draft-map-wire-01; individual registries are
-   defined and populated by the protocol documents.
-
-
-
 
 
 
@@ -281,6 +281,12 @@ Larsen                   Expires 18 January 2027                [Page 5]
 
 Internet-Draft             draft-map-index-01                  July 2026
 
+
+6.  IANA Considerations
+
+   This document requests no IANA actions.  The consolidated registry
+   index for the family is draft-map-wire-01; individual registries are
+   defined and populated by the protocol documents.
 
 7.  References (selected)
 
@@ -293,12 +299,6 @@ Author's Address
    Jesse Larsen
    Independent
    Email: jesselarsen@gmail.com
-
-
-
-
-
-
 
 
 

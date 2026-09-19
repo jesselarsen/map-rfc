@@ -11,8 +11,8 @@ ipr: trust200902
 # MAP Operations, Governance, and Interoperability
 
 **Status of This Memo:** This document is an Internet-Draft-style preprint
-published for open-source community review. Two independent interoperating
-implementations pass the full live interop matrix (§6.1). It has not been
+published for open-source community review. Two implementations by one
+author, under a source-isolation rule, pass the full live interop matrix (§6.1). It has not been
 submitted to the IETF (intended independent stream; see §3.5). Distribution is
 unlimited. It expires six months after publication and MUST NOT be cited except
 as "work in progress" pending human/expert review. BCP 14 language applies (see
@@ -20,6 +20,26 @@ Requirements Language, below).
 
 
 This document is subject to BCP 78 and BCP 79. The source working tree is distributed under Apache-2.0 (see repository LICENSE); contributors SHOULD disclose relevant IPR per BCP 79. On publication the RFC is copyrighted by the IETF Trust and licensed per the IETF Trust's terms (see draft-map-ops-01 sect. 3.5).
+
+## Abstract
+
+This document covers the operational half of the MAP (Manolito Agent Protocol)
+family: how the specifications are governed and changed, how their registries
+are administered, how independently operated meshes federate, how conformance
+is demonstrated, and how deployments migrate.
+
+It defines the engineering and data-semantics policy the family is written
+against; the registration policy, change control and stewardship arrangements
+for the code-point registries indexed in draft-map-wire-01; the rules governing
+federation gateways, including the admission, attribution and bounded-spend
+constraints a gateway must satisfy to bridge two meshes or to front a paid
+external API; the conformance program — test vectors, negative vectors, the
+pairwise interoperability matrix, and the formal-analysis effort, together with
+the advancement rule that gates a document's maturity on two implementations
+demonstrating interoperation; and guidance for implementers and for migration
+from predecessor designs.
+
+This document specifies no wire format and assigns no code points.
 
 ## Requirements Language
 
@@ -243,17 +263,29 @@ conformance suites, and live pairwise interop matrices. Advancement rule:
 no document leaves draft status without **two independent
 implementations** passing the full matrix against each other.
 
-**Status (TASK-020, 2026-07-13): the live pairwise matrix is delivered —
-16/16, Rust (`map-rs`) ↔ Go (`map-go`).** Both implementations complete
+**Status (2026-07-17): the live pairwise matrix is delivered — 26/26
+(16 core + 6 task + 4 pay), Rust (`map-rs`) ↔ Go (`map-go`).** Both
+implementations complete
 real MAP sessions against each other over framed TCP, in both orientations
 (each side as dialer and as listener), across 8 scenarios: echo, replay
 (1003), sequence gap (1003), tamper (2000), cross-session relay (2000 — the
 live §7.3 anti-relay property), version-disjoint handshake (1001),
 foreign-SessionID rejection (1006, core §6.1), and delegated handshake with
 accountable-root resolution (identity §4/§6). The record, toolchain
-versions, and reproduction driver are in `interop/MATRIX.md`. This is the
-substantive session-layer matrix; live cross-language task/receipt/payment
-flows layer on the same session (I2) and remain future work.
+versions, and reproduction driver are in `interop/MATRIX.md`. Cross-language
+task flows (3 scenarios) and payment flows (2 scenarios: postpaid and
+metered-incremental) layer on the same session (I2) and are also live, over
+libp2p/QUIC, in both orientations.
+
+Two qualifications on the advancement rule. First, **"two independent
+implementations" is met mechanically and not substantively**: both are the work
+of one author, the Go implementation written from the drafts and frozen vectors
+under a rule forbidding it to read Rust source. That discipline is real — it
+forces two readings of the same text — but it is not two parties. Second, the
+matrix covers the mechanisms it exercises and no others; prepaid and escrow
+terms, the dispute protocol (pay §6), and the x402 rail have one implementation,
+and several registered message types have no codec in either. A document whose
+mechanisms are not in the matrix has not met this rule.
 
 ### 6.2 Required negative tests (minimum)
 Duplicate delivery of every idempotent message (ASSIGN, RECEIPT,
@@ -270,29 +302,35 @@ DHT index from descriptors.
 
 ### 6.3 Formal analysis program
 
-**Delivered for P1–P3 (TASK-014, 2026-07-10).** ProVerif 2.05 models at
-`formal/` (repo root): `hello-cb.pv` (P1 downgrade resistance via the
-negotiation-recheck + transcript hash, core §6.2; P2 channel-binding
-session separation, core §7.3 — no two distinguishable sessions ever derive
-the same CB) and `delegation.pv` (P3 delegation-chain attenuation is
-tighten-only, identity §4 / TASK-010 `validate_chain`, including
-fail-closed unknown caveats). Adversary: full active Dolev-Yao network
-control plus a fully compromised insider (a legitimate registered agent's
-private key is leaked). All three properties hold in the honest models
-(no counterexample found) and each carries a mandatory negative control
-that fails with a concrete witnessing trace, proving the queries are not
-vacuous. No BLOCKING finding. Full methodology, the property-to-spec
-mapping, and the abstraction gaps (msg-id/timestamp replay cache,
-sequence numbers, suite negotiation, chain depth bounded to 2 links, zone
-attenuation, exporter modeled at exactly the strength of the deployed
-`/map/1.0.0` binding per TASK-012 FR-4) are in `formal/README.md`;
-captured tool output is under `formal/results/`.
+**Status.** ProVerif 2.05 models at `formal/` cover session establishment and
+delegation. `hello-cb.pv` checks that the initiator's negotiated version is the
+mutual maximum given the initiator-side recheck implemented in `map-session`,
+and that the channel-binding value depends on the handshake transcript;
+`delegation.pv` checks that a two-link chain rooted at an honest issuer is
+accepted only at the scope the root granted, over a fixed three-element
+capability lattice. The adversary has full active Dolev-Yao network control plus
+one compromised insider key. No counterexample was found in the honest models,
+and the downgrade, relay and delegation-widening negative controls each fail
+with a witnessing trace.
 
-Remaining future formal work (not yet modeled): receipts non-repudiation,
-the payment binding chain (quote→agree→invoice→proof), reservation
-obligations, and the msg-id replay cache itself (closing the Q2 gap noted
-above to a stronger injective session-uniqueness property). Claims not
-covered by models or tests are labeled assumptions (arch §7).
+These models do **not** establish injective anti-relay (the HELLO_ACK freshness
+needed for that is present in the protocol but was not modeled), do not verify
+the transcript-hash mechanism of core §6.2 itself, and do not cover the
+fail-closed caveat rule, chain-link binding, validity windows or depth limits of
+identity §4. The escrow, dispute and metering models under `formal/`
+(`pay-auth.pv`, `pay-dispute.pv`, `pay-meter.pv`) are **drafts whose
+reachability guards fail** — their properties are proved over an empty trace set
+— and are not relied on for any claim in this document.
+
+Remaining formal work: a sound injective anti-relay property (one responder
+nonce plus a query change), a real agreement property for negotiation, receipts
+non-repudiation, the payment binding chain (quote→agree→invoice→proof) rebuilt
+as a state model, metering arithmetic (which needs bounded enumeration or a
+tool with natural-number reasoning), reservation obligations, and the msg-id
+replay cache itself. Full methodology, the property-to-spec mapping and the
+abstraction gaps are in `formal/README.md`; captured tool output is under
+`formal/results/`. Claims not covered by models or tests are labeled
+assumptions (arch §6).
 
 ### 6.4 Fuzzing and load
 Continuous structure-aware CBOR fuzzing of every decoder; churn simulation
@@ -308,7 +346,13 @@ unsigned cleartext → signed CBOR over encrypted transports; "who has the
 file" results → descriptors + status. The retained virtues are
 architectural: no supernodes, tolerance of churn, small messages.
 
-### 7.2 From HEP-0.1 drafts (the attached preprint)
+### 7.2 From HEP-0.1 drafts
+
+> **Editorial note (2026-09-18):** HEP-0.1 is an unpublished design predecessor
+> of this family, and the `critique Cn` citations in the table below refer to
+> `01-design-critique.md`, which is likewise unpublished. This subsection and
+> §7.1/§7.3 are ruled for removal before publication (see `ERRATA.md`); a
+> standalone document cannot cite material its readers cannot obtain.
 
 | HEP-0.1 | MAP | Notes |
 |---|---|---|

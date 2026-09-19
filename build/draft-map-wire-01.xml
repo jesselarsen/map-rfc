@@ -4,7 +4,8 @@
     <title abbrev="draft-map-wire-01">MAP Wire Format and Registry Index</title>
     <author initials="J." surname="Larsen" fullname="Jesse Larsen"><organization>Independent</organization><address><email>jesselarsen@gmail.com</email></address></author>
     <date year="2026" month="July" day="17"/>
-    <abstract><t>This document is part of the MAP (Manolito Agent Protocol) specification family. See draft-map-index-01 for the family overview and reading order.</t></abstract>
+    <abstract><t>This document is the wire-level reference for the MAP (Manolito Agent Protocol) family. It presents the protocol data unit layering &#8212; transport frame, signed COSE_Sign1 envelope over deterministic CBOR, protected and body headers, and message-type-selected content &#8212; as a single diagram with the field-level detail each layer&#x27;s owning document specifies, so that an implementer can see the whole encoding in one place. It then consolidates every code point the family assigns: message types, error codes, body and protected-header keys, cryptographic suites, capability-ontology terms, delegation caveats, chunk kinds, settlement methods, pricing models, dispute claim codes, and the remaining registries, each with its registration policy and a pointer to the document that owns it.</t>
+<t>This document is an index, not a normative source. Where it disagrees with an owning document, the owning document governs. It defines no protocol behavior of its own and requests no IANA action of its own.</t></abstract>
   </front>
   <middle>
 <section anchor="requirements-language-1" numbered="true">

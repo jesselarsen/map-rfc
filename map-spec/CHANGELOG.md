@@ -8,6 +8,71 @@ version that carries it). No revision to date contains a breaking change.
 
 ---
 
+## External review Track 0: claim corrections — 2026-09-18
+
+**Editorial only.** No wire, registry, code-point, or normative-mechanism
+change; frozen test vectors byte-stable; no CDDL block altered. Every change
+corrects a statement the repository made about itself that an external review
+found to be false. Rulings and reasoning are in `ERRATA.md`.
+
+### Editorial (drafts)
+
+- **All 11 drafts** — the Status-of-This-Memo preamble claimed "two independent
+  interoperating implementations"; corrected to "two implementations by one
+  author, under a source-isolation rule". In IETF usage "independent" means
+  different parties.
+- **`draft-map-ops-01` §6.1** — interop figure 16/16 → 26/26 (16 core + 6 task
+  + 4 pay); deleted the false claim that cross-language task and payment flows
+  "remain future work"; added the two qualifications on the advancement rule
+  (independence is mechanical, and the matrix covers only the mechanisms it
+  exercises).
+- **`draft-map-ops-01` §6.3** — the formal-analysis program is restated to
+  match what the models establish. The payment-layer models (`pay-auth.pv`,
+  `pay-dispute.pv`, `pay-meter.pv`) have failing reachability guards and prove
+  their properties over an empty trace set; they are no longer relied on for
+  any claim. P2 is no longer described as anti-relay.
+- **`draft-map-ops-01` §7.2** — removed "(the attached preprint)" and added an
+  editorial note that §7.1–§7.3 are ruled for removal before publication.
+- **`draft-map-arch-01` §1** — removed "taken from the attached design work".
+  A standalone document cannot cite material its readers cannot obtain.
+- **`draft-map-index-01` §2/§4** — "10 Internet-Drafts" above a table of 11;
+  interop figure; and the submission-status paragraph now records that the
+  Independent Stream cannot host the family's registries.
+- **`draft-map-intro-01` §6** — implementation independence and the formal
+  claim, as above.
+- **`draft-map-wire-01`, `draft-map-ops-01`** — document-specific Abstracts
+  added. Both previously rendered `md2rfc.py`'s generic family placeholder.
+
+### Editorial (supporting documents)
+
+- `SUBMISSION.md` — the Stream section is rewritten: RFC 8726 §2/§4/§5 bar the
+  Independent Stream from creating the ~20 registries this family defines or
+  granting the policies they use, which relabeling does not fix. Records the
+  current path (self-hosted registries; two narrow registry-free extracts) and
+  a MUST-resolve list that now leads with the demonstrated defects.
+- `formal/README.md` — results table corrected against the repository's own
+  stored logs: P5 and P6 reachability queries are unreachable, and the P4
+  control does not discriminate.
+- `README.md` — interop figure; TV/NV counts; task-package count; and the
+  Status section now states implementation coverage in three explicit tiers
+  instead of claiming the protocol is "implemented twice".
+- `CLAUDE.md` — no longer claims this is a spec-only repository with no build
+  or test command.
+- `ERRATA.md` — first pass of `REVIEW-PROCESS.md`'s intake process; ten RULED
+  entries.
+
+### Tooling
+
+- `build/nits.py` — detected a placeholder Abstract as present because it
+  grepped for the word "Abstract"; now matches the placeholder sentence against
+  whitespace-collapsed text and hard-fails. Verified to go red for exactly
+  `wire` and `ops` before their abstracts were written.
+- `build/render.py` — xml2rfc's stderr was discarded on zero-exit runs, which
+  is how a silently dropped `submissionType` attribute stayed invisible;
+  warnings are now printed.
+
+---
+
 ## I-D submission readiness: author metadata, render hardening, nits, SUBMISSION.md (TASK-031) — 2026-07-18
 
 Editorial only. No wire, registry, code-point, or normative-mechanism change;
