@@ -1006,7 +1006,10 @@ artifact (hex, {len(nv014)} bytes):
 # TV-022: a signed A2A Agent Card carrying the MAP extension (binding A2A-1,
 # A2A §8.4 JWS with the payload detached; alg EdDSA, kid = Key B's AgentID in
 # multibase). JCS here is json.dumps(sort_keys, compact): identical to
-# RFC 8785 for this ASCII-only, integer-only document (asserted).
+# RFC 8785 for this ASCII-only, number-free document (asserted). The card is
+# inside the binding's interop profile (A2A-31): no `required: false`, no
+# numbers in `params` (A2A-3a), no empty values, so its bytes are also what
+# the reference a2a-sdk canonicalizer produces.
 # =====================================================================
 import base64, json
 
@@ -1028,9 +1031,8 @@ card = {
     "capabilities": {"streaming": False, "extensions": [{
         "uri": "https://map-protocol.org/ext/accountability/v2",
         "description": "MAP accountability layer: dual-signed receipts, countersigned checkpoints, zone labels, metering evidence.",
-        "required": False,
-        "params": {"agentId": kid_b, "supportedZones": [2, 3],
-                   "checkpointIntervalParts": 8, "acceptedVoucherRails": ["pay:mpp-tempo"]}}]},
+        "params": {"agentId": kid_b, "supportedZones": ["2", "3"],
+                   "checkpointIntervalParts": "8", "acceptedVoucherRails": ["pay:mpp-tempo"]}}]},
     "defaultInputModes": ["text/plain"],
     "defaultOutputModes": ["text/plain"],
     "skills": [{"id": "generate", "name": "Generate", "description": "Text generation", "tags": ["text"]}],

@@ -15,3 +15,21 @@ map-meter = { path = "../../crates/map-meter" }
 sha2.workspace = true
 # A2A is JSON. serde_json is used as a value model only (no derive macros).
 serde_json = { version = "1", features = ["float_roundtrip"] }
+# HTTP transport (feature `http`): a blocking server and client, plain
+# HTTP only (no TLS stack), enough for the demo and interop checks.
+tiny_http = { version = "0.12", optional = true }
+ureq = { version = "2", default-features = false, optional = true }
+getrandom = { workspace = true, optional = true }
+
+[features]
+http = ["dep:tiny_http", "dep:ureq", "dep:getrandom"]
+
+[[bin]]
+name = "map-a2a-provider"
+path = "src/bin/map-a2a-provider.rs"
+required-features = ["http"]
+
+[[bin]]
+name = "map-a2a-requester"
+path = "src/bin/map-a2a-requester.rs"
+required-features = ["http"]

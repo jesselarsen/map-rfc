@@ -332,6 +332,11 @@ impl RequesterTask {
         self.builder.root()
     }
 
+    /// Parts in this task's transcript, including a resumed prefix.
+    pub fn parts_received(&self) -> usize {
+        self.parts.len()
+    }
+
     /// Verify a provider's checkpoint proposal against what this requester
     /// actually received and observed, then countersign it (C-2). Returns
     /// the dual-signed artifact bytes to send back.

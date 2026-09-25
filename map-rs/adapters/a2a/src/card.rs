@@ -80,11 +80,13 @@ pub fn build_card(agent: &AgentId, p: &CardParams) -> Value {
             "extensions": [{
                 "uri": MAP_EXTENSION_URI,
                 "description": "MAP accountability layer: dual-signed receipts, countersigned checkpoints, zone labels, metering evidence.",
-                "required": false,
+                // `required: false` is an implicit-presence default and so is
+                // omitted (A2A-2); integers in `params` are decimal strings
+                // (A2A-3a) so protobuf-based SDKs canonicalize them alike.
                 "params": {
                     "agentId": agent.to_multibase(),
-                    "supportedZones": p.supported_zones,
-                    "checkpointIntervalParts": p.checkpoint_interval_parts,
+                    "supportedZones": p.supported_zones.iter().map(u8::to_string).collect::<Vec<_>>(),
+                    "checkpointIntervalParts": p.checkpoint_interval_parts.to_string(),
                     "acceptedVoucherRails": p.accepted_voucher_rails
                 }
             }]
@@ -116,12 +118,34 @@ fn drop_empty_repeated(v: &mut Value) {
     }
 }
 
+/// Drop implicit-presence scalars (proto3 fields with neither `optional` nor
+/// REQUIRED) that hold their default, from every object in `list`.
+fn drop_implicit_defaults(list: Option<&mut Value>, fields: &[(&str, Value)]) {
+    let Some(Value::Array(items)) = list else { return };
+    for item in items.iter_mut().filter_map(Value::as_object_mut) {
+        for (name, default) in fields {
+            if item.get(*name) == Some(default) {
+                item.remove(*name);
+            }
+        }
+    }
+}
+
 /// The detached JWS payload: JCS of the card without `signatures`, after
-/// default-value removal (A2A §8.4.1).
+/// default-value removal (A2A §8.4.1 rule 1). The implicit-presence scalars
+/// in the card schema are `AgentExtension.{uri, description, required}` and
+/// `AgentInterface.tenant`; every other card scalar is REQUIRED or
+/// `optional` and is kept as sent.
 pub fn signing_payload(card: &Value) -> Result<Vec<u8>, CardError> {
     let mut c = card.clone();
     let m = c.as_object_mut().ok_or(CardError::NotAnObject)?;
     m.remove("signatures");
+    let empty = || Value::String(String::new());
+    drop_implicit_defaults(
+        m.get_mut("capabilities").and_then(|x| x.get_mut("extensions")),
+        &[("uri", empty()), ("description", empty()), ("required", Value::Bool(false))],
+    );
+    drop_implicit_defaults(m.get_mut("supportedInterfaces"), &[("tenant", empty())]);
     drop_empty_repeated(&mut c);
     Ok(jcs::canonicalize(&c)?)
 }
@@ -256,5 +280,48 @@ mod tests {
             got,
             r#"{"capabilities":{"pushNotifications":false,"streaming":false},"description":"","name":"Example Agent","skills":[]}"#
         );
+    }
+
+    #[test]
+    fn implicit_presence_defaults_are_dropped_explicit_values_kept() {
+        // `required: false` and an empty `tenant` are proto3 defaults on
+        // implicit-presence fields: omitted. `required: true` is kept.
+        let card = json!({
+            "name": "n",
+            "supportedInterfaces": [{"url": "u", "tenant": ""}],
+            "capabilities": {"extensions": [
+                {"uri": "a", "required": false},
+                {"uri": "b", "required": true, "description": ""}
+            ]}
+        });
+        let got = String::from_utf8(signing_payload(&card).unwrap()).unwrap();
+        assert_eq!(
+            got,
+            r#"{"capabilities":{"extensions":[{"uri":"a"},{"required":true,"uri":"b"}]},"name":"n","supportedInterfaces":[{"url":"u"}]}"#
+        );
+    }
+
+    #[test]
+    fn built_cards_stay_inside_the_interop_profile() {
+        // A2A-31: nothing a protobuf-based SDK would canonicalize differently.
+        fn walk(v: &Value, in_params: bool) {
+            match v {
+                Value::String(s) => assert!(!s.is_empty() && s.is_ascii(), "empty or non-ASCII string {s:?}"),
+                Value::Array(a) => {
+                    assert!(!a.is_empty(), "empty array");
+                    a.iter().for_each(|x| walk(x, in_params));
+                }
+                Value::Object(m) => {
+                    assert!(!m.is_empty(), "empty object");
+                    assert_ne!(m.get("required"), Some(&Value::Bool(false)));
+                    m.iter().for_each(|(k, x)| walk(x, in_params || k == "params"));
+                }
+                Value::Number(_) => assert!(!in_params, "number inside a Struct"),
+                _ => {}
+            }
+        }
+        let kp = Keypair::from_seed([2; 32]);
+        let (signed, _) = sign_card(&build_card(&kp.agent_id(), &params()), &kp).unwrap();
+        walk(&signed, false);
     }
 }

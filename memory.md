@@ -203,8 +203,75 @@ P3c commit).
     is a projection rule, so it gets a Go test in P5);
   - the descriptor is still the v1 shape (A2A Agent Card embedding lands in
     P4);
-  - D2/D5/D6/D7 are still open.
-- **Next: P4** (A2A binding + voucher mapping) ∥ **P6** (map-sim harness).
+  - D5/D7 are still open (D2/D6 were decided in P4).
+
+**P4 status (2026-09-25): DONE** (commits 6126feb P4a, 6638d4a P4b, plus the
+P4c commit). The P4 gate is `pwsh scripts/demo-a2a.ps1`, ALL PASS.
+- **`adapters/a2a` (map-a2a):**
+  - `jcs`, `b64`;
+  - `card`: A2A §8.4 EdDSA JWS, detached payload, default-value removal
+    per §8.4.1 including implicit-presence scalars;
+  - `descriptor`: DescriptorV2 embeds the signed card; card kid = AgentID
+    (D-4);
+  - `binding`: `"map/v2"` metadata, error codes, TaskID per D6, and
+    Part→leaf mapping by JCS;
+  - `flow`: ProviderTask/RequesterTask, checkpoints C-1..C-5, resumption on
+    another provider, Z-3;
+  - `workload`: the deterministic generator and synthetic usage.
+- **Feature `http`** (tiny_http + ureq, no TLS):
+  - `server`: A2A JSON-RPC `SendMessage`/`GetTask` plus
+    `/.well-known/agent-card.json`. Checkpoints use the A2A-21 fallback:
+    pause in INPUT_REQUIRED, and the next `SendMessage` with `taskId`
+    carries the countersignature and `voucherDigest`.
+  - `client`: discover (verifies the card), `run_task`, resume via
+    `referenceTaskIds` + checkpoint + a `mapTranscriptPrefix` DataPart.
+  - Bins `map-a2a-provider` (`--fail-after-parts` simulates a crash) and
+    `map-a2a-requester` (`--plain` = non-extension client).
+- **`map-meter::voucher`:** RAIL-1/2/3/5 digests, exact atomic units, and
+  the M-6 ceiling.
+- **Demo** (`scripts/demo-a2a.ps1`):
+  - A crashes after producing 10 Parts. It was countersigned through 8.
+  - The requester resumes on B, which delivers 16.
+  - The receipt is dual-signed and carries resumed-from and a voucher digest.
+  - Voucher watermarks are A = 8 and B = 16, summing to the 24 Parts
+    delivered.
+  - A plain client gets COMPLETED with no MAP metadata (A2A-28).
+- **Unmodified a2a-sdk 1.0.3** (`interop/a2a-sdk/check_sdk.py`; the demo
+  runs it when `MAP_A2A_SDK_PY` is set):
+  - it verifies our live card and TV-022 with its own EdDSA verifier;
+  - it rejects an altered card (negative control);
+  - it completes a task against us.
+- **⚠ Interop finding (paper E5 material): the SDK's canonicalization is
+  not RFC 8785.** It does `MessageToDict`, then `_clean_empty`, then
+  `json.dumps`, which has three consequences:
+  - Struct integers are re-emitted as `4.0`;
+  - all empties are dropped, even REQUIRED ones;
+  - non-ASCII characters are escaped.
+
+  Our first card failed its verifier on `"required": false` (our bug: an
+  implicit-presence default, which §8.4.1 omits) and on integers in
+  `params` (the SDK's bug). The fix is spec A2A-3a (params carry uints as
+  decimal strings) plus A2A-31 (a card profile avoiding every divergent
+  construct). TV-022 was regenerated. **Consider reporting upstream to
+  a2aproject/a2a-python** (author's call; not filed).
+- **Spec additions:**
+  - the opening Message MUST carry `agentId` (the requester's AgentID). This
+    was a real gap: nothing named the countersigner's key;
+  - the prefix DataPart shape `{"data":{"mapTranscriptPrefix":[...]}}`
+    (A2A-23).
+- **Deviations from the plan:**
+  - Ollama is not installed here, so the demo uses the deterministic
+    workload rather than ollama-provider. The `Workload` seam takes a real
+    model later.
+  - The voucher digest is bound on countersign rather than minted on a real
+    rail (mock rail = MPP-Tempo fallback digest over the billed cumulative
+    amount).
+- **Not done yet:**
+  - DescriptorV2 is not yet used by mesh/net;
+  - no streaming (A2A-20 primary path);
+  - the `http` feature has no in-process test; the demo script is the gate.
+- **Next: P5** (Go full second implementation, incl. the A2A requester and
+  provider) ∥ **P6** (map-sim).
 
 ## 1. What this project is
 

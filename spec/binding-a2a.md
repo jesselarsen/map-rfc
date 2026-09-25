@@ -54,11 +54,10 @@ lines 424-432: fields `uri` string, `description` string, `required` bool,
       {
         "uri": "https://map-protocol.org/ext/accountability/v2",
         "description": "MAP accountability layer: dual-signed receipts, countersigned checkpoints, zone labels, metering evidence.",
-        "required": false,
         "params": {
           "agentId": "z6MkPLACEHOLDERAgentIdBase58btc",
-          "supportedZones": [1, 2, 3],
-          "checkpointIntervalParts": 32,
+          "supportedZones": ["1", "2", "3"],
+          "checkpointIntervalParts": "32",
           "acceptedVoucherRails": ["pay:x402", "pay:mpp-tempo"]
         }
       }
@@ -67,7 +66,9 @@ lines 424-432: fields `uri` string, `description` string, `required` bool,
 }
 ```
 
-A2A-2: `required` MUST be `false` by default. An A2A client that does not
+A2A-2: `required` MUST be `false` by default. Because `required` is a
+proto3 implicit-presence field, the value `false` is then omitted from the
+card's JSON altogether (A2A §8.4.1 rule 1), as in the example above. An A2A client that does not
 activate the extension MUST still receive a fully functional A2A
 interaction from a MAP-capable provider (§10) — MAP rides *alongside* A2A,
 never gating it. A deployment MAY run a `required: true` profile for a
@@ -81,9 +82,16 @@ and discovery binding*):
 | Field | Type | Meaning |
 |---|---|---|
 | `agentId` | string | This agent's AgentID, multibase `z...` form (layer spec, *Identity*) |
-| `supportedZones` | array of uint | Zone labels this provider will accept tasks under (layer spec, *Zones and data sensitivity*) |
-| `checkpointIntervalParts` | uint | Default number of transcript leaves (§4) between checkpoint proposals; a session-local policy default, overridable per-task (§3) |
+| `supportedZones` | array of tstr (decimal uint) | Zone labels this provider will accept tasks under (layer spec, *Zones and data sensitivity*) |
+| `checkpointIntervalParts` | tstr (decimal uint) | Default number of transcript leaves (§4) between checkpoint proposals; a session-local policy default, overridable per-task (§3) |
 | `acceptedVoucherRails` | array of tstr | Rail URIs (mapping-payment-rails.md §1) this provider can bind metering evidence to |
+
+A2A-3a: `params` MUST NOT contain JSON numbers; unsigned integers are
+carried as decimal strings (`"32"`, no sign, no leading zeros). `params` is
+a `google.protobuf.Struct`, in which every number is a double, and a signer
+or verifier that round-trips the card through protobuf (as the reference
+Python SDK does) re-serializes `32` as `32.0`. RFC 8785 serializes it as
+`32`. The two would then sign different bytes (A2A-31).
 
 ## 2. Extension activation
 
@@ -128,6 +136,7 @@ D-A2A-1, §12).
 ```json
 "metadata": {
   "map/v2": {
+    "agentId": "requester AgentID, multibase z... form",
     "taskNonce": "base64url, 16 raw bytes",
     "zone": 2,
     "receipt": "base64url of CBOR Receipt",
@@ -139,7 +148,11 @@ D-A2A-1, §12).
 ```
 
 All sub-keys are OPTIONAL and present only on the message/event that
-carries that particular artifact. `zone` is a plain JSON integer (not a
+carries that particular artifact, except that the session-opening
+`Message` MUST carry `agentId`, `taskNonce` and `zone`. `agentId` names
+the requester: the provider verifies every countersignature on the task
+against that key, and a countersignature by any other key is refused (code
+1). `zone` is a plain JSON integer (not a
 base64url CBOR blob): it is advertised early — before any signed artifact
 exists to carry it — so non-MAP-aware intermediaries and observability
 tooling can see it without decoding CBOR. It mirrors `ReceiptCore` key 12
@@ -152,7 +165,7 @@ A2A-7 (carriage table):
 
 | MAP artifact | A2A carrier | Direction |
 |---|---|---|
-| `taskNonce`, `zone` (session opening) | First `Message` of the task, `metadata."map/v2"` | requester → provider |
+| `agentId`, `taskNonce`, `zone` (session opening) | First `Message` of the task, `metadata."map/v2"` | requester → provider |
 | Checkpoint proposal (provider-signed `CheckpointArtifact`) | `TaskStatusUpdateEvent.metadata`, state `WORKING` unchanged, or transient `INPUT_REQUIRED` (§7) | provider → requester |
 | Checkpoint countersignature | Follow-up `Message` with `taskId` set to the running task, `metadata."map/v2".checkpoint` = dual-signed `CheckpointArtifact` | requester → provider |
 | Final receipt proposal (provider-signed `Receipt`) | Terminal `TaskStatusUpdateEvent.metadata` (state `COMPLETED`/`FAILED`/`CANCELED`) | provider → requester |
@@ -343,7 +356,11 @@ provider A, the requester opens a **new** A2A task at B. B's first
 - the transcript prefix through `through-seq` — either inline as one or
   more `DataPart`s (`oneof content = data`) or as a `FilePart`-style `url`
   Part plus a content digest (§5, A2A-16) — the requester's choice, traded
-  off against message-size limits.
+  off against message-size limits. An inline prefix is one `DataPart`
+  `{"data": {"mapTranscriptPrefix": [<Part>, ...]}}` listing the prefix
+  Parts in `seq` order, each exactly as originally delivered (the leaf rule
+  of §5 ignores Part `metadata`, so re-serialization of that field is
+  harmless).
 
 A2A-24: B recomputes the transcript root over the received prefix per the
 layer spec's leaf/parent rule and MUST reject with error code 2
@@ -420,6 +437,31 @@ verify both; if the Agent Card JWS `kid` resolves to a key that does not
 match the descriptor's subject AgentID, the whole descriptor MUST be
 rejected (mismatch — one of the two claims is lying about who this is).
 
+A2A-31 (Agent Card canonicalization interop profile): a MAP provider's
+Agent Card MUST avoid every construct on which A2A §8.4.1 and deployed A2A
+SDKs canonicalize differently, so that its signature verifies under both.
+Concretely, the card as published MUST NOT contain:
+
+- empty strings, empty arrays or empty objects anywhere (§8.4.1 keeps
+  REQUIRED empties, the reference SDK drops all of them);
+- implicit-presence fields set to their default (`AgentExtension.required:
+  false`, `AgentInterface.tenant: ""`), which §8.4.1 omits;
+- JSON numbers inside any `google.protobuf.Struct` (A2A-3a);
+- non-ASCII characters (the reference SDK escapes them to ASCII escape
+  sequences, while RFC 8785 emits raw UTF-8).
+
+A verifier of this binding applies §8.4.1 as written: it drops the
+`signatures` member, non-REQUIRED empty arrays and implicit-presence
+defaults, then applies RFC 8785. Cards within this profile produce the same
+bytes under that rule and under the SDK's rule.
+
+*Evidence.* The profile is derived from a live test, not from reading. a2a-sdk
+1.0.3 (`a2a.utils.signing`) canonicalizes by `MessageToDict`, then recursive
+empty-value removal, then `json.dumps(sort_keys=True)`. The first MAP card
+failed that SDK's EdDSA verifier on exactly two constructs: `"required":
+false` and integers in `params`. Once both were removed it verified, and a
+modified card was rejected (`interop/a2a-sdk/check_sdk.py`).
+
 ## 12. Judgment calls recorded in this binding
 
 - **D-A2A-1** (§3): artifacts ride under the literal key `"map/v2"`, not
@@ -477,6 +519,7 @@ Placeholder cryptographic material below (`sig`, hashes, keys) is marked
     "extensions": ["https://map-protocol.org/ext/accountability/v2"],
     "metadata": {
       "map/v2": {
+        "agentId": "z6MkPLACEHOLDERRequesterAgentId",
         "taskNonce": "PLACEHOLDER_base64url_16_bytes",
         "zone": 2
       }
