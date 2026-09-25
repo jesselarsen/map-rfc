@@ -5,7 +5,7 @@ use crate::vectors::*;
 use crate::{assert_bytes, from_hex};
 use map_core::{msg_type, open, seal, Body, Hello, MsgId, PROTOCOL_VERSION_1_0};
 use map_identity::Keypair;
-use map_tasks::TaskId;
+use map_core::TaskId;
 use map_trust::{
     sign_receipt, Metrics, Outcome, Receipt, ReceiptCore, ROLE_PROVIDER, ROLE_REQUESTER,
 };

@@ -9,8 +9,7 @@ description = "MAP conformance suite: byte-exact TV-001/TV-002 reproduction + op
 map-identity = { path = "../../crates/map-identity" }
 map-core = { path = "../../crates/map-core" }
 map-discovery = { path = "../../crates/map-discovery" }
-map-tasks = { path = "../../crates/map-tasks" }
+map-transcript = { path = "../../crates/map-transcript" }
 map-trust = { path = "../../crates/map-trust" }
-map-pay = { path = "../../crates/map-pay" }
 sha2.workspace = true
 hex.workspace = true

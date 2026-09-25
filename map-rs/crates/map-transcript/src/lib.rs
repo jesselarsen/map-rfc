@@ -1,32 +1,13 @@
-//! MAP tasks bounded context (draft-map-tasks-01).
+//! MAP transcript commitment (spec/layer.md §5).
 //!
-//! Data ownership (tasks §1): requester owns terms, provider owns execution
-//! state, the countersigned transcript commitment is the only shared fact.
-//! TaskID is the idempotency key; `chunk-seq` is the per-task ordering
-//! scope. This crate implements the pure/deterministic pieces: transcript
-//! commitment (§8.1 as patched), flow-credit accounting (core §8.1
-//! semantics), and the requester state machine (§13).
+//! Pure, deterministic pieces shared by checkpoints and receipts: the chunk
+//! vocabulary, the Merkle transcript root, and credit-based flow accounting.
+//! The v1 task protocol (OFFER/ASSIGN/CHUNK/COMPLETE messages and the
+//! requester state machine) is retired; task exchange is A2A's job
+//! (spec/binding-a2a.md). TaskID lives in map-core.
 
 use map_core::cbor::{encode, Value};
 use sha2::{Digest, Sha256};
-use std::fmt;
-
-pub mod msg;
-
-/// 32-byte requester-chosen idempotency key (tasks §1).
-#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
-pub struct TaskId(pub [u8; 32]);
-
-impl TaskId {
-    pub fn random() -> Self {
-        let mut b = [0u8; 32];
-        getrandom::getrandom(&mut b).expect("OS RNG unavailable");
-        TaskId(b)
-    }
-    pub fn from_slice(s: &[u8]) -> Option<Self> {
-        s.try_into().ok().map(TaskId)
-    }
-}
 
 /// Chunk kinds (tasks §3). Kinds 0/1/4 are transcript-bearing.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -186,96 +167,6 @@ impl FlowAccount {
     }
 }
 
-// ---------------------------------------------------------------------
-// Requester-side task state machine (tasks §13). One refinement over the
-// spec diagram: the CREATED -OFFER→ QUOTED edge is split with an explicit
-// OfferSent state so send and receive are distinct transitions.
-// ---------------------------------------------------------------------
-
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub enum ReqState {
-    Created,
-    OfferSent,
-    Quoted,
-    Pending,
-    Active,
-    Suspended,
-    Delivered,
-    Settling,
-    Closed,
-    Cancelled,
-    Failed,
-    Disputed,
-}
-
-impl ReqState {
-    pub fn is_terminal(self) -> bool {
-        matches!(
-            self,
-            ReqState::Closed | ReqState::Cancelled | ReqState::Failed | ReqState::Disputed
-        )
-    }
-}
-
-#[derive(Clone, Copy, Debug)]
-pub enum ReqEvent {
-    SendOffer,
-    RecvQuote,
-    SendAssign,
-    RecvAccept,
-    RecvReject,
-    RecvChunk,
-    CheckpointAcked,
-    ProviderLost,
-    Resume,
-    Cancel,
-    RecvCompleteOk,
-    TranscriptVerified,
-    TranscriptMismatch,
-    Settled,
-    Fatal,
-}
-
-#[derive(Debug, PartialEq)]
-pub struct InvalidTransition {
-    pub from: ReqState,
-}
-
-impl fmt::Display for InvalidTransition {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "invalid transition from {:?}", self.from)
-    }
-}
-impl std::error::Error for InvalidTransition {}
-
-pub fn step(s: ReqState, e: ReqEvent) -> Result<ReqState, InvalidTransition> {
-    use ReqEvent as E;
-    use ReqState as S;
-    if s.is_terminal() {
-        return Err(InvalidTransition { from: s });
-    }
-    Ok(match (s, e) {
-        (S::Created, E::SendOffer) => S::OfferSent,
-        // Direct ASSIGN under a standing agreement (tasks §2).
-        (S::Created, E::SendAssign) => S::Pending,
-        (S::OfferSent, E::RecvQuote) => S::Quoted,
-        (S::Quoted, E::SendAssign) => S::Pending,
-        (S::Pending, E::RecvAccept) => S::Active,
-        (S::Pending, E::RecvReject) => S::Failed,
-        (S::Active, E::RecvChunk) => S::Active,
-        (S::Active, E::CheckpointAcked) => S::Active,
-        (S::Active, E::ProviderLost) => S::Suspended,
-        (S::Suspended, E::Resume) => S::Active,
-        (S::Active | S::Suspended, E::Cancel) => S::Cancelled,
-        (S::Active, E::RecvCompleteOk) => S::Delivered,
-        (S::Delivered, E::TranscriptVerified) => S::Settling,
-        (S::Delivered, E::TranscriptMismatch) => S::Disputed,
-        (S::Settling, E::Settled) => S::Closed,
-        (_, E::Fatal) => S::Failed,
-        _ => return Err(InvalidTransition { from: s }),
-    })
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -342,34 +233,5 @@ mod tests {
         assert_eq!(acct.try_consume(6), Err(FlowError::NoByteCredit));
         assert!(acct.try_consume(4).is_ok());
         assert_eq!(acct.try_consume(0), Err(FlowError::NoMessageCredit));
-    }
-
-    #[test]
-    fn state_machine_golden_path_and_guards() {
-        use ReqEvent as E;
-        use ReqState as S;
-        let mut s = S::Created;
-        for e in [
-            E::SendOffer,
-            E::RecvQuote,
-            E::SendAssign,
-            E::RecvAccept,
-            E::RecvChunk,
-            E::ProviderLost,
-            E::Resume,
-            E::RecvCompleteOk,
-            E::TranscriptVerified,
-            E::Settled,
-        ] {
-            s = step(s, e).unwrap();
-        }
-        assert_eq!(s, S::Closed);
-        // Terminal states admit nothing, including Fatal.
-        assert!(step(S::Closed, E::Fatal).is_err());
-        // Idempotent re-ASSIGN safety is a TaskID property, not a state
-        // transition: sending ASSIGN twice from Pending is invalid here.
-        assert!(step(S::Pending, E::SendAssign).is_err());
-        // Root mismatch routes to dispute, never to settlement.
-        assert_eq!(step(S::Delivered, E::TranscriptMismatch).unwrap(), S::Disputed);
     }
 }

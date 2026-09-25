@@ -9,11 +9,12 @@
 
 use map_core::cbor::{decode, encode, CborError, Value};
 use map_identity::{verify, AgentId, IdentityError, Keypair};
-use map_tasks::TaskId;
+use map_core::TaskId;
 use sha2::{Digest, Sha256};
 use std::collections::{HashMap, HashSet};
 use std::fmt;
 
+pub mod evidence;
 pub mod lifecycle;
 
 pub const ROLE_REQUESTER: u8 = 1;

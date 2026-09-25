@@ -124,6 +124,38 @@ path or roadmap.
     cumulative metering
   - the MPP generic voucher byte form is unverified (RAIL-5 fallback)
 
+**P2 status (2026-09-25): DONE (Rust prune).**
+- Workspace is now: map-identity, map-core (+`TaskId`), map-discovery,
+  map-transcript (was map-tasks: transcript root + chunks + flow credit),
+  map-trust (+`evidence::apply_verified_evidence`, `lifecycle::Tolerance`
+  policy struct), map-meter (was map-pay: Amount/Asset/AssetAmount/Usage/
+  units/`billed`), map-session, map-mesh, map-net, map-cli (keygen,
+  projection demo, TCP interop peer), ollama-provider (backend seam only),
+  map-conformance (28 cases).
+- Deleted, and preserved at the tag: map-taskrun, adapters/gateway,
+  adapters/x402-adapter, the v1 task msg codecs and state machine,
+  pay codec/escrow/credit-ledger/disputes/watermark-invoice verifier, and
+  the rfc-title-o-matic / serve-ollama / x402 demos.
+- Vectors: 19 marked RETIRED(v1) *in the generator* (`gen_vectors.py`). It
+  regenerates the committed file byte-for-byte; the generator needs CPython
+  with pynacl/cbor2/base58 (see AGENTS.md).
+- Interop matrix: 16/16 core TCP. The libp2p task/pay cells are retired.
+  Both implementations stay green; Go keeps its v1 packages until P5.
+- Judgment calls:
+  1. The v1 `CountersignedCheckpoint`/`checkpoint_ack_signing_input` was
+     **not** moved out of dispute.rs. Layer §7 retires that byte format, so
+     P3 writes the v2 `CheckpointArtifact` codec fresh.
+  2. **R4-05 is moot.** The settled-vs-accepted delta bug lived in
+     `verify_watermark`, which was invoice-bound and is deleted.
+  3. The x402 adapter is deleted rather than cut down (R4-16 is moot). The
+     voucher mapping is written fresh in P4 against x402 V2.
+  4. `Amount` still carries an i64 mantissa. M-4 non-negativity lands in P3.
+  5. **OPEN: delegation.** Layer §3.3 drops delegation, but map-core still
+     has `delegation.rs`, and the TCP matrix `delegated` cell plus
+     TV-011/012/NV-007/009 exercise it. Decide in P3: either delete
+     delegation (and retire those vectors plus the cell), or restore it in
+     the spec.
+
 ## 1. What this project is
 
 A standards-track-style specification family ("MAP") for a decentralized,

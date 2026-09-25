@@ -44,8 +44,9 @@ DHT carries discovery records, and [MPP](https://mpp.dev/) sessions or
 - `map-go/`: Go second implementation. Written from the spec and vectors
   only, never from the Rust source; its protocol core is stdlib-only.
 
-Both still contain v1 code that the rework prunes (phase P2). See
-`memory.md` §0 for the phase plan and current state.
+The Rust workspace has been pruned to the kept layers (P2). The Go module
+still carries its v1 task/pay packages until P5. See `memory.md` §0 for the
+phase plan and current state.
 
 ```powershell
 # Rust (Windows: mingw on PATH + gnu toolchain)

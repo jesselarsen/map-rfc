@@ -13,7 +13,7 @@ draft, the draft wins (see the report accompanying this change). No wall-clock,
 no randomness: regenerating twice is byte-identical. Deps: pynacl, cbor2,
 base58; blake2 via hashlib only.
 """
-import cbor2, hashlib, hmac, base58
+import cbor2, hashlib, hmac, base58, re
 from nacl.signing import SigningKey
 from nacl.exceptions import BadSignatureError
 
@@ -930,6 +930,33 @@ Merkle root (the TranscriptBuilder value; wrapped as Multihash in TV-009):
 """
 
 out = prefix + new + negatives + derived
+
+# v2 (accountability-layer rework, 2026-09-25): vectors whose message types v2
+# retired are annotated, never removed or renumbered. Bytes are unchanged.
+RETIRED_V1 = {"TV-006", "TV-007", "TV-008", "TV-009", "TV-010", "TV-010b", "TV-013",
+              "TV-014", "TV-015", "TV-016", "TV-017", "TV-018", "TV-019", "TV-020",
+              "NV-006", "NV-008", "NV-010", "NV-011", "NV-012"}
+RETIRED_NOTE = """> **Status (2026-09-25, v2 accountability-layer rework).** Vectors marked
+> **RETIRED(v1)** belong to message types that v2 retired: the v1 task
+> protocol (OFFER/ASSIGN/CHUNK/COMPLETE/RESERVE/LEASE) and the v1 settlement
+> and dispute protocol (PAY_*). Their bytes are unchanged and still
+> regenerate from `gen_vectors.py`, but no v2 implementation is required to
+> consume them. Retired vectors are never renumbered or reused. TV-008's
+> transcript-root derivation remains live through the *Derived constants*
+> section (layer §5). New v2 vectors (CheckpointArtifact, the A2A binding) are
+> appended with fresh numbers.
+
+"""
+_lines = out.split("\n")
+for _i, _line in enumerate(_lines):
+    _m = re.match(r"^(#{2,3}) (TV-\d+b?|NV-\d+) ", _line)
+    if _m and _m.group(2) in RETIRED_V1:
+        _lines[_i] = _line + " — RETIRED(v1)"
+out = "\n".join(_lines)
+_anchor = "## Keys (deterministic; for testing ONLY"
+assert out.count(_anchor) == 1
+out = out.replace(_anchor, RETIRED_NOTE + _anchor)
+
 open("map-test-vectors.md", "w", encoding="utf-8").write(out)
 print("OK - vectors written and all signatures verified.")
 print("TV-001", len(envelope), "| TV-002", len(receipt),

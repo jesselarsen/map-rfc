@@ -30,9 +30,6 @@ libp2p-stream = "=0.2.0-alpha"
 futures = "0.3"
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync", "time"] }
 
-[dev-dependencies]
-map-tasks = { path = "../map-tasks" }
-map-trust = { path = "../map-trust" }
 
 [features]
 # Network integration tests are gated so CI without a network stays green.

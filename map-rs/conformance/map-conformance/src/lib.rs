@@ -51,44 +51,23 @@ pub fn cases() -> Vec<(&'static str, fn() -> Result<(), String>)> {
         ("N8 duplicate receipt", negative::case_n8_duplicate_receipt),
         ("N9 swapped roles", negative::case_n9_swapped_roles),
         ("N10 wrong role domain", negative::case_n10_role_domain),
-        // TASK-004: TV-003..010 consume, derived constants, NV-001..005 reject.
-        // Bound-quote pass: TV-010b consume + NV-006 reject (pay §3.1 key 9).
-        // Delegation pass: TV-011 cert + TV-012 delegated OFFER consume,
-        // NV-007 widened-scope reject (identity §4, TASK-010).
-        // Spec-round-3 (TASK-011): TV-013 PAY_AGREE, TV-014 RESERVE, TV-015
-        // LEASE consume; NV-008 out-of-window lease reject (pay §3.1 / tasks §6).
+        // Envelope/HELLO/ERROR/descriptor/delegation vectors and the derived
+        // constants. Task, pay and dispute vectors (TV-006..010, TV-010b,
+        // TV-013..020, NV-006/008/010/011/012) are RETIRED(v1) with their
+        // message types (spec/test-vectors/map-test-vectors.md).
         ("TV-003 HELLO_ACK", extended::case_tv003_hello_ack),
         ("TV-004 ERROR", extended::case_tv004_error),
         ("TV-005 DESCRIPTOR", extended::case_tv005_descriptor),
-        ("TV-006 OFFER", extended::case_tv006_offer),
-        ("TV-007 ASSIGN", extended::case_tv007_assign),
-        ("TV-008 CHUNK", extended::case_tv008_chunk),
-        ("TV-009 COMPLETE", extended::case_tv009_complete),
-        ("TV-010 PAY_QUOTE", extended::case_tv010_pay_quote),
-        ("TV-010b PAY_QUOTE bound", extended::case_tv010b_pay_quote_bound),
         ("TV-011 DelegationCert", extended::case_tv011_cert),
         ("TV-012 delegated OFFER", extended::case_tv012_delegated_offer),
-        ("TV-013 PAY_AGREE", extended::case_tv013_pay_agree),
-        ("TV-014 RESERVE", extended::case_tv014_reserve),
-        ("TV-015 LEASE granted", extended::case_tv015_lease_granted),
         ("Derived constants", extended::case_derived_constants),
         ("NV-001 tampered", extended::case_nv001_tampered),
         ("NV-002 wrong tag", extended::case_nv002_wrong_tag),
         ("NV-003 non-canonical", extended::case_nv003_non_canonical),
         ("NV-004 stale seq", extended::case_nv004_stale_seq),
         ("NV-005 swapped sigs", extended::case_nv005_swapped_sigs),
-        ("NV-006 task-binding mismatch", extended::case_nv006_task_binding_mismatch),
         ("NV-007 widened delegation scope", extended::case_nv007_widened_scope),
-        ("NV-008 lease out of window", extended::case_nv008_lease_out_of_window),
         ("NV-009 delegation depth exceeded", extended::case_nv009_depth_exceeded),
-        ("TV-016 metered PAY_INVOICE watermark", extended::case_tv016_metered_invoice),
-        ("NV-010 watermark billing off-by-one", extended::case_nv010_watermark_billing),
-        ("TV-017 escrow hold PAY_INVOICE", extended::case_tv017_escrow_hold_invoice),
-        ("TV-018 held PAY_RECEIPT", extended::case_tv018_held_receipt),
-        ("NV-011 unknown receipt kind", extended::case_nv011_unknown_receipt_kind),
-        ("TV-019 PAY_DISPUTE", extended::case_tv019_pay_dispute),
-        ("TV-020 PAY_DISPUTE_EVIDENCE verbatim-carry", extended::case_tv020_dispute_evidence),
-        ("NV-012 unknown dispute claim", extended::case_nv012_unknown_claim),
     ]
 }
 
@@ -166,35 +145,16 @@ mod tests {
     case_test!(tv003_hello_ack, extended::case_tv003_hello_ack);
     case_test!(tv004_error, extended::case_tv004_error);
     case_test!(tv005_descriptor, extended::case_tv005_descriptor);
-    case_test!(tv006_offer, extended::case_tv006_offer);
-    case_test!(tv007_assign, extended::case_tv007_assign);
-    case_test!(tv008_chunk, extended::case_tv008_chunk);
-    case_test!(tv009_complete, extended::case_tv009_complete);
-    case_test!(tv010_pay_quote, extended::case_tv010_pay_quote);
-    case_test!(tv010b_pay_quote_bound, extended::case_tv010b_pay_quote_bound);
     case_test!(tv011_cert, extended::case_tv011_cert);
     case_test!(tv012_delegated_offer, extended::case_tv012_delegated_offer);
-    case_test!(tv013_pay_agree, extended::case_tv013_pay_agree);
-    case_test!(tv014_reserve, extended::case_tv014_reserve);
-    case_test!(tv015_lease_granted, extended::case_tv015_lease_granted);
     case_test!(derived_constants, extended::case_derived_constants);
     case_test!(nv001_tampered, extended::case_nv001_tampered);
     case_test!(nv002_wrong_tag, extended::case_nv002_wrong_tag);
     case_test!(nv003_non_canonical, extended::case_nv003_non_canonical);
     case_test!(nv004_stale_seq, extended::case_nv004_stale_seq);
     case_test!(nv005_swapped_sigs, extended::case_nv005_swapped_sigs);
-    case_test!(nv006_task_binding_mismatch, extended::case_nv006_task_binding_mismatch);
     case_test!(nv007_widened_scope, extended::case_nv007_widened_scope);
-    case_test!(nv008_lease_out_of_window, extended::case_nv008_lease_out_of_window);
     case_test!(nv009_depth_exceeded, extended::case_nv009_depth_exceeded);
-    case_test!(tv016_metered_invoice, extended::case_tv016_metered_invoice);
-    case_test!(nv010_watermark_billing, extended::case_nv010_watermark_billing);
-    case_test!(tv017_escrow_hold_invoice, extended::case_tv017_escrow_hold_invoice);
-    case_test!(tv018_held_receipt, extended::case_tv018_held_receipt);
-    case_test!(nv011_unknown_receipt_kind, extended::case_nv011_unknown_receipt_kind);
-    case_test!(tv019_pay_dispute, extended::case_tv019_pay_dispute);
-    case_test!(tv020_dispute_evidence, extended::case_tv020_dispute_evidence);
-    case_test!(nv012_unknown_claim, extended::case_nv012_unknown_claim);
 
     #[test]
     fn run_all_is_green_and_complete() {
@@ -204,7 +164,7 @@ mod tests {
             "conformance failures: {:?}",
             report.failed
         );
-        assert_eq!(report.passed.len(), 47);
-        assert_eq!(report.total(), 47);
+        assert_eq!(report.passed.len(), 28);
+        assert_eq!(report.total(), 28);
     }
 }

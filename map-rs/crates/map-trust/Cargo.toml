@@ -8,5 +8,4 @@ description = "MAP trust bounded context: dual-signed receipts, append-only idem
 [dependencies]
 map-core = { path = "../map-core" }
 map-identity = { path = "../map-identity" }
-map-tasks = { path = "../map-tasks" }
 sha2.workspace = true

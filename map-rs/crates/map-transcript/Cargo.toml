@@ -1,0 +1,10 @@
+[package]
+name = "map-transcript"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "MAP transcript commitment: chunks, Merkle transcript root, flow credit (spec/layer.md §5)"
+
+[dependencies]
+map-core = { path = "../map-core" }
+sha2.workspace = true

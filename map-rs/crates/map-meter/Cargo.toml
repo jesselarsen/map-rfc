@@ -1,0 +1,9 @@
+[package]
+name = "map-meter"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "MAP metering bound to evidence: decimal Amount (tag 4), Asset, Usage, exact pricing (spec/layer.md §9)"
+
+[dependencies]
+map-core = { path = "../map-core" }

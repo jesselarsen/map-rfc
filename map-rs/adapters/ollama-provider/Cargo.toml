@@ -7,8 +7,7 @@ description = "MAP local-inference provider adapter: InferenceBackend seam + tra
 
 [dependencies]
 map-core = { path = "../../crates/map-core" }
-map-tasks = { path = "../../crates/map-tasks" }
-map-taskrun = { path = "../../crates/map-taskrun" }
+map-transcript = { path = "../../crates/map-transcript" }
 
 # Real HTTP backend deps (FR-1) — behind `real-backend`, default OFF so the
 # workspace default tree stays network-dep-free. `ureq` with default-features

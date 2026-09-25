@@ -12,7 +12,9 @@ so `cargo test --workspace` does not build them.
 The findings, rulings and dispositions are recorded in `map-spec/ERRATA.md`
 (2026-09-18 entries) and in `MAP Review Results/`.
 
-Run one probe:
+Run one probe. The probes link crates the rework has since renamed or
+removed (`map-tasks`, `map-pay`), so build them from the v1 snapshot
+(`git worktree add ../map-v1 map-v1-ietf`, then run inside that worktree):
 
 ```powershell
 $env:PATH = "C:\msys64\mingw64\bin;" + $env:PATH

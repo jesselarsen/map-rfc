@@ -3,59 +3,22 @@ name = "map-cli"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
-description = "MAP command-line tooling: keygen, projection-rebuild demo (TASK-001)"
+description = "MAP command-line tooling: keygen, projection-rebuild demo, TCP interop peer"
 
 [[bin]]
 name = "map-cli"
 path = "src/main.rs"
 
-[[bin]]
-name = "rfc-title-o-matic"
-path = "src/rfc_title_o_matic.rs"
-# The demo provider is inherently a libp2p agent; it only builds under the
-# feature that pulls the transport stack (see `libp2p-interop` below).
-required-features = ["libp2p-interop"]
+# The v1 demos (rfc-title-o-matic, serve-ollama, x402-demo,
+# x402-gateway-demo) and the libp2p task/pay interop cells were retired in the
+# accountability-layer rework (P2; still at tag map-v1-ietf). The A2A
+# provider/requester demo returns in P4.
 
 [dependencies]
 map-core = { path = "../map-core" }
 map-identity = { path = "../map-identity" }
 map-session = { path = "../map-session" }
-map-tasks = { path = "../map-tasks" }
 map-trust = { path = "../map-trust" }
-# The libp2p task-mode of `map-cli interop` and the `rfc-title-o-matic` demo
-# (TASK-020) pull the transport stack (map-net → libp2p/QUIC) + the task
-# runtime. Gated behind `libp2p-interop` (default-ON, so the interop matrix
-# and `cargo build --workspace` are unaffected) — `--no-default-features`
-# yields a minimal keygen / projection / TCP-interop build with no libp2p in
-# the tree. Mirrors the crate's `real-backend` / `real-x402` convention of
-# keeping heavy/network deps behind features.
-map-taskrun = { path = "../map-taskrun", optional = true }
-map-net = { path = "../map-net", optional = true }
-map-discovery = { path = "../map-discovery", optional = true }
-map-mesh = { path = "../map-mesh", optional = true }
-libp2p = { version = "0.54", default-features = false, optional = true }
 sha2.workspace = true
 hex.workspace = true
 getrandom.workspace = true
-
-# The `serve-ollama` demo (TASK-013 FR-5) pulls the real Ollama backend only
-# under this feature, so the default `map-cli` build stays network-dep-free.
-ollama-provider = { path = "../../adapters/ollama-provider", optional = true }
-map-pay = { path = "../map-pay", optional = true }
-# The `x402-demo` (TASK-023 FR-7) pulls the real x402 signer + facilitator
-# (secp256k1/EIP-712/HTTP) only under `real-x402`, keeping the default build
-# free of that crypto/network surface.
-x402-adapter = { path = "../../adapters/x402-adapter", optional = true }
-# The `x402-gateway-demo` (TASK-025 FR-5) additionally pulls the gateway
-# composition (PaidGatewayProvider) under the same feature.
-gateway = { path = "../../adapters/gateway", optional = true }
-
-[features]
-default = ["libp2p-interop"]
-# The libp2p/QUIC interop task-mode + the rfc-title-o-matic demo provider
-# (TASK-020). Default-ON so the interop matrix and workspace build are
-# unchanged; turn OFF (`--no-default-features`) for a minimal, libp2p-free
-# map-cli.
-libp2p-interop = ["dep:map-net", "dep:map-taskrun", "dep:map-discovery", "dep:map-mesh", "dep:map-pay", "dep:libp2p"]
-real-backend = ["dep:ollama-provider", "ollama-provider/real-backend"]
-real-x402 = ["dep:x402-adapter", "dep:map-pay", "dep:gateway", "x402-adapter/real-x402"]

@@ -33,8 +33,12 @@ and is the authoritative figure. The v1 matrix (26/26) is being replaced
 during the rework; re-run and re-stamp after any wire-affecting change.
 
 Test vectors: `spec/test-vectors/gen_vectors.py` (deps: pynacl, cbor2,
-base58). Vectors are **frozen**. Add new ones, and mark retired ones
-`RETIRED(v1)`; never alter frozen bytes or renumber.
+base58). It writes `map-test-vectors.md` into the **current directory**. The
+`python` on PATH is msys2/mingw, which cannot build pynacl/cbor2 wheels, so
+use a CPython venv (`py -3.12 -m venv <dir>`). Vectors are **frozen**: add
+new ones, retire old ones via the generator's `RETIRED_V1` set, and never
+alter frozen bytes or renumber. After any change, regenerate into a scratch
+directory and byte-compare against the committed file.
 
 Reviewer exploit probes: `attic/probes/<name>` are standalone crates, run
 with `cargo run --release --manifest-path attic/probes/<name>/Cargo.toml`.

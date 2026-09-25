@@ -9,14 +9,13 @@
 //!
 //! A real localhost:11434 backend ([`ollama::OllamaBackend`]) lives behind the
 //! `real-backend` feature (default OFF) so the default workspace tree stays
-//! network-dependency-free. [`OllamaExecutor`] adapts any [`InferenceBackend`]
-//! to the `map-taskrun` `Executor` trait (TASK-013).
+//! network-dependency-free. The v1 `OllamaExecutor` (an adapter to the retired
+//! map-taskrun `Executor`) is gone; the A2A provider binding (P4) drives
+//! backends directly.
 
 use map_core::cbor::{encode, Value};
-use map_tasks::{Chunk, ChunkKind};
+use map_transcript::{Chunk, ChunkKind};
 
-pub mod executor;
-pub use executor::OllamaExecutor;
 
 #[cfg(feature = "real-backend")]
 pub mod ollama;
@@ -147,7 +146,7 @@ pub fn run_task<B: InferenceBackend>(
 mod tests {
     use super::*;
     use map_core::cbor::decode;
-    use map_tasks::TranscriptBuilder;
+    use map_transcript::TranscriptBuilder;
 
     fn req(model: &str, prompt: &str) -> InferenceRequest {
         InferenceRequest {

@@ -16,7 +16,6 @@ $interop = Join-Path $repo "interop"
 $SEED_A  = "01" * 32   # dialer (also the delegation ROOT / RIK)
 $SEED_B  = "02" * 32   # listener
 $SEED_DK = "03" * 32   # delegated leaf (dialer signs with this under --delegate)
-$SEED_OP = "04" * 32   # credit-ledger operator (pay-* scenarios)
 
 $scenarios = @("echo","replay","seqgap","tamper","relay","versiondisjoint","wrongsid","delegated")
 
@@ -120,116 +119,15 @@ foreach ($scen in $scenarios) {
   Write-Host ($fmt -f $scen, $rg, $gr)
 }
 
-# --- libp2p task matrix (task protocol over libp2p/QUIC) --------------------
-# These cells prove the full task protocol (tasks §1-§13) end-to-end over
-# libp2p/QUIC in BOTH orientations: rust->go and go->rust. The transcript codec
-# is cross-impl-verified (TV-008), so the same roots appear on both sides.
-$taskScenarios = @("task-stream", "task-multichunk", "task-transcript")
-$taskResults = @{}
-$taskPass = $true
-Write-Host ""
-Write-Host "=== Task matrix (libp2p/QUIC) ==="
-$fmt2 = "{0,-18} {1,-14} {2,-14}"
-Write-Host ($fmt2 -f "scenario", "rust->go", "go->rust")
-
-# Run one task cell: dialKind/listenKind in {"go","rust"}. The listener prints
-# LISTENING <multiaddr>/p2p/<peerid>; the dialer takes that as --addr and
-# --peer-seed = the listener's seed (so the authenticated AgentID matches).
-# The Go binary (map-interop) takes flags directly; the Rust binary (map-cli)
-# needs the `interop` subcommand first.
-function RunTaskCell($dialKind, $listenKind, $scen, $extra) {
-  if ($null -eq $extra) { $extra = @() }
-  $lbin = if ($listenKind -eq "go") { $GO } else { $RUST }
-  $dbin = if ($dialKind   -eq "go") { $GO } else { $RUST }
-  # --operator-seed (and any other pay flags) are appended at the END so the
-  # --addr placeholder keeps its fixed index (5 for Go, 6 for Rust).
-  $largs = if ($listenKind -eq "go") {
-    @("--transport","libp2p","--role","listen","--addr","x","--seed",$SEED_B,"--peer-seed",$SEED_A,"--scenario",$scen) + $extra
-  } else {
-    @("interop","--transport","libp2p","--role","listen","--addr","x","--seed",$SEED_B,"--peer-seed",$SEED_A,"--scenario",$scen) + $extra
-  }
-  $dargs = if ($dialKind -eq "go") {
-    @("--transport","libp2p","--role","dial","--addr",$null,"--seed",$SEED_A,"--peer-seed",$SEED_B,"--scenario",$scen) + $extra
-  } else {
-    @("interop","--transport","libp2p","--role","dial","--addr",$null,"--seed",$SEED_A,"--peer-seed",$SEED_B,"--scenario",$scen) + $extra
-  }
-  $lout = Join-Path $env:TEMP "task_l_$($scen)_$($dialKind)$($listenKind).txt"
-  $dout = Join-Path $env:TEMP "task_d_$($scen)_$($dialKind)$($listenKind).txt"
-  Remove-Item $lout,$dout -ErrorAction SilentlyContinue
-  $lp = Start-Process -FilePath $lbin -ArgumentList $largs `
-        -RedirectStandardOutput $lout -NoNewWindow -PassThru
-  $addr = $null
-  for ($i = 0; $i -lt 50 -and -not $addr; $i++) {
-    Start-Sleep -Milliseconds 100
-    if (Test-Path $lout) {
-      $m = Select-String -Path $lout -Pattern "LISTENING\s+(\S+)" | Select-Object -First 1
-      if ($m) { $addr = $m.Matches[0].Groups[1].Value }
-    }
-  }
-  $ok = $false; $detail = "listener never bound"
-  if ($addr) {
-    # Replace the placeholder --addr value. Index 5 for Go (no subcommand),
-    # index 6 for Rust (the `interop` subcommand shifts everything by one).
-    if ($dialKind -eq "go") { $dargs[5] = $addr } else { $dargs[6] = $addr }
-    $dp = Start-Process -FilePath $dbin -ArgumentList $dargs `
-          -RedirectStandardOutput $dout -NoNewWindow -PassThru
-    $dp.WaitForExit(15000)
-    if (-not $lp.HasExited) { $lp.WaitForExit(15000) }
-    $dline = if (Test-Path $dout) { ((Get-Content $dout | Select-String "^OK|^FAIL") -join " ") } else { "" }
-    $lline = if (Test-Path $lout) { ((Get-Content $lout | Select-String "^OK") -join " ") } else { "" }
-    $ok = ($dline -match "^OK" -and $lline -match "^OK")
-    if (-not $ok) { $detail = "dial='$dline' listen='$lline'" }
-  }
-  foreach ($p in @($dp,$lp)) { try { if (-not $p.HasExited) { Stop-Process -Id $p.Id -ErrorAction SilentlyContinue } } catch {} }
-  return @{ pass = $ok; detail = $detail }
-}
-
-foreach ($scen in $taskScenarios) {
-  $rg = RunTaskCell "rust" "go" $scen
-  $gr = RunTaskCell "go" "rust" $scen
-  $taskResults["$scen|rust->go"] = $rg
-  $taskResults["$scen|go->rust"] = $gr
-  if (-not $rg.pass) { $taskPass = $false }
-  if (-not $gr.pass) { $taskPass = $false }
-  $mark1 = if ($rg.pass) { "PASS" } else { "FAIL" }
-  $mark2 = if ($gr.pass) { "PASS" } else { "FAIL" }
-  Write-Host ($fmt2 -f $scen, $mark1, $mark2)
-  if (-not $rg.pass) { Write-Host ("    rust->go: {0}" -f $rg.detail) }
-  if (-not $gr.pass) { Write-Host ("    go->rust: {0}" -f $gr.detail) }
-}
-
-# --- libp2p pay matrix (pay protocol over libp2p/QUIC) ----------------------
-# The pay family (negotiation + credit-ledger settlement, pay §2-§5) run live
-# over libp2p/QUIC in both orientations, after the task transcript verifies on
-# the same session. pay-postpaid = one settlement; pay-metered = two
-# incremental watermark invoices. The requester hosts the in-process ledger
-# operator (--operator-seed), pre-credited.
-$payScenarios = @("pay-postpaid", "pay-metered")
-$payResults = @{}
-$payPass = $true
-$payExtra = @("--operator-seed", $SEED_OP)
-Write-Host ""
-Write-Host "=== Pay matrix (libp2p/QUIC) ==="
-Write-Host ($fmt2 -f "scenario", "rust->go", "go->rust")
-foreach ($scen in $payScenarios) {
-  $rg = RunTaskCell "rust" "go" $scen $payExtra
-  $gr = RunTaskCell "go" "rust" $scen $payExtra
-  $payResults["$scen|rust->go"] = $rg
-  $payResults["$scen|go->rust"] = $gr
-  if (-not $rg.pass) { $payPass = $false }
-  if (-not $gr.pass) { $payPass = $false }
-  $mark1 = if ($rg.pass) { "PASS" } else { "FAIL" }
-  $mark2 = if ($gr.pass) { "PASS" } else { "FAIL" }
-  Write-Host ($fmt2 -f $scen, $mark1, $mark2)
-  if (-not $rg.pass) { Write-Host ("    rust->go: {0}" -f $rg.detail) }
-  if (-not $gr.pass) { Write-Host ("    go->rust: {0}" -f $gr.detail) }
-}
+# The v1 libp2p task (6 cells) and pay (4 cells) matrices were retired with the
+# v1 task and settlement protocols (accountability-layer P2; tag map-v1-ietf).
+# Cross-implementation cells for the A2A binding return in P5.
 
 Write-Host ""
-if ($allPass -and $taskPass -and $payPass) {
-  Write-Host "RESULT: 16/16 core PASS + 6/6 task + 4/4 pay (libp2p, both orientations) PASS"
+if ($allPass) {
+  Write-Host "RESULT: 16/16 core PASS (TCP, both orientations)"
   exit 0
 } else {
-  Write-Host "RESULT: FAILURES PRESENT (core=$allPass task=$taskPass pay=$payPass)"
+  Write-Host "RESULT: FAILURES PRESENT"
   exit 1
 }

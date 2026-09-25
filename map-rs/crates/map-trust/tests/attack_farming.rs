@@ -11,7 +11,7 @@
 //! API in P3.
 
 use map_identity::Keypair;
-use map_tasks::TaskId;
+use map_core::TaskId;
 use map_trust::*;
 
 const CAP: &str = "map:cap:inference/text-generation";

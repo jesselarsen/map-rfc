@@ -1,5 +1,11 @@
 # MAP demo agents & task interop
 
+> **Retired (v1).** The Rust demos below (`rfc-title-o-matic`, the libp2p
+> task/pay interop modes) were removed with the v1 task and settlement
+> protocols in P2 of the accountability-layer rework; they run from tag
+> `map-v1-ietf`. The Go demos still build until the Go prune (P5). The A2A
+> provider/requester demo replaces them in P4.
+
 Two real task-answerers prove the MAP task protocol (tasks §1–§13) over a
 live session, in both implementations:
 

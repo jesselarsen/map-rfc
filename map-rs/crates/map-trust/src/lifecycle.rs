@@ -1,38 +1,52 @@
-//! Receipt-lifecycle helpers (trust §3): the countersignature agreement
-//! tolerance. `make_receipt_core` (which maps a *task* terminal to an outcome)
-//! lives in `map-taskrun`, not here — it needs the task-runtime's ReceiptInputs
-//! and a trust→taskrun dep would be circular; this crate keeps the pure,
-//! data-only tolerance check the provider applies before it countersigns.
+//! Countersignature tolerance (spec/layer.md §6.5). The second signer of a
+//! receipt or checkpoint checks the proposed usage counters and timestamps
+//! against its OWN observation before signing. The window is a local policy
+//! parameter ([`Tolerance`]); v1 fixed it normatively at ±5% / ±2000 ms,
+//! which remain the defaults. The caller separately checks task-id,
+//! capability and identities for exact equality.
 
 use crate::ReceiptCore;
 
-/// Usage tolerance: ±5% of the OBSERVED value (min ±1). Anchored to the
-/// provider-observed (trusted) side, NOT `max(claimed, observed)`, so an
-/// inflated requester claim cannot widen its own acceptance band (the §11
-/// countersignature-farming defense). Assigned by TASK-008; recorded in
-/// trust §3.
-pub const USAGE_TOLERANCE_NUM: u64 = 1; // 1/20 = 5%
-pub const USAGE_TOLERANCE_DEN: u64 = 20;
-/// Timestamp tolerance: ±2000 ms on `started`/`ended`.
-pub const TIMESTAMP_TOLERANCE_MS: u64 = 2000;
-
-fn field_ok(claimed: u64, observed: u64) -> bool {
-    let tol = std::cmp::max(1, observed * USAGE_TOLERANCE_NUM / USAGE_TOLERANCE_DEN);
-    claimed.abs_diff(observed) <= tol
+/// Local countersignature policy (layer §6.5: `tolerance.usage_pct`,
+/// `tolerance.time_ms`). The window is anchored to the countersigner's
+/// OBSERVED value, never `max(claimed, observed)`, so an inflated claim
+/// cannot widen its own acceptance band.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Tolerance {
+    /// Allowed deviation per usage counter, percent of the observed value
+    /// (minimum ±1).
+    pub usage_pct: u64,
+    /// Allowed deviation on `started`/`ended`, milliseconds.
+    pub time_ms: u64,
 }
 
-/// True iff a requester's `claimed` ReceiptCore agrees with the provider's
-/// `observed` core within tolerance on all four usage fields and both
-/// timestamps. The caller separately checks task-id / capability / identities
-/// for exact equality — this is the numeric agreement the countersignature
-/// attests (trust §3).
+impl Default for Tolerance {
+    fn default() -> Self {
+        Tolerance { usage_pct: 5, time_ms: 2000 }
+    }
+}
+
+impl Tolerance {
+    fn field_ok(&self, claimed: u64, observed: u64) -> bool {
+        let tol = std::cmp::max(1, observed.saturating_mul(self.usage_pct) / 100);
+        claimed.abs_diff(observed) <= tol
+    }
+
+    /// True iff `claimed` agrees with the countersigner's `observed` core
+    /// within this window on all four usage fields and both timestamps.
+    pub fn accepts(&self, claimed: &ReceiptCore, observed: &ReceiptCore) -> bool {
+        self.field_ok(claimed.metrics.tokens_in, observed.metrics.tokens_in)
+            && self.field_ok(claimed.metrics.tokens_out, observed.metrics.tokens_out)
+            && self.field_ok(claimed.metrics.ttft_ms, observed.metrics.ttft_ms)
+            && self.field_ok(claimed.metrics.wall_ms, observed.metrics.wall_ms)
+            && claimed.started_ms.abs_diff(observed.started_ms) <= self.time_ms
+            && claimed.ended_ms.abs_diff(observed.ended_ms) <= self.time_ms
+    }
+}
+
+/// [`Tolerance::accepts`] under the default policy.
 pub fn within_tolerance(claimed: &ReceiptCore, observed: &ReceiptCore) -> bool {
-    field_ok(claimed.metrics.tokens_in, observed.metrics.tokens_in)
-        && field_ok(claimed.metrics.tokens_out, observed.metrics.tokens_out)
-        && field_ok(claimed.metrics.ttft_ms, observed.metrics.ttft_ms)
-        && field_ok(claimed.metrics.wall_ms, observed.metrics.wall_ms)
-        && claimed.started_ms.abs_diff(observed.started_ms) <= TIMESTAMP_TOLERANCE_MS
-        && claimed.ended_ms.abs_diff(observed.ended_ms) <= TIMESTAMP_TOLERANCE_MS
+    Tolerance::default().accepts(claimed, observed)
 }
 
 #[cfg(test)]
@@ -40,7 +54,7 @@ mod tests {
     use super::*;
     use crate::{Metrics, Outcome, ReceiptCore};
     use map_identity::Keypair;
-    use map_tasks::TaskId;
+    use map_core::TaskId;
 
     fn core(metrics: Metrics, started: u64, ended: u64) -> ReceiptCore {
         ReceiptCore {
