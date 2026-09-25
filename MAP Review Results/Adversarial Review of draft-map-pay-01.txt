@@ -1,0 +1,282 @@
+
+Role 4 · payments & economic security · pre-submission review
+
+Adversarial Review of draft-map-pay-01
+Twenty-seven findings against the payments draft and its two implementations, assuming a rational self-interested adversary on each side rather than a random fault.
+
+Target: map-spec/draft-map-pay-01.md (743 lines) · repo HEAD 56bce96, branch main
+Code in scope: map-rs/crates/map-pay/, map-rs/crates/map-taskrun/, map-rs/adapters/x402-adapter/, map-rs/adapters/gateway/src/paid.rs, map-go/pay/
+Suites run: 157 Rust tests across the four pay crates — all pass; go test ./pay/... — passes. Four findings below are demonstrated by running code against the unmodified crates from outside the repo.
+
+Verdict
+
+Not publishable as one document. Split three ways.
+The draft carries four distinct trust models, a settlement-method registry, and an evidence-adjudication protocol in 743 lines. Only two of those — postpaid and metered-incremental — have two implementations and live interop. The dispute engine is demonstrably unsound in two of its five claim codes, and the artifact that anchors its fairness guarantees (the countersigned checkpoint) has no codec in either implementation and no byte layout in any draft. Publishing these together means the strongest material carries the weakest.
+
+1
+Core settlement. §1–§4 plus §5.2.2 prepaid, minus the dispute protocol. Two implementations, four live interop cells, one machine-checked metering model (P6). Publishable after R4-01, R4-05, R4-06, R4-09 and R4-10 are fixed.
+2
+Escrow and disputes. §5.2.3, §5.2.4, §6. Experimental at best, and not until the checkpoint artifact is specified on the wire and the claim-0/claim-1 soundness holes are closed. Nothing here has a second implementation; the formal analysis explicitly excludes it.
+3
+Settlement-method definitions. pay:credit-ledger and pay:x402, one document each. This is what §5.1's own Specification Required policy demands, and it is the only way to bind a MUST-level dependency on a non-IETF external spec without freezing it into the protocol document.
+The family's own advancement rule settles the question independently. ops §6.1: “no document leaves draft status without two independent implementations passing the full matrix against each other.” For terms 1/2, §6 and pay:x402, there is one implementation. By its author's rule, pay-01 as written cannot leave draft.
+
+Attack table
+Every row was checked against the draft text and the reference implementation. “Demonstrated” means executed against the unmodified crates.
+
+Attacker	Precondition	Gain	Mitigation
+Payer (any terms)	A pay:credit-ledger mesh; payer signs its own release-auth	Unbounded transfer from the payee. Demonstrated: a hold of −50 000 plus a release of −50 000 moved 50 000 minor units from payee to payer, from a zero balance.	None. No draft in the family requires Amounts to be non-negative; §5.2.4's operator rules admit the negative release verbatim (R4-01).
+Provider, terms 1 prepaid	Prepayment settled; provider delivers nothing	Keeps the full prepayment. Demonstrated: one self-signed COMPLETE with an invented transcript root turns claim 0 from Supported to Rebutted; the payer's fallback claim 1 returns Insufficient because it has no chunks to present.	None. §6.3 makes any COMPLETE a full rebuttal, and no rule requires the root to be recomputable (R4-04).
+Payer, any delivered task	Holds the provider's COMPLETE	A Supported output-mismatch verdict against an honest provider. Demonstrated: a CHUNK envelope the payer sealed with its own key, carrying tampered content, is accepted as “the delivered transcript”.	None. §6.3 lets the claimant choose the recomputation input; neither draft nor code requires kind-9 items to be payee-signed or contiguous (R4-03).
+Payer, terms 2 escrow	Work delivered, COMPLETE verified; payer then goes silent	The entire delivered task for free. At expiry the hold returns to the payer in full.	Partial. The payee can stop working at the hold value, so its loss is bounded — at 100% of what it delivered. There is no timeout-to-payee and no arbiter or operator release path (R4-07).
+Payee, terms 2 escrow	Any successful COMPLETE; per-token quote	The full held amount regardless of usage delivered. §5.2.3 check 5 bounds a release only by ≤ held; “final owed” is never defined for a task that completes.	None. Dominant strategy is to always release the maximum, which collapses escrow into prepay (R4-11).
+Either party, any dispute	Opens a dispute and hands a verifier only its own evidence set	Claims 0 and 2 resolve in the submitter's favour: both are decided by absence in the other party's set, and an empty respondent set is indistinguishable from a silent respondent.	None. PayDisputeEvidence carries no party attribution, and §6 puts timeboxes out of scope, so “the payee produced none” is unfalsifiable (R4-13).
+Requester, terms 0 postpaid	Takes delivery, never pays	The whole task. The provider's exposure is the full task value and the draft never bounds or even names it.	Partial, and out of band: a claim-2 verdict MAP declares non-remedial, plus a trust-plane outcome-4 receipt. Worth less than the task for any one-shot counterparty (R4-08).
+Provider, terms 3 metered	No PayAgree.4 cap in the agreement (it is OPTIONAL)	Unbounded cumulative billing. §4.1 check 6 — the draft's named “runaway-cost defense” — is skipped entirely when the cap is absent.	Partial. Check 4 still ties billing to metered chunks, and FLOW_CREDIT starves the stream, but neither bounds price per unit delivered (R4-09).
+Provider, terms 3 metered	Bills invoice 1, requester withholds payment, provider bills invoice 2	Ambiguity worth the first invoice. §4.1 says the delta is measured from the last invoice the requester settled; both implementations measure from the last accepted. Under the draft's reading invoice 2 is self-covering; under the code's it is not.	None in the text. The two implementations agree with each other and disagree with the normative rule (R4-05).
+External x402 upstream	Gateway retries; each retry is a new attempt	N × the ceiling. ops §5.1 G-7 mandates a per-task ceiling; pay_402_loop checks one demand against it per attempt, with a fresh single-use nonce each time and no accumulator.	None in code. The field is even named max_atomic_per_task (R4-15).
+Chain observer / malicious facilitator	Gateway runs the real signer on the rail leg	Authorizations signed under an EIP-712 domain with chainId = 0: either dead on arrival or, against a lax verifying contract, replayable on any chain.	None. http402.rs:331 hardcodes chain_id: 0 and the signer trait cannot override it; chain_id_for also returns 0 for unknown networks (R4-16).
+Ledger operator	Named in a pay:credit-ledger quote	Full control of balances. Trusted by design — correctly disclosed — but the formal model states it does not cover operator misbehaviour, and escrow adds a second trusted role (holder of funds) on top of the first (attestor of movement).	Disclosed, not mitigated. Acceptable for §5.1, understated for §5.2.4, where the operator now holds custody.
+Findings register
+Formatted for REVIEW-PROCESS.md Stage 1 intake. Severity is as reported by this role; per Rule 0 nothing here was fixed.
+
+ID	Severity	Location	Claim
+R4-01	Blocking	pay §1 L65–66; §5.2.4 L562–571; credit_ledger.rs:151,195,241	Amounts are nowhere required to be non-negative; a negative hold/release lets the payer drain the payee. Demonstrated.
+R4-02	Blocking	pay §4.2 L298–304; §5.2.3 check 5; §6.1 kind 5; §6.3 claim 3	The countersigned checkpoint has no codec or runtime in either implementation and no byte layout in any draft — only in ERRATA.md.
+R4-03	Blocking	pay §6.3 claim 1 L683–686; dispute.rs:604–628, :359	Claim 1 is unilaterally forgeable: kind-9 chunks need not be payee-signed or contiguous. Demonstrated.
+R4-04	Blocking	pay §6.3 claim 0 L676–682; dispute.rs:580–598	Claim 0 is rebutted by one self-signed COMPLETE; total non-delivery is unadjudicable. Demonstrated.
+R4-05	Blocking	pay §4.1 L241–243 vs §4.2 L290; billing.rs:143; metered.go:356	The invoice-delta rule says “last invoice the requester settled”; both implementations use last accepted.
+R4-06	Blocking	pay §5.1 L314–322; §8 L733–739; References L741–743	Seven registry entries under Specification Required with no defining documents, and no normative references for x402, EIP-3009, BOLT12, CBOR or COSE.
+R4-07	Major	pay §5.2.3 L511–538; §5.2.4 L562–571	Escrow expiry is unilaterally pro-payer; no timeout-to-payee, no arbiter or operator release path.
+R4-08	Major	pay §1 L60–63; §2 L87–88; §4.2 L278–281	Terms 0 states neither the provider's maximum exposure nor its recourse; the flow-credit exposure bound is terms-3 only.
+R4-09	Major	pay §3 L113, L139–141; billing.rs:160; taskrun/escrow.rs:69–76	The authorized cap is OPTIONAL with no default, so check 6 is vacuous; runtimes synthesize it from the quote total, not the agreement.
+R4-10	Major	pay §3 L102–103; dispute.rs resolve_anchor; pay/codec.go	Quote key 7 (terms) is optional with no stated default, yet governs which MUST-level presence rules apply.
+R4-11	Major	pay §5.2.3 L485, check 5 L506–508; map-pay/escrow.rs:89	Release is bounded only by ≤ held; “final owed” undefined on success, so escrow degenerates to prepay.
+R4-12	Major	pay §5.2.2 L460–464 vs dispute.rs:718–746	The verdict engine applies claim 3 to terms-1 invoices, which §5.2.2 says it must not. Demonstrated.
+R4-13	Major	pay §6.1 L607–611; §6.3 L676–689, L704–708	Claims 0/2 depend on the evidence partition, which the wire format does not carry and no timebox constrains.
+R4-14	Major	pay §6.3 L670–672 vs §3 L93–114; dispute.rs Parties	“The AgentIDs bound by the agreement” do not exist: neither quote nor agreement carries one.
+R4-15	Major	ops §5.1 G-7; http402.rs:317–319; paid.rs:135–136	A normative per-task ceiling is implemented per attempt, with no accumulator.
+R4-16	Major	http402.rs:331; real.rs:54–59; flow.rs:64–72	chain_id: 0 is hardcoded into the EIP-712 domain the real signer signs; unknown networks silently map to 0.
+R4-17	Major	pay §5.2.4 L558–559; credit_ledger.rs:286–290	Refund entries commit to the literal asset credit:ledger, not the held asset, and no refund verifier exists. Demonstrated.
+R4-18	Major	credit_ledger.rs:76–97, :222–262	Ledger accounting is asset-blind: balances and holds store no asset, and release/refund never compare one.
+R4-19	Major	pay L13–19; SUBMISSION.md L48–49, L88–90; MATRIX.md L96–104	The two-implementation claim does not hold for terms 1/2, §6, or pay:x402; ops §6.1's advancement rule is unmet.
+R4-20	Major	pay §5.2.3 check 4 L503–505; taskrun/escrow.rs:587; requester.rs:240	The canonical release trigger is an unchecked boolean whose only callers are tests; the transcript check that exists is never wired to it.
+R4-21	Major	pay §5.2.4 L544–546; taskrun/escrow.rs:408, :654	Terms-2 interop requires the hold expiry as a bare CBOR uint in PayInvoice key 5 — a convention no draft states.
+R4-22	Major	pay §6.3 claim 4 L697–702; dispute.rs:752–785	Claim 4 detects two of the five violation classes it names; 6006 inverts to Insufficient and 6008 is never checked.
+R4-23	Minor	map-pay/escrow.rs:86–99 citing pay §5.2.3	The code attributes a COMPLETE-beats-CANCEL precedence rule to §5.2.3, which states none.
+R4-24	Minor	pay §4.1 L237; billing.rs:75–77	Per-invocation billing hardcodes 1; Usage has no invocation counter, so multi-invocation is a wire change.
+R4-25	Minor	pay §5.1 L317	pay:stripe-intent registers a commercial product name as a permanent code point.
+R4-26	Minor	pay §5.2.3 L532–533	The kind-3 remainder receipt is OPTIONAL in the one place the payer needs proof its remainder came back.
+R4-27	Nit	pay §8 L733–739	“IANA-Style Considerations”, plus a divergence clause that gives the same registries two normative homes.
+1. Terms 0 — postpaid
+What stops a requester from taking delivery and not paying: nothing, and the draft does not claim otherwise — but it also never says so. That asymmetry matters, because the draft bounds honest-party exposure explicitly for every other terms value.
+
+R4-08
+Major
+Terms 0 has no stated exposure bound and no stated recourse
+§5.2.3 gives escrow a full failure matrix and closes with “The payee's exposure is bounded by the hold… the payer's by the expiry”. §4.2 gives terms 3 a recommended bound (“pause when the unpaid amount would exceed the stream's granted flow credit… so that unpaid delivery is bounded by exactly the backpressure MAP already provides”). Terms 0 gets one clause in §2 — “credit terms (pay-after, net-N) collapse INVOICE/PROOF to post-delivery” — and nothing else. A reader comparing the four terms will reasonably conclude all four are analysed; three are.
+
+The provider's actual recourse is a claim-2 verdict plus a trust-plane receipt. On the draft's own terms that verdict is worth little: §6 opens “MAP adjudicates evidence availability, not outcomes” and §6.3 closes “MAP never emits remedies”. Against a counterparty with no repeat business and a cheap identity, the expected cost of non-payment is the cost of a new AgentID. Proposed text: a paragraph in §2 or a new §5.2.1-style subsection stating that under terms 0 the payee's maximum loss is the full quoted total, that its only in-protocol recourse is a §6 claim-2 record and a trust-plane receipt, and RECOMMENDED guidance that terms 0 is for counterparties with standing credit relationships or prior trust, not for first contact.
+
+R4-10
+Major
+Terms is optional with no default, and it gates MUST-level presence rules
+PayQuote key 7 is ? 7 => uint. But §4.1 says “under terms 3 every PAY_INVOICE MUST carry key 4; under any other terms key 4 MUST be absent”, and §5.2.1 says “Key 7 MUST be present iff the governing agreement's terms are 2”. Both rules are conditioned on a field that need not be present, and no default is stated. Both implementations pick 0 by convention — quote.terms.unwrap_or(0) in dispute.rs, the same in map-go — so this is invisible in interop today and would surface the moment a third implementation defaults differently or treats absence as an error. Proposed text: in §3, “A quote with key 7 absent is a terms-0 (postpaid) quote; receivers MUST treat absence as 0.”
+
+2. Terms 1 and 2 — prepaid and escrow
+Who holds funds: the rail. Who can move them: under pay:credit-ledger, the operator, on a payer-signed release-auth, a payee-signed refund-auth, or expiry. The 2-of-2 gate's failure mode when one party goes silent is not symmetric, and the draft presents it as though it were.
+
+R4-07
+Major
+Escrow expiry is a free option for the payer
+A payer that verifies COMPLETE and then withholds its release signature is dispute claim 2 (non-payment), with the kind-1 receipt, the signed COMPLETE, and the transcript as evidence — MAP makes the lie expensive to sustain (§6); the method and mesh make it remediable.
+draft-map-pay-01.md §5.2.3, lines 518–522
+Trace what the rail actually does in that state. §5.2.4's operator rules admit exactly three state transitions on a hold: release (requires a payer release-auth), refund (requires expiry or a payee refund-auth), and nothing. A silent payer therefore produces refund-at-expiry: 100% back to the payer, 0% to the payee, and the payee has delivered the work. The claim-2 record is not a remedy — §6 says so — and “the method and mesh make it remediable” names no mechanism in either §5.2.4 or §6. The named, mutually-chosen operator is the obvious third party to break the tie, and it is explicitly forbidden from doing so.
+
+The failure matrix at §5.2.3 L530–538 lists this row as “payer vanishes after COMPLETE → dispute claim 2, and the payee's loss is bounded by work it can prove it delivered”. That phrase reads as a bound on loss; it is a bound on the size of the loss, and the loss is total. Proposed fix (pick one and say which): (a) permit the hold params to name an arbiter AgentID whose signature substitutes for the payer's release-auth, making escrow genuinely 2-of-3; or (b) define expiry under terms 2 as splitting to the last countersigned checkpoint's owed amount rather than refunding in full — which is the same accounting §4.2 already defines for CANCEL; or (c) state plainly in §5.2.3 that terms 2 protects the payer against non-delivery and the payee only against over-delivery, and that a payee facing a silent payer loses the work.
+
+R4-11
+Major
+“Final owed” is undefined on success, so the payee's dominant strategy is to claim the whole hold
+The §5.2.3 flow diagram annotates the release invoice “amount = final owed ≤ held”. Check 5 then bounds it two ways: ≤ held always, and exactly the §4.1 formula at the last countersigned checkpoint only if the task ended by CANCEL. On a successful COMPLETE there is no upper bound but the hold. A per-token terms-2 quote for 500 units that delivers 10 may release all 500, and the requester's verifier must accept it — map-pay/escrow.rs:89 checks only le(&invoice.amount, held).
+
+A rational payee always releases the maximum. Escrow then delivers the payer nothing prepay does not, minus the expiry protection, plus a round trip. Proposed text: extend check 5 to the success case — the release amount MUST equal the §4.1 formula applied to the COMPLETE's usage (tasks §4 key 4) for metered pricing models, and MAY equal the held total only under pricing model 0 (flat).
+
+R4-01
+Blocking
+Nothing requires an Amount to be non-negative, and the escrow rail admits negative releases
+Amounts: CBOR decimal fractions (tag 4, integer mantissa/exponent) plus an asset identifier — never floats (core §4.2).
+draft-map-pay-01.md §1, lines 65–66
+That is the whole of the Amount definition. grep -rn "non-negative" map-spec/ returns nothing across all eleven drafts. The consequence is not theoretical: the comparison helpers the verifiers use are mantissa-only (le, eq), so every bound in the document — cap, ≤ held, monotonicity — is satisfied vacuously by a negative mantissa, and §5.2.4's operator rules (“A release requires a valid payer release-auth over exactly this (hold, release, amount) triple, amount ≤ held, and now < expiry; it atomically credits the amount to the payee, returns the remainder to the payer”) instruct the operator to credit a negative amount and return a remainder larger than the hold.
+
+Executed against the unmodified map-pay crate
+
+B) before: payer=0      payee=100000  escrow=0
+B) hold(-50000)   -> Ok(entry)
+B) held:   payer=50000  payee=100000  escrow=-50000
+B) release(-50000) -> Ok(entry)
+B) after:  payer=50000  payee=50000   escrow=0
+and the plain-payment path, which also verifies
+
+A) pay(-50000) -> Ok(entry)
+A) after:  attacker=50000  victim=50000
+A) verify_entry on the negative entry -> true
+The payer needed no balance and signed its own authorization; LedgerError::Insufficient never fires because balance < minor is false for negative minor (credit_ledger.rs:152,196). Note that the x402 path does guard this (flow.rs to_atomic rejects mantissa < 0), which is evidence the invariant is known and simply unstated. Proposed text: in §1, “An Amount mantissa MUST be non-negative; receivers MUST reject a negative Amount in any pay message (ERROR 6010). Refunds and reversals are expressed as separate rail operations in the reverse direction, never as negative amounts.” Then add a negative vector (NV-013) and fix both operators.
+
+R4-17 · R4-18
+Major
+The credit ledger is asset-blind, and refund entries name the wrong asset
+§5.2.4 defines refund-entry = enc(["MAPLedgerRefund", hold-invoice-id, payer, [Asset, Amount], ts]). The implementation substitutes a hardcoded literal:
+
+let aa = AssetAmount {
+    asset: crate::Asset::new("credit:ledger").expect("static asset"),
+    amount: crate::Amount::new(self.exponent, hold.minor as i64),
+};                                    // credit_ledger.rs:287-290
+Confirmed by running it: a refund of a iso4217:USD hold produces an entry whose printable bytes contain credit:ledger and not iso4217:USD. So a refund entry cannot be checked against the invoice's [Asset, Amount] the way §5.1's verification procedure requires — and there is no verify_refund_entry at all, so the payer has no way to verify the one artifact that proves its money came back. Compounding it, the operator's whole state is asset-free: balances: HashMap<AgentId, i128> and struct Hold { payer, payee, minor, expiry_ts }. Two assets at the same exponent share one balance, and a release's asset is never compared to its hold's. The i128 → i64 cast on the refund amount is a second, quieter bug on the same line.
+
+R4-20 · R4-21
+Major
+Terms 2 is not implemented end-to-end and not specified well enough to implement twice
+Two gaps sit on top of each other. First, §5.2.3 check 4 — “a COMPLETE for the bound task has been received AND its transcript-root verified… the canonical release trigger” — reaches the verifier as EscrowContext.complete_verified, a caller-supplied bool. Its only callers in the tree are tests (tests.rs:1262,1295,1359). The transcript-root check does exist, in a different crate module (requester.rs:240), and nothing connects the two. The security property the entire escrow flow rests on is, in-tree, an untested assumption about an integrator.
+
+Second, the reference implementation requires a wire convention the draft never states: the phase-1 invoice carries the hold expiry as a bare deterministic-CBOR uint in PayInvoice key 5, and the requester rejects the invoice as MALFORMED if it cannot decode one (taskrun/escrow.rs:408,654). §5.2.4 documents only MethodOffer.2 {? 1 => uint}, “maximum hold validity the operator accepts” — a different field with a different meaning. A second implementer working from the draft cannot interoperate on terms 2. Given §5.2.3's “every hold MUST carry an expiry (method params)”, the draft appears to intend params, and the implementation diverged; either way one of them is wrong.
+
+3. Terms 3 — metered-incremental
+Can a provider over-meter within one increment? No — this is the strongest mechanism in the document. Check 4 requires the kind-3 usage chunk before the invoice, check 5 pins the amount to exact integer arithmetic, and both implementations enforce all six checks in order with matching error codes. Can a requester consume value below the watermark granularity for free? Yes, bounded by one increment, and the draft does not say so. Maximum attributable loss: stated for neither side.
+
+R4-05
+Blocking
+The one exact-arithmetic rule in the document contradicts itself and both implementations
+The invoice amount (key 3) MUST equal this invoice's cumulative-billed minus the cumulative-billed of the last invoice the requester settled for this task (zero for the first).
+draft-map-pay-01.md §4.1, lines 241–243
+Check 3 of the same section, and both implementations, use the last accepted watermark, not the last settled one:
+
+let prev_billed = last_accepted.map(|p| p.cumulative_billed.amount.mantissa).unwrap_or(0);
+                                            // map-pay/billing.rs:143
+
+if r.lastAccepted != nil { prevBilled = r.lastAccepted.CumulativeBille.Amount.Mantissa }
+                                            // map-go/pay/metered.go:355-356
+The two differ exactly in the pause scenario §4.2 exists to describe. Bill 100, requester withholds, provider bills again at cumulative 250. Under the draft's rule the second invoice's amount is 250 — self-covering, and one PAY_PROOF resumes the stream. Under the implementations' rule it is 150, and the stream resumes only when both invoices settle. §4.2 itself uses the plural (“a PAY_PROOF that settles the outstanding invoice(s) which caused the pause”), i.e. the text agrees with the code in one section and contradicts it in the other. For a document whose §3 boast is “no rounding rule exists anywhere in this document, by construction”, an ambiguous delta basis is the most consequential defect available. Proposed text: replace “settled” with “last ACCEPTED watermark (check 3)”, which matches both implementations and makes the outstanding-position arithmetic in §4.2 well-defined.
+
+R4-09
+Major
+The runaway-cost defense is optional, and the runtimes do not take it from the agreement
+§3 calls the cap “a hard constraint… the requester-side runaway-cost defense”, and §4.1 check 6 enforces it. But PayAgree key 4 is ? 4, and when it is absent check 6 is skipped: if let Some(cap) = &agreed.authorized_cap. A requester that omits the field — permitted — has no price ceiling at all; the only remaining bound is that billing tracks metered chunks, which constrains honesty about volume, not price.
+
+Separately, the escrow and prepaid runtimes construct their verification basis from the quote: authorized_cap: q.total.clone() (taskrun/escrow.rs:74). That is the payee's number, not the payer's commitment. It happens to coincide because the same runtime then sends authorized_cap: cap in its PAY_AGREE, but a verifier that derives the cap from the quote rather than the agreement has lost the distinction §3 draws between an advertisement and a commitment. Proposed text: make key 4 REQUIRED under terms 3 (the mirror of the watermark presence rule), and state that verifiers take the cap from the PAY_AGREE only.
+
+—
+Minor
+Neither side's maximum attributable loss is stated, though both are computable
+They are worth stating because they are genuinely good numbers, and because the pause/resume ruling is only evaluable against them. From §4.1–§4.2: the provider's maximum loss is one increment — the usage delivered between the last settled watermark and the pause — bounded by its own pause policy, for which §4.2 recommends the granted flow credit. The requester's maximum loss on a provider that stops mid-increment is zero if it has not paid, since billing anchors to metered chunks it received; on CANCEL it is bounded above by the last countersigned checkpoint, which is less than the final unpaid watermark. That last inequality is the draft's strongest fairness claim (“a dying or malicious stream can claim payment only for delivery the requester has already acknowledged”) and per formal/README.md L290–296 it is “argued structurally but not yet machine-checked”. It also depends on an artifact that does not exist — see R4-02.
+
+The granularity question resolves in the requester's favour by the same route: usage accrued after the last watermark and never checkpointed is unbillable on CANCEL. That is a deliberate, defensible choice. Say it, and say it is bounded by the provider's checkpoint interval (tasks §8.2 default 512 tokens), so an implementer knows which knob controls its exposure.
+
+4. Disputes — §6
+Who is the arbiter: nobody, by design — “ANY third party the disputants choose”. Their incentive: unspecified, because selection and remedies are mesh policy. What happens when there is none: each party runs the verdict function on its own evidence and gets the answer it wants, because two of the five claims are decided by what the other party did not submit. Enforceable? Explicitly not: “MAP never emits remedies”. That is a coherent scope choice. The problem is that the mechanical part, which is supposed to be sound regardless, is not.
+
+This is also the unverified territory: formal/README.md L294–296 — “the rebuttal-shaped claim logic (claims 0–4)… is out of scope for pay-dispute.pv; only the watermark-binding (resolution ⇒ contested) is proven”. Both holes below are in exactly that gap.
+
+R4-04
+Blocking
+Claim 0 is defeated by one signature, and the fallback claim returns nothing
+…supported iff the payer's evidence shows value moved — a settled PAY_RECEIPT (kind 0/2) or verified proof — AND the payee's evidence contains NO countersigned checkpoint and no COMPLETE for the bound task.
+draft-map-pay-01.md §6.3, claim 0, lines 676–682
+A COMPLETE is an envelope the payee signs unilaterally, carrying a transcript_root it chooses. Nothing in claim 0 requires that root to be recomputable, to match any delivered chunk, or to be countersigned. So the rebuttal costs one signature over invented bytes. The payer's escalation path is claim 1 — and claim 1 requires the payer to present the delivered transcript, which in a total-non-delivery case is empty; the implementation returns Insufficient on an empty chunk set and the draft is silent.
+
+Prepaid, settled, nothing delivered — executed against map_pay::dispute::verify_dispute
+
+3a) claim 0, payee produces nothing            -> Supported
+3b) claim 0, payee mints one bogus COMPLETE     -> Rebutted
+3c) payer's fallback claim 1, no chunks to show -> Insufficient
+The doctrine in §6 is “make lying expensive to sustain — every step of a MAP payment leaves a signed artifact the liar must contradict”. Here the liar contradicts nothing: it adds an artifact no one can check. Proposed fix: make the rebuttal an artifact the payee cannot mint alone — a countersigned checkpoint, or a COMPLETE whose root the claimant's presented transcript reproduces, or a dual-signed ExecutionReceipt (kind 7). A bare COMPLETE should at most move the verdict to Insufficient, never to Rebutted. And define the empty-transcript case for claim 1 explicitly: an empty presented transcript has the empty root, which is comparable.
+
+R4-03
+Blocking
+Claim 1 is “fully mechanical” and unilaterally forgeable
+1 output-mismatch (payer claims): supported iff the COMPLETE's transcript-root does not equal the root recomputed (tasks §8.1) over the delivered transcript the payer presents, at or before the COMPLETE's chunk range. Fully mechanical.
+draft-map-pay-01.md §6.3, claim 1, lines 683–686
+The claimant chooses the input to the recomputation, and §6.3's only signer rule is role-agnostic: “item signers MUST be the disputants or the method's named operator”. The implementation follows the text faithfully — allowed() in dispute.rs:360 accepts payer, payee or operator for every envelope kind, including kind 9. So the payer seals its own CHUNK envelope with tampered content, presents it as the delivered transcript, and the root mismatch supports its own claim:
+
+Payer-sealed CHUNK with content "tampered" against the provider's honest root
+
+2) claim 1 with a PAYER-signed forged chunk vs honest root -> Supported
+Dropping one genuine chunk from the presented set achieves the same result without forging anything, since nothing requires contiguity either. Proposed text: kind-9 items MUST be signed by the payee (the party that produced the transcript) and MUST form a contiguous chunk-seq run from 0 through the COMPLETE's committed range; a verifier MUST rule Insufficient on a set that is not contiguous or whose items are not payee-signed. Generalise it: §6.1's kind registry should pin the required signer role per kind, since a payer-signed PAY_RECEIPT or a payee-signed checkpoint countersignature are equally meaningless.
+
+R4-02
+Blocking
+The keystone artifact has no wire format in any draft and no codec in either implementation
+The countersigned checkpoint carries four load-bearing jobs: the CANCEL amount under §4.2, the CANCEL release amount under §5.2.3 check 5, the measurement basis for claim 3, and the strong rebuttal for claim 0. Its status:
+
+tasks §8.2 specifies it in prose only — “its own signature over (TaskID, chunk-seq, root)” — with no signing input, no domain separator and no artifact envelope.
+The exact bytes exist in map-spec/ERRATA.md L25–34: enc(["MAPCheckpointAck", TaskID, chunk-seq, root]), with the kind-5 artifact as [checkpoint-content-map, countersig]. ERRATA is not a draft; the repo's own conflict rule is drafts > task docs, so normatively these bytes are unspecified.
+CHECKPOINT 0x020A and CHECKPOINT_ACK 0x020B have code points (core §5, msg_type.rs:30–31) and no codec: map-tasks/src/msg.rs has no Checkpoint struct, map-go/tasks has none either. The only checkpoint type in the tree is map_pay::dispute::CountersignedCheckpoint, a dispute-evidence representation that tests construct directly.
+The practical consequence for §6: claim 3 requires a countersigned checkpoint and rules Insufficient without one, so against any real deployment of either implementation, the overbilling claim is inert. A third-party arbiter — the reader §6.2 is written for — cannot verify the artifact at all from the published drafts. Proposed fix: promote the ERRATA ruling into tasks §8.2 normative text with the CDDL for CHECKPOINT_ACK and the exact signing input, add a golden vector for the kind-5 artifact, and implement the exchange in at least one runtime — or, if that is out of scope for -01, remove the checkpoint dependency from §4.2/§5.2.3/§6.3 and say what anchors those amounts instead.
+
+R4-13 · R4-14
+Major
+The verdict is a function of the evidence partition and of party identities, neither of which the wire carries
+Claims 0 and 2 are defined over “the payee's evidence” and “the payer's evidence” as distinct sets, and the implementation signature reflects that: verify_dispute(dispute, claimant, respondent, parties, cfg). But PayDisputeEvidence (§6.1) has three fields — dispute-id, items, more — and no party attribution; the partition exists only as envelope sender, and only for a verifier that received both bundles in-session. A third party handed one merged bundle, or handed only the claimant's, has no defined behaviour. Combine that with §6's deliberate exclusion of timeboxes (“Timeboxes, arbiter selection, and remedies are mesh/method policy”) and the rebuttal shape has no teeth: “the payee produced none” cannot be distinguished from “the payee was never asked”.
+
+The same layer has a second gap. §6.3 says to authenticate items “against the AgentIDs bound by the agreement”. No AgentID appears in PayQuote or PayAgree — check the §3 CDDL. Parties { payer, payee, operator } is supplied by the verifier from outside the protocol, and which party is payer is inferred from who sent the quote. Proposed text: add payer and payee AgentIDs to PayAgree (or state that the agreement binds them by envelope sender and recipient and that a dispute MUST carry both AgentIDs plus a submitter role flag on PayDisputeEvidence), and state the minimum procedure a third-party verifier follows — including that a verdict on claims 0 or 2 requires a documented opportunity for the respondent to submit.
+
+R4-12 · R4-22
+Major
+Two claim engines do not match their own specification
+Claim 3 vs §5.2.2. The draft is explicit: “Excess of prepay over eventual usage is not overbilling (the payer agreed the total; dispute claim 3 does not apply)”. claim_overbilling has no terms branch at all — for a non-metered invoice it takes basis = inv.amount, which under terms 1 is the quoted total §5.2.2 mandates, and compares it to the checkpoint basis. Executed: a terms-1 prepaid invoice of 500 equal to its quoted total, against a checkpoint acknowledging 130, returns Supported. The engine convicts a payee of overbilling for doing exactly what the draft requires.
+
+Claim 4 vs its own list. §6.3 names five mechanically detectable violations: quote-digest mismatch (6006), cap breach (6005), watermark violation (6009), escrow/prepaid violation (6010), invalid proof (6008). The engine re-runs the watermark and escrow verifiers only. 6008 is never checked. And 6006 inverts: a quote-digest mismatch prevents anchor resolution, so the dispute returns Insufficient — the verdict for “no evidence” — for the one violation whose evidence is the mismatch itself. Under terms 0 the engine can never return Supported for claim 4 at all, since verify_watermark short-circuits to Ok for a non-metered invoice. Proposed fix: either narrow §6.3 claim 4 to the checks that exist, or implement the other three and handle digest mismatch as a distinct Supported path that does not depend on the anchor resolving.
+
+5. The x402 rail
+Is the trust boundary stated in the spec or only in the adapter? The MAP-peer boundary is stated, and stated well. The gateway boundary is in ops §5.1 and the adapter, not in pay-01, which is defensible. The real problem is the normative dependency.
+
+Credit where it is due in one line: §5.1's “A successful /verify alone is NOT settlement”, the invoice-bound nonce MUST, and “the facilitator is a payee-chosen, payee-trusted intermediary” are the three things a reviewer would look for, and they are all present and correct.
+
+R4-06
+Blocking
+A MUST-level dependency on a non-IETF spec, with no normative reference anywhere in the document
+pay-01's References section, in full, is: [RFC2119] [RFC8174] BCP 14 requirement levels. The normative text of §5.1 depends on x402 (cited only as “x402.org, Apache-2.0” — no version, no date, no stable identifier), EIP-3009 transferWithAuthorization, BOLT12, Interledger STREAM, the ACH trace-number format, CBOR tag 4 (RFC 8949), COSE_Sign1 (RFC 9052, via §6.2), and base64 for the X-PAYMENT encoding (RFC 4648). An RFC cannot impose MUST on a payload defined by an unversioned third-party web page.
+
+Worse, the registry policy §5.1 and wire §3.18 declare for settlement methods is Specification Required — “Each entry's defining document specifies: params schema, proof schema, verification procedure, finality/reversal model, and refund reference format” — and then seven initial entries are registered with no defining documents. Five (lightning-bolt12, stripe-intent, erc20-stablecoin, ach, interledger) have nothing but a table row; two (credit-ledger, x402) are defined inline in the protocol document they are meant to be separable from. An IANA reviewer will not accept initial registrations that fail the policy the same section establishes.
+
+How to scope it for an RFC: (1) register only the methods that have a defining document, and mark the rest as expected future registrations in prose, not as registry entries; (2) move pay:credit-ledger and pay:x402 into their own documents, which is split item 3 in the verdict; (3) cite x402 by exact version and retrieval date as an informative reference, with the MAP-specific nonce rule and the asset/exponent mapping — the parts pay-01 actually constrains — stated self-containedly so the MAP requirements survive x402 changing; (4) state the on-chain/off-chain boundary in the method document as a Security Considerations subsection: the facilitator can censor and can delay past validBefore but cannot alter amount, recipient or nonce; the payee bears facilitator risk; the payer's exposure is exactly one authorization; and neither MAP nor the payee can reverse a confirmed transfer.
+
+R4-15
+Major
+G-7 is normatively per-task and implemented per attempt
+G-7 — bounded upstream spend. The gateway MUST enforce a per-task ceiling on upstream payment; a 402 challenge demanding more is refused fail-closed.
+draft-map-ops-01.md §5.1
+The check is if req.max_amount_atomic > policy.max_atomic_per_task { return Err(PriceCapExceeded) } — one challenge against the ceiling, on a function called once per attempt, with the authorization nonce derived from (task, attempt) so each attempt is a separately spendable authorization. There is no accumulator anywhere: not in pay_402_loop, not in PaidGatewayProvider, whose next_attempt() simply increments. The adapter's own test asserts the consequence approvingly: assert_eq!(g.upstream.payment_count(), 2, "a fresh attempt is a fresh single-use nonce"). Retry safety within an attempt is correct and valuable; the per-task ceiling it is sold alongside does not exist. The field name max_atomic_per_task encodes the wrong invariant. Fix: track cumulative atomic spend per task in the provider and check spent + demand ≤ ceiling before signing, which also makes the G-7 refusal path testable at the second attempt.
+
+R4-16
+Major
+The gateway's real authorizations are signed with chainId 0
+let auth = TransferAuthorization {
+    /* … */
+    chain_id: 0, // upstream-published; the canned/real signer derives from network
+};                                    // http402.rs:325-332
+The comment is wrong about RealSigner, which holds only a key and the token's EIP-712 name/version and signs eip712_digest(auth, …), feeding auth.chain_id straight into the domain separator (real.rs:59). Nothing overrides it. So on the rail leg with a real signer, every authorization commits to chainId = 0: rejected by a correct EIP-3009 verifying contract, and valid on every chain against a lax one. The MAP settlement path gets this right (flow.rs:109,192 use chain_id_for(&params.network)), so the two paths have drifted. Note also that chain_id_for returns 0 for any unrecognised network rather than erroring — the same bad value reachable from a policy-permitted network string. Both deserve a hard failure, not a zero.
+
+6. Cross-check — drift in both directions
+In the draft, not in the code
+Five settlement methods — lightning-bolt12, stripe-intent, erc20-stablecoin, ach, interledger: registry rows only, no params, proof, or verifier anywhere.
+CHECKPOINT / CHECKPOINT_ACK — code points assigned, no codec in either language (R4-02).
+Kind-3 refunded receipts — the constant exists and decoders accept it; nothing ever emits one, so §5.2.3's remainder receipt is unreachable in practice.
+Pricing model 0 (flat) under terms 3 — billed() returns UnsupportedModel(0); the draft's unit-code table lists unit 0 “flat total” for model 0 without saying flat and metered are mutually exclusive.
+PayRef as an expectation — the codec exists; no runtime consults Offer.4 to constrain an incoming quote, so “the requester's remedy is simply not to agree” is not exercised anywhere.
+Method-artifact evidence (kind 8) — authenticated as opaque with the signer defaulted to the payee when no operator is known; only claim 2 ever applies a method verifier to one.
+Escrow on methods other than credit-ledger — §5.2 requires hold capability of hold-invoice Lightning, auth-then-capture, or contract escrow; none is implemented, so the “method capability” assertion is untested.
+Terms 1/2, §6, pay:x402 in map-go — absent by design and honestly commented (pay/codec.go:11), but that is half the document with one implementation (R4-19).
+In the code, not in the draft
+Hold expiry in PayInvoice key 5 as a bare CBOR uint, required for terms-2 interop (R4-21).
+MAPCheckpointAck signing input and the [checkpoint, countersig] artifact envelope — ERRATA and code only (R4-02).
+COMPLETE-beats-CANCEL precedence in release verification, attributed to §5.2.3, which states no such rule. A provider that sends a verifiable COMPLETE after a CANCEL unlocks the full hold instead of the checkpoint anchor (R4-23).
+Verifier evidence cap — DisputeConfig::max_items = 256 and a per-message chunk bound; §6.4 permits a cap as local policy but gives no interoperable floor, so one verifier's Insufficient is another's Supported.
+Deterministic evidence ordering by content-address sort, to make the verdict order-independent — a real property worth stating normatively, since a verifier that does not sort can disagree.
+Upstream nonce domain "MAP-x402-upstream-nonce" over (task, attempt) — ops §5.1 says “SHOULD be derived deterministically per (task, attempt)… under a distinct domain string” but never pins the string, so the domain separation it relies on is not interoperable.
+Prepaid insufficient-funds behaviour — the requester returns no message at all (“proof absence, as postpaid”), consistent with §4.2's doctrine but never stated for terms 1.
+Amount as signed i64 with no validation — the root of R4-01.
+What I did not examine
+ProVerif was not run — the models require WSL2 and I relied on formal/README.md's own scope statements, which are specific and credible, for what P1–P6 cover. The live interop matrix was not re-run; MATRIX.md's 26 cells are taken as reported, and my R4-19 finding concerns the cells' coverage, not their result. map-go/pay was read for the delta rule, the terms/phase constants, the prepaid verifier and the escrow/dispute exclusions, but not audited line-by-line against the draft; its arithmetic was not independently checked against TV-016. The real-x402 feature was not built, so R4-16 is established by reading the signing path rather than by producing a signature. Within scope but read only in part: map-taskrun/src/{provider,requester,receipts,evidence}.rs, gateway/src/{provider,descriptor}.rs, x402-adapter/src/{payload,codec}.rs. Outside my role and not reviewed: the trust plane's actual weighting of outcome-4 receipts (which determines how much R4-08's recourse is worth), the other ten drafts except targeted reads of core §4.2/§5/§9, tasks §8, wire §3.18–3.20, ops §5.1/§6.1, and the ISE process questions Role 1 owns.
+
+Read-only review; nothing in the repository was modified. The four demonstrated findings were reproduced from two throwaway crates outside the working tree that path-depend on map-pay unmodified — happy to hand those over if you want them as regression tests rather than as evidence.

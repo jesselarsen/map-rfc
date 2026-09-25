@@ -1,0 +1,10 @@
+[package]
+name = "negcheck"
+version = "0.0.0"
+edition = "2021"
+
+[dependencies]
+map-pay = { path = "../../../map-rs/crates/map-pay" }
+map-identity = { path = "../../../map-rs/crates/map-identity" }
+
+[workspace]

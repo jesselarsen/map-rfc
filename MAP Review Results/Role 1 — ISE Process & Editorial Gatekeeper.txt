@@ -1,0 +1,180 @@
+I'll start by reading the key submission files and drafts to assess ISE-readiness.
+
+Confirmed BLOCKING finding: `wire` and `ops` — exactly the two drafts the task flagged — have no `## Abstract` heading, so they silently fall back to a generic placeholder. Let me verify the actual rendered abstract text in those two.
+
+# ISE First-Pass Review — MAP Draft Family
+
+Scope: this is the administrative/format check an ISE reviewer does *before* opening a document for technical review — stream fit, boilerplate, references, IANA shape, mechanical nits. I verified every claim below against the actual repo state rather than trusting `SUBMISSION.md`; several of its own claims turned out to be imprecise, and one claim implied by the task brief itself is false. Findings are cited by file/line and quoted.
+
+**What I did not examine:** wire-format/CDDL correctness, the ProVerif models in `formal/`, the interop harness internals beyond `interop/MATRIX.md`'s summary line, `ops` §9 compliance notes, or any Security Considerations content — those are technical-review, not ISE-intake. I did not run real `idnits`/`xml2rfc` myself (not installed in this environment); I used the repo's already-rendered `build/*.txt`/`*.xml` plus `build/nits.py`, and manually verified the checks that tool doesn't actually perform.
+
+---
+
+## (a) Go/No-Go: **NO-GO as-is**
+
+None of the blockers are protocol bugs — that part of `SUBMISSION.md`'s framing holds up. But there are enough administrative defects, including one that is silent and self-contradicting in the render pipeline, that this would bounce at intake before an ISE referee is even assigned.
+
+---
+
+## 1. Stream/category — per document
+
+Frontmatter, verified directly (`grep` across all 11 files):
+
+| Draft | `category` | ISE-publishable now? |
+|---|---|---|
+| index, intro, arch, **wire** | `info` | Yes |
+| core, discovery, identity, tasks, trust, pay | `std` | No |
+| ops | `bcp` | No |
+
+**Important correction to the task brief's own premise:** the brief states "one is `bcp`" and refers to "the 20 registries in `draft-map-wire-01` §3" as if wire were a `std` document. It isn't — `map-spec/draft-map-wire-01.md:5` reads `category: info`. This matters for the review below: wire is *already* ISE-compatible by category, but it isn't where the actual IANA registration text lives (see §5).
+
+Also: `SUBMISSION.md:54` says **"Eight drafts are `category: std` or `bcp`"** — the actual count is 7 (6 `std` + 1 `bcp`). That number only reaches 8 if you *also* count wire as `std`, which its own frontmatter contradicts. `SUBMISSION.md`'s numbered reading-order list even labels wire "(std)" at line 17 while the file itself says `info` — the checklist doc disagrees with the source it's describing.
+
+**Recommendation per document:**
+- **index, intro, arch, wire** — keep `info`. No change needed; RFC 7841 §3.3 permits this on the ISE track. Note: `index` and `intro` have near-duplicate abstracts (both open with "The Manolito Agent Protocol (MAP) is a ... decentralized, permissionless ... network of autonomous AI agents" — `draft-map-index-01.md`, `draft-map-intro-01.md`, `draft-map-arch-01.md` all restate this). Worth merging index+intro (see §2).
+- **core, discovery, identity, tasks, trust, pay (`std`→?)** — recategorize **Informational**, not IETF-stream retarget. Retargeting requires WG adoption or AD sponsorship; there's no evidence of either (single unaffiliated author, no WG chartered for this space). Cost of recategorizing: none of the MUST/SHOULD language changes, only the maturity label — which is honest, since "Standards Track" implies IETF consensus this family has never had.
+  - **Consider Experimental instead of Informational for these six.** They define new wire mechanisms with registries attached and an explicit "pending expert review" caveat (`SUBMISSION.md:87-91`). Experimental more accurately signals "may still change" than Informational (which reads as "describes something settled"), at the cost of slightly lower visibility. I'd lean Experimental here.
+- **ops (`bcp`)** — **must** change; BCP is not just off the ISE's menu, it's an IETF-community-process category by definition (RFC 2026 §5) — there is no "recategorize as Informational for the ISE" ambiguity here, unlike the `std` docs. Recategorize Informational.
+
+## 2. Eleven drafts at once — not realistic
+
+The ISE is a small volunteer operation; an unaffiliated single author submitting an 11-document, tightly cross-referencing family simultaneously is exactly the kind of intake that gets returned for staging before review starts. Recommended sequence:
+
+1. **index + intro** — merge these two (overlapping abstracts noted above; index's actual unique content is the reading-order table and submission-status record, which could be a section of a combined "Introduction and Family Index" doc). Submit first — no registries, no wire format, establishes context.
+2. **arch** — distinct content (threat model, zones, non-goals), submit alongside or right after.
+3. **wire** — hold until the six owning documents' registries are stable; wire says explicitly "the owning document wins" on conflict (`draft-map-wire-01.md:39`), so submitting it first risks it going stale mid-review.
+4. **core, identity, discovery, tasks, trust, pay** — these can't be meaningfully split further (heavy cross-reference), but expect the ISE to review `core` first as foundational and gate the rest on it.
+5. **ops** — last; it references the interop matrix and registries owned by the other six, and its governance content only matters once those have a reviewer's attention.
+
+Don't upload all 11 in one Datatracker session even if nothing above blocked it — a single reasonable-length cover note (see (c)) explaining the staged plan will do more for this submission than any formatting fix.
+
+## 3. Boilerplate
+
+The hand-written "Status of This Memo" paragraph (e.g. `draft-map-core-01.md:12-19`) is **stripped entirely** before rendering — confirmed in `build/md2rfc.py:222-228`, which drops all preamble prose before the first heading on the stated rationale that "xml2rfc regenerates the correct boilerplate... keeping the prose in the body would duplicate it." So it cannot literally conflict with the rendered output, because the two never coexist in the same artifact — but it's misleading to anyone reading the `.md` source believing that's what ships.
+
+Two real issues underneath it:
+
+- **The task brief's specific claim is false, and worth flagging as an example of why to verify rather than trust `SUBMISSION.md`/comments.** `build/render.py:24-36` defines a `DRAFTS` list with a per-entry `ipr` field, and every entry is `"none"`. But that field is **dead code** — `grep -n "ipr" build/render.py` shows it's unpacked in the loop (`for name, abbrev, ipr in DRAFTS:`) and never referenced again. The actual XML is built by `md2rfc.py:254`, which reads `ipr` straight from each draft's own frontmatter (`fm.get("ipr", "trust200902")`). I confirmed the rendered output: `build/draft-map-core-01.xml:2` and all three other spot-checked files emit `ipr="trust200902"`, not `"none"`. **Not a real defect in the rendered XML.** It *is* worth deleting or wiring up that unused tuple field in `render.py`, since it's exactly the kind of vestigial artifact that produces false alarms like the one in this review's own brief.
+- **A real, silent defect that the brief didn't ask about but should have.** `md2rfc.py:252` only emits `submissionType="independent"` when `category in ("info", "exp", "historic")`. All 11 drafts declare `submissiontype: independent` in frontmatter, but the 7 `std`/`bcp` drafts lose that attribute on render — confirmed: `build/draft-map-core-01.xml:2` and `build/draft-map-ops-01.xml:2` carry no `submissionType` attribute at all, while `build/draft-map-index-01.xml:2` and `build/draft-map-wire-01.xml:2` do. This is the actual, wire-level manifestation of the item-1 conflict, and it's invisible in the rendered text: `build/md2rfc.err` (where `render.py` would log stderr) is empty because `render.py:62-69` only captures stderr into the `failures` list **when the subprocess returns non-zero** — a successful-but-warning-emitting xml2rfc run discards its own warnings. Fix: log stderr unconditionally.
+- **A coincidental, confusing visual.** The rendered header for every draft shows `Internet-Draft ... Independent` (e.g. `build/draft-map-core-01.txt:6`, `build/draft-map-index-01.txt:6`) — identical for both. This is *not* a stream indicator; it's `author_xml()`'s default organization fallback (`md2rfc.py:61`: `org = fm.get("organization", "Independent")`), and no draft sets `organization:` in frontmatter. A reviewer skimming the rendered header could easily mistake this for stream confirmation, when for 7 of 11 drafts the actual stream attribute is silently absent. Recommend setting an explicit `organization` value (or deliberately omitting the field so no line renders) purely to stop this false cue.
+- **Minor conceptual confusion, source-only:** `draft-map-core-01.md:21` — "The source working tree is distributed under Apache-2.0 (see repository LICENSE); contributors SHOULD disclose relevant IPR per BCP 79." BCP 78/79 govern IPR in the *document text* contributed to the IETF Trust, not the reference-implementation code's license; conflating the two in the boilerplate paragraph is wrong even though it's stripped at render — clean it before it gets copied into a cover note.
+
+## 4. References
+
+Confirmed for all 11 drafts: a body-level `## References (selected)` (or numbered variant, e.g. `draft-map-wire-01.md:313`: `## 8. References (selected)`) instead of RFC 7991 back-matter. `md2rfc.py:279` hardcodes `<back></back>` — empty, always — so every "References" heading is processed as an ordinary numbered body `<section>`. Visible consequence in the rendered TOC: `build/draft-map-core-01.txt:104` — `17.  References (selected)` — numbered exactly like any other section, which real RFC back-matter never is.
+
+**Exactly what must change:** per-entry `<reference anchor="RFCxxxx">` elements (or `<xi:include>`s against the standard bibxml pool), inside `<back><references><name>Normative References</name>...</references><references><name>Informative References</name>...</references></back>`. `md2rfc.py` needs a dedicated parser for this section instead of routing it through `render_sections()`.
+
+**A citation gap the "(selected)" framing was hiding:** I swept every draft's body `[RFCxxxx]` citations against its own reference list. Ten of eleven match exactly. `draft-map-core-01.md` does not:
+
+- Used in body (§2 crypto-suite table etc.): `[RFC2119] [RFC5869] [RFC7748] [RFC8032] [RFC8174] [RFC8439] [RFC8610] [RFC9052]`
+- Listed at `draft-map-core-01.md:521`: `[RFC2119] [RFC8174] BCP 14 requirement levels.` — only two.
+
+**Missing, normatively cited, and absent from the reference list entirely: RFC5869 (HKDF), RFC7748 (X25519/X448), RFC8032 (EdDSA), RFC8439 (ChaCha20-Poly1305), RFC8610 (CDDL), RFC9052 (COSE).** This is core's crypto-suite specification — these are about as normative as a citation gets. **BLOCKING.**
+
+The heading word "(selected)" is itself a problem to carry forward: a Normative References list has to be exhaustive for anything a MUST/SHOULD depends on, not "selected."
+
+## 5. IANA
+
+Heading check (`grep -n "^#.*IANA"` across all 11):
+
+| Uses **"IANA Considerations"** | Uses **"IANA-Style Considerations"** |
+|---|---|
+| arch, index, intro, ops, wire | core, discovery, identity, pay, tasks, trust |
+
+Notice the split is exactly the `info`/`bcp` docs vs. the `std` docs — i.e., precisely the ones that actually carry registrations use the nonstandard heading.
+
+**Is "IANA-Style" acceptable?** No. idnits and IANA's own draft-intake tooling key off the literal heading "IANA Considerations" to locate registration requests. A document that defines real code points under a heading that reads as a hedge risks the request simply not being picked up — not a style nit, a functional risk for documents that do contain actionable registrations.
+
+**RFC 8126 adequacy of the 20 registries in wire §3:** partial, and this is the biggest friction point in the whole submission, bigger than the stream/category question:
+
+- **Positive:** `map-spec/draft-map-wire-01.md:103-233` (§3.1–3.16) states a registration policy per registry (Standards Action / Specification Required / Expert Review / Private Use), and `map-spec/draft-map-ops-01.md:82-93` (§3) tabulates the same policies with rationale.
+- **Gap — no named change controller.** RFC 8126 §5.5 wants an explicit change controller per registry. `ops §3.5` (`map-spec/draft-map-ops-01.md:117-135`) gestures at "the document editor(s) named on the front matter" pre-publication and IANA post-publication, but that phrase appears only in `ops`, never inside any of the six actual IANA-considerations sections where IANA looks for it.
+- **Gap — no named designated experts.** `map-spec/draft-map-ops-01.md:95-97`: "Two or more per registry, appointed by the project's steering process" — no names. IANA routinely bounces Expert-Review/Specification-Required registries that don't have an actual appointed expert at submission time.
+- **Gap — the sections aren't requests.** Sampled `draft-map-core-01.md:510-517` (§15): "This document establishes (initial contents above; policies in ops §3): MAP Cryptographic Suites; MAP Message Types; ... The assigned values ... are in `draft-map-wire-01.md` §3.1 ... §3.6." This is a pointer/summary, not the "IANA is requested to create a registry named X, located at Y, with initial contents Z, using policy W" language IANA needs to act on. All six std-doc sections read this way.
+- **The one document with all 20 registries tabulated explicitly disclaims making the request.** `draft-map-wire-01.md:304-310` (§7): *"This document defines no new registry of its own... No IANA action is requested by this document beyond those already requested by the protocol documents it indexes."* Combined with the previous point, there is currently **no single section anywhere in the family** that both lists a registry's full initial contents *and* actually requests it.
+
+**How much friction:** substantial — I'd rate this the single largest procedural risk in the family, ahead of the stream/category question (which is at least a well-trodden binary decision the ISE handles routinely).
+
+## 6. Mechanical nits
+
+Ran `build/nits.py`: confirms exactly 192 lines >72 chars family-wide (matches `SUBMISSION.md:64`), all required sections nominally present, non-ASCII counts 16–164/doc (§/em-dash/arrows — permitted under RFC 7997, not a defect).
+
+Spot-checks beyond what `nits.py` reports:
+
+- **Long-line categories:** confirmed wide tables and CDDL comments as claimed. Found a **fourth category `SUBMISSION.md` doesn't mention**: auto-generated TOC dot-leader lines from deep (level-3) section nesting combined with em-dash titles — e.g. `build/draft-map-pay-01.txt:80`: `      6.2.2.  Terms 1 — prepaid . . . . . . . . . . . . . . . . . .  12` (74 chars). This can't be fixed by rewrapping prose; it needs shorter titles or shallower nesting. Add to the reformatting checklist.
+- **Abstract presence — `nits.py` gives a false green light here.** Its check (`build/nits.py:30`) is a literal regex for the word "Abstract" anywhere in the rendered text. Since `md2rfc.py` *always* emits an Abstract heading (falling back to a generic placeholder when the source has none — `md2rfc.py:260-265`), `nits.py` reports "OK" for wire and ops even though **neither source file has a `## Abstract` section at all** (confirmed: `grep -c "^## Abstract"` returns 0 for both). Their rendered abstracts are the literal generic filler: *"This document is part of the MAP (Manolito Agent Protocol) specification family. See draft-map-index-01 for the family overview and reading order."* — confirmed in `build/draft-map-wire-01.xml` and `build/draft-map-ops-01.xml`. A document-specific abstract describing wire's actual content (PDU layering + registry index) or ops's (governance/registries/conformance) is a hard RFC-Editor requirement; this is **BLOCKING**, and it's a real gap in the repo's own nits tooling, not just the drafts — worth fixing `nits.py` too so it can't happen again.
+- **TOC/numbering:** as noted in §4, References renders as an ordinary numbered section (confirmed via TOC line `17. References (selected)` in core) because back matter is empty — this is the render-level root cause of the §4 finding, not a separate bug.
+- `nits.py`'s own docstring is self-contradictory: the module docstring (line 10-11) says non-ASCII "there should be none," while the runtime output (lines 73-75) calls it "informational, not a defect." Cosmetic, but worth fixing in the tool while touching it.
+
+---
+
+## (b) Ordered pre-submission checklist
+
+| # | Item | Effort |
+|---|---|---|
+| 1 | Decide stream/category per document (author judgment: Informational vs. Experimental for the six protocol docs; Informational for ops); update 11 frontmatter lines + hand-written Status notes | 1–2 hrs |
+| 2 | Fix `md2rfc.py:252` to emit `submissionType` consistently regardless of category once (1) is decided; re-render | 30 min + re-render |
+| 3 | Write real, document-specific Abstracts for `wire` and `ops` (currently generic placeholder) | 1–2 hrs |
+| 4 | Add the 6 missing normative references to `draft-map-core-01`'s reference list | 30 min |
+| 5 | Convert "References (selected)" → structured Normative/Informative back-matter across all 11; extend `md2rfc.py` to populate `<back>` instead of hardcoding it empty; classify each citation per document | 1–2 days |
+| 6 | Rename "IANA-Style Considerations" → "IANA Considerations" in the 6 std docs; rewrite each into an actionable request (registry name/location/initial-contents/policy inline); name real designated experts and an explicit change controller in `ops` §3.1/3.5 | 1–2 days |
+| 7 | Reformat the 192 over-72-char lines (tables, CDDL, ASCII art, deep-nested TOC entries) | ~1 day |
+| 8 | Render-pipeline cleanup: delete/wire-up `render.py`'s dead `ipr` field; capture xml2rfc stderr on success not just failure; set explicit `organization:` frontmatter to kill the false "Independent" header cue | 2–3 hrs |
+| 9 | Remove the Apache-2.0/BCP-79 conflation sentence from the hand-written Status notes | 30 min |
+| 10 | Decide and write the actual submission sequence (merge index+intro? hold wire? stage the six protocol docs behind core?); update `SUBMISSION.md` accordingly | 2–4 hrs |
+| 11 | Re-render everything, re-run `build/nits.py` (fixed per §6 finding above), and get one real `idnits` pass before uploading anything | 2–3 hrs |
+
+**Total: roughly 4–6 working days**, dominated by #5 (references) and #6 (IANA) — both of which are actual-friction items with the ISE/IANA liaison, not cosmetic.
+
+---
+
+## (c) Draft cover note to the ISE
+
+```
+Subject: Independent Submission — MAP (Manolito Agent Protocol) draft family
+
+Dear ISE,
+
+I am submitting draft-map-index-01 [and draft-map-intro-01 and
+draft-map-arch-01] for consideration on the Independent Submission
+stream. These are the first of an eleven-document family specifying a
+decentralized protocol for autonomous AI agents to discover one
+another, negotiate work, and settle payment without a central
+authority. I am submitting in stages rather than all at once, given
+the family's size; the remaining eight documents (wire format, six
+protocol documents, and an operations/governance document) will
+follow once these are through initial review, in the order recorded
+in the family index.
+
+Two things I want to flag up front rather than have them surface in
+review:
+
+1. Six of the eight remaining documents define new wire-format
+   mechanisms and IANA registries; because there is no working group
+   or AD sponsor behind this work, I intend to submit them as
+   Experimental rather than Standards Track (or Informational for
+   the operations document, which cannot be BCP outside the IETF
+   stream). I'd welcome guidance if the ISE has a preference between
+   Experimental and Informational for protocol specifications of
+   this kind.
+
+2. This is a single-author submission. Two independent
+   implementations interoperate against the full test matrix
+   (documented in the operations document), and the core security
+   properties are machine-checked with ProVerif, but the family has
+   not yet had external expert review. I'm disclosing this plainly
+   rather than presenting it as more mature than it is.
+
+I understand the ISE publishes only Informational, Experimental, and
+Historic documents, and I've prepared the family's categories
+accordingly. Happy to answer any questions about scope or sequencing
+before formal intake.
+
+Regards,
+Jesse Larsen
+```
+
+This is honest about the staging and the maturity caveat, doesn't oversell the interop/formal-verification work, and doesn't promise anything the current repo state (per the findings above) can actually back up yet — I'd hold sending it until at least items 1–6 of the checklist are done, since right now it would invite a "come back after you've fixed the mechanics" reply on first read.
+
+This just confirms `xml2rfc` 3.34.0 is installed (via pip, on `python` not `python3` — hence my earlier `python3` import check failed while the actual pipeline uses plain `python`). No change to the review: it confirms `build/render.py`'s `xml2rfc` calls in this repo are backed by a real, current installation, so the rendered `build/*.txt`/`*.xml` I already analyzed reflect an actual up-to-date xml2rfc v3 run rather than a stale artifact — reinforcing that the findings above (empty `<back>`, missing `submissionType` on std/bcp docs, generic abstracts on wire/ops) are live defects in the current pipeline, not leftovers from an old toolchain attempt. Doesn't change the go/no-go verdict or checklist.

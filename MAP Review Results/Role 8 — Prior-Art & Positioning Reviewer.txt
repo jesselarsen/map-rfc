@@ -1,0 +1,207 @@
+I'll start by reading the repo's own claims, then verify them against the drafts, then survey the current landscape.
+
+## What I ran and what I didn't
+
+**Verified by execution** (all on the current HEAD `56bce96`):
+
+| Claim | Source | Reality |
+|---|---|---|
+| Rust workspace builds/tests green | `README.md` | ✅ 33 suites, 0 failures |
+| Go module `go vet` + `go test` clean | `README.md` | ✅ clean |
+| Live interop matrix passes | `MATRIX.md` | ✅ **26/26** (16 core TCP + 6 task + 4 pay, both orientations) |
+| `build/` renders XML/TXT/HTML | `SUBMISSION.md` | ✅ all 11 render; `nits.py` runs |
+| TV/NV vector set | `README.md` | ✅ TV-001…020, NV-001…012 exist |
+
+**Not examined:** ProVerif models (WSL2 not exercised), the CDDL for internal consistency, the security of the crypto constructions, task/ops drafts beyond the sections cited, `map-rs` internals beyond test results. Roles 2/3/5/7 cover those.
+
+---
+
+## 1. Landscape (as of 2026-09-18)
+
+| Effort | Status | Overlaps MAP on | MAP does that it doesn't |
+|---|---|---|---|
+| **IETF `agentproto`** ([charter](https://datatracker.ietf.org/doc/charter-ietf-agentproto/)) | WG **Proposed**, charter 00-03 in External Review, **on the 2026-10-08 IESG telechat** | Session/dialog identifiers, lifecycle, transport bindings | Discovery, trust, payment, task execution — all outside its charter |
+| **A2A** ([LF](https://www.linuxfoundation.org/press/linux-foundation-launches-the-agent2agent-protocol-project-to-enable-secure-intelligent-communication-between-ai-agents)) | **v1.0, Apr 2026**, 150+ orgs, 5 SDKs, joined AAIF Aug 2026 | Agent Cards ≈ descriptors (now **signed**); task lifecycle; artifacts | DHT discovery, receipt-based trust, payment negotiation, delegation chains, zones |
+| **MCP** ([AAIF](https://aaif.io/projects/model-context-protocol)) | 2026-07-28 spec; **stateless core**, server identity, async ops | Capability/tool description; the client-server leg | Peer-to-peer, discovery, trust, payment |
+| **AGNTCY ADS** ([draft-mp-agntcy-ads](https://datatracker.ietf.org/doc/html/draft-mp-agntcy-ads-01)) | Informational I-D, **Independent stream**, -02 current | **Kademlia DHT + content-addressed records + capability taxonomy as index key** — the closest thing to MAP discovery | Signed DHT records, volatile plane, hot-key sharding, TTL/republication params, any wire format |
+| **AGNTCY ACP** | **Archived 2026-04-11**; OASF marks it deprecated, points to A2A | — | (dead; cite as consolidation evidence) |
+| **AP2** ([spec](https://ap2-protocol.org/specification/)) | Google/Coinbase; Intent/Cart Mandates as signed VCs; dispute-grade evidence | Signed payment authorization; **dispute evidence**; audit trail | Metered/incremental settlement with exact watermark billing; settlement-method registry abstraction |
+| **x402** ([v2 launch](https://x402.org/x402-v2-launch/)) | **V2 since Dec 2025**; Stripe/Cloudflare/AWS integrations; CAIP identifiers | HTTP-native stablecoin settlement | Negotiation layer above the rail, non-crypto rails |
+| **ERC-8004** ([EIP](https://eips.ethereum.org/EIPS/eip-8004)) | **Draft**, Identity+Reputation registries deployed on mainnet + 20 chains | **Identity / reputation / validation registries for decentralized agents** — direct prior art for trust §1–§5 | Off-chain, no token, per-observer projection instead of a global registry |
+| **DIDComm v2** ([DIF](https://identity.foundation/didcomm-messaging/spec/v2.0/)) | DIF Approved, v2.1 | DID-based agent-to-agent messaging, envelope signing | Capability routing, task/payment semantics |
+| **W3C DIDs / VCs** ([DID 1.1](https://www.w3.org/TR/did/), [VC 2.0](https://www.w3.org/TR/vc-data-model-2.0/)) | DID v1.0 REC 2022, v1.1 in review; VC-DM 2.0 REC | Identity substrate (`did:key`) | — (MAP consumes it) |
+| **WIMSE** ([WG](https://datatracker.ietf.org/doc/charter-ietf-wimse/)), incl. [`draft-ni-wimse-ai-agent-identity`](https://datatracker.ietf.org/doc/html/draft-ni-wimse-ai-agent-identity-02) | Chartered; arch at -07; **no RFCs yet** | Agent identity distinct from user identity; dual-identity credentials; delegation | Self-certifying keys, no PKI/issuer assumption |
+| **GNAP** ([RFC 9635](https://www.rfc-editor.org/info/rfc9635/)) | **RFC, Oct 2024** | Delegated authorization, attenuation | — |
+| **SCITT** ([arch](https://datatracker.ietf.org/doc/draft-ietf-scitt-architecture/)) | at -22, not yet RFC | **Signed statements + receipts + transparency log** — the evidence-plane analogue | Bilateral (no transparency service required) |
+| **`draft-farley-acta-signed-receipts`** | Individual I-D, -01 | **Ed25519 signed receipts for machine-to-machine decisions**, offline-verifiable | Dual signature (counterparty countersigns) |
+| **webbotauth** ([WG](https://datatracker.ietf.org/wg/webbotauth/about/)) | Chartered WG | Authenticating automated clients | Peer-to-peer, not bot-to-website |
+
+---
+
+## 2. Novelty — honest assessment
+
+**The thesis is argued against the wrong opponent.** This is the single most damaging structural problem.
+
+`draft-map-intro-01` §1 says prior attempts "contained defects that would be fatal in standards review," and `01-design-critique.md` opens: *"Documents reviewed: `design1.txt` (capability-mesh concept), `design2.txt` … `rfc_preprint.txt` (HEP v0.1 preprint)."* Those files are in `input-designs/` — and they are **chat-assistant transcripts**. `design1.txt` opens *"I actually think you're onto something interesting—but I'd avoid copying MP2P itself."* `design prompt.txt` is literally a prompt.
+
+So C1–C15 demolish a private brainstorm. Meanwhile, **the eleven drafts cite zero actual prior art.** I grepped the entire `map-spec/` tree for A2A, Agent2Agent, MCP, AP2, DIDComm, AGNTCY, ACP, SCITT, WIMSE, GNAP, FIPA, KQML, JSON-RPC — **zero hits**. The only prior-art token anywhere is one "WebAuthn" in `draft-map-identity-01:189`.
+
+> **R8-01 (BLOCKING).** No related-work section exists in any draft. The ISE's first question is "does this duplicate existing work?" and the documents contain no answer. A reviewer will read §1's *"Several recent design sketches and a preprint (HEP v0.1) attempted exactly this"* as either unaware of A2A/MCP/AP2/ERC-8004 or evading them.
+
+> **R8-02 (BLOCKING).** `draft-map-arch-01` §1: *"The essential inversion, taken from the attached design work"*; `draft-map-ops-01` §7.2 is titled *"From HEP-0.1 drafts (the attached preprint)"*. **"Attached"** to what? An RFC is a standalone document. These are dangling references to unpublished chat logs. Both must be cut or the material published and cited.
+
+Now the three claimed novelties, judged individually:
+
+**(a) Evidence-based trust without self-asserted scores — recombination, well-executed.** The prohibition (trust §1 P1: *"Descriptors … MUST NOT carry trust, reputation, hallucination-rate, or tasks-completed fields"*) is correct and correctly motivated. But it is not new. [ERC-8004](https://eips.ethereum.org/EIPS/eip-8004) already splits Identity / Reputation / Validation registries precisely so reputation is counterparty-attested; SCITT already does signed-statement-plus-receipt; `draft-farley-acta-signed-receipts` already does Ed25519 offline-verifiable receipts; AP2 already produces dispute-grade signed evidence. **What is genuinely MAP's:** the *dual* signature with a numeric countersignature-agreement tolerance (trust §3: fields 1–4 exactly equal, usage fields within ±5% anchored to the **observed** value, timestamps ±2000 ms) and the anti-farming argument that the band is anchored to the provider's observation, not `max(claimed, observed)`. That is a real, small, publishable contribution. It is one section, not a document family.
+
+**(b) Two-plane discovery — the strongest claim, but narrower than stated.** ADS has a "two-**level** mapping" (capability→CID, CID→peer), which is a different axis. MAP's split is stable-vs-volatile, and ADS has **no volatile plane at all** — no liveness, load, or freshness concept. MAP additionally specifies what ADS omits entirely: signed DHT records, TTL/republication (`≥1 h`, hourly), hot-key sharding, and R3 (*"Latency is measured by the querier, never advertised"*). **Verdict: genuinely differentiated from ADS.** But it is differentiated *within a space ADS already occupies with a shipping implementation and an IETF draft*, and the drafts never say so.
+
+**(c) Four payment terms (postpaid / prepaid / escrow / metered-incremental) — recombination.** `PayQuote` key 7 enumerating these is ordinary commerce vocabulary. The three-moment discipline in pay §1 (*"**agreed** … **submitted** … **settled**. Delivery obligations key off *settled* … never off *submitted*"*) is good engineering hygiene, not novelty. **What is genuinely MAP's:** terms-3 metered-incremental with `UsageWatermark` and exact decimal arithmetic *with no rounding rule anywhere in the family*. x402 settles a fixed amount; AP2 authorizes a cart. Continuous exact metering with a covering proof on resume is a real gap in the current stack — and third-party commentary independently names metering as the unsolved piece. **This is the most publishable single idea in the family.**
+
+**Overall: mostly recombination, with two real contributions** — the countersignature tolerance band, and exact incremental metering. Both are sections, not eleven documents. The architecture is coherent and the engineering discipline is above the median for this space; that is not the same as novelty.
+
+---
+
+## 3. Normative dependencies on moving targets
+
+| Dependency | Stability for an RFC reference | Verdict |
+|---|---|---|
+| **CBOR** ([RFC 8949](https://www.rfc-editor.org/rfc/rfc8949)), **COSE** ([RFC 9052/9053](https://www.rfc-editor.org/rfc/rfc9052)), **Ed25519** (RFC 8032), **X25519** (RFC 7748), **ChaCha20-Poly1305** (RFC 8439), **HKDF** (RFC 5869), **CDDL** (RFC 8610) | Published RFCs | ✅ Fine. This is the right foundation and core §2's suite table cites all of them properly. |
+| **`did:key`** | [v0.9](https://w3c-ccg.github.io/did-key-spec/), W3C **CCG draft**, self-described as *"a draft … with no official standing of any kind"* | ⚠️ **MAJOR.** `draft-map-identity-01` §3.1 makes `AgentID ≡ did:key` a definitional identity. You don't need did:key — you need multicodec `0xED 0x01 ‖ key` + multibase, which you already specify directly. Keep the DID form as an *informative* interop note; do not make an unstandardized CCG draft load-bearing. |
+| **multicodec / multibase** | Multiformats registry — a GitHub table, no formal standards body | ⚠️ **MAJOR.** Same fix: state the two prefix bytes normatively and cite multicodec informatively. |
+| **libp2p** | No versioned spec suite; `/map/1.0.0` binding already documents a rust-libp2p API limitation (core §10: *"rust-libp2p does not portably expose a Noise handshake-hash / TLS-exporter equivalent"*) | ⚠️ **MAJOR.** A normative RFC binding whose channel-binding derivation is shaped by one library's current API surface will date fast. Make **raw QUIC / TLS 1.3 the normative binding** (it has a real exporter, and it's an RFC), demote libp2p to informative. This also removes the cover-note disclosure entirely. |
+| **x402** | **Already stale.** pay §5 pins `1 => uint, ; x402Version (1 in this revision)` and scheme `"exact"`. [x402 V2 shipped Dec 2025](https://x402.org/x402-v2-launch/) — new headers (`PAYMENT-SIGNATURE`/`PAYMENT-REQUIRED`/`PAYMENT-RESPONSE`), CAIP chain/asset identifiers, plugin scheme registry | 🔴 **BLOCKING.** The draft was written 2026-07-14 and pinned a version already superseded for seven months. Worse, `Asset` is specified as `erc20:<chain>:<addr>` while x402 V2 moved to CAIP. This one method definition will date the whole `pay` draft inside 18 months — arguably it already has. |
+| **EIP-3009 / Lightning / Interledger / ACH** | Mixed, external | Acceptable *if* the registry is genuinely pluggable and no rail is normatively required. It is — that design choice holds up. |
+
+> **R8-03 (BLOCKING).** `draft-map-pay-01` §5 `X402Params` pins x402Version 1. Either update to V2 (CAIP identifiers, V2 payload shape) or — better — move the whole `pay:x402` method definition out of the RFC into a separately-versioned registry entry, which is what pay §5's own doctrine says method definitions are.
+
+> **R8-04 (BLOCKING).** **Six of eleven drafts have no references at all.** `discovery`, `identity`, `ops`, `pay`, `tasks`, `trust` each contain exactly `[RFC2119] [RFC8174]` and nothing else — while normatively depending on did:key, multicodec, multibase, libp2p, Kademlia, x402, EIP-3009. `arch`, `index` and `wire` have no `## References` section at all. `SUBMISSION.md` item 3 says *"the citation tags — [RFC2119], [RFC8949], etc. — are already present in the text"* — **that is false for those six drafts**, and it understates the work from "a formatting pass" to "author the reference sections." I confirmed the rendered XML has zero `<references>` and zero `<reference>` elements.
+
+---
+
+## 4. The Manolito framing
+
+Contained, and less damaging than you might fear — but net negative.
+
+It appears in exactly six places: the protocol name, `arch` §1 ("Introduction and Heritage"), `intro` §1, the `index` abstract, `ops` §7.1, and an `arch` informative reference reading *"Manolito/MP2P historical documentation (informative)."*
+
+The problem is not tone, it's **unverifiability and inaccuracy**. `arch` §1 asserts: *"Manolito/MP2P (c. 2001) demonstrated that a flat, serverless, UDP-centric network of consumer nodes could sustain search and exchange at scale with minimal per-node state."* MAP retains *"decentralization without supernodes."* The available record ([OpenLITO](https://openlito.sourceforge.net/)) says MANOLITO was UDP-based for search routing, **based on Gnutella**, and that hosts bootstrap via **an HTTP network gateway** returning ~100 peers. "Serverless" and "without supernodes" are doing work the citation can't support — and the citation is a bare phrase pointing at nothing.
+
+> **R8-05 (MAJOR).** The heritage claim is load-bearing (it's the naming rationale and the framing of §1 in three documents) and rests on an uncitable informative reference to a defunct proprietary protocol reverse-engineered by hobbyists. An IETF reviewer will ask for the citation and there isn't one that supports "serverless, no supernodes."
+
+**Recommendation:** keep the name (it's a name; RFCs have odder ones), **cut the historical argument to two sentences** in `intro` only, delete `arch` §1's technical claims about MP2P, and delete `ops` §7.1 entirely — a migration guide from a network with no remaining users, to which you explicitly disclaim wire compatibility, is pure surface area for objection. What survives is one honest line: *the architectural inversion from "who has this file" to "who can do this task."* That sentence is the good part and it doesn't need the history to stand up.
+
+---
+
+## 5. The blocking process problem — MAP cannot be published on the ISE stream as written
+
+This is independent of technical merit and I'd put it first in any cover note.
+
+[RFC 8726](https://www.rfc-editor.org/rfc/rfc8726.html) §4: *"In general, documents on the Independent Stream cannot request the creation of a new IANA registry."* The sole exception is a sub-code registry tied to one code point from an existing registry, and *"Such examples are rare."*
+
+§2: *"a registry whose policy is 'IETF Review' or 'Standards Action' [RFC8126] is not available to Independent Stream documents."*
+
+§5, three consecutive sentences: *"The ISE will not appoint a DE. That means that no subregistry created for Independent Stream documents will require the review of a DE. That means that no new subregistry can be created that uses the Specification Required or Expert Review policies."*
+
+And the ISE's [own criteria page](https://www.rfc-editor.org/about/independent/): *"they must adhere to any IANA rules for code point allocation, and in general may not create new IANA registries"* — plus *"nor are foundational formats upon which standards are expected to be built."*
+
+Against that, `draft-map-wire-01` §4 requests **~20 new registries** across exactly the three policies that are unavailable:
+
+- **Standards Action** — Cryptographic Suites, AgentID Key Types → categorically barred, twice over
+- **Specification Required** — Message Types, Body Keys, Error Codes, Extension Keys, Transport Bindings, Settlement Methods, Pricing Models, Terms, Unit Codes, Dispute codes/kinds → barred (no DE)
+- **Expert Review** — Capability Ontology, Delegation Caveats, Chunk Kinds, HW/Sandbox Classes, Revocation Reasons, Task Caveat Keys, CapEntry Parameter Keys, Trust Evidence/Vouch/Challenge → barred (no DE)
+
+> **R8-06 (BLOCKING).** Every MAP registry uses a policy the ISE cannot grant. `draft-map-ops-01` §3.5 asserts *"On IETF publication, **IANA** operates every registry under the policies enumerated in `draft-map-wire-01.md` §4"* and *"the designated experts become IANA-appointed Expert Reviewers."* Per RFC 8726 §5 this will not happen on this stream. `SUBMISSION.md`'s "MUST resolve" list names the **category** conflict (std/bcp vs Informational) but **not the registry conflict**, which is the larger of the two and cannot be fixed by relabeling.
+
+> **R8-07 (MAJOR).** `ops` §3.5 also says *"the Independent Stream shepherd and the IESG provide the oversight the stream defines."* The IESG does not oversee the Independent Stream; it performs conflict review only, under [RFC 5742](https://www.rfc-editor.org/rfc/rfc5742). Oversight is the ISE's. Small error, but it is in the one section claiming to fix governance, and it signals unfamiliarity with the stream being targeted.
+
+**RFC 8726 §4 also names the way out:** *"Authors … should consider the most appropriate venue to host such registries … In some cases, this may mean that registries are hosted by organizations other than IANA."* That is your answer — run the registries yourself (you already specify a steward in ops §3.5) and cite them informatively.
+
+**Conflict review timing.** `agentproto` is on the **2026-10-08 IESG telechat**. Its charter deliberately excludes discovery, says nothing about payment, treats trust only as "trust boundaries," and never mentions decentralized operation — so a genuine RFC 5742 *conflict* is unlikely. But the overlap is not zero on the session/dialog-identifier axis, and the IESG may request a delay: RFC 4846 permits *"a delay of up to six months and, if necessary, to renew that request twice, for a total possible delay of 18 months."* Submitting an 11-document family in the same quarter a WG charters in the adjacent space invites exactly that.
+
+---
+
+## 6. Other claim-vs-reality discrepancies
+
+> **R8-08 (MAJOR).** `draft-map-intro-01` §6: *"Two independent, separately-authored implementations."* `git log` shows **63 commits, one author**, `Jesse Larsen <jesselarsen@gmail.com>` — including all 31 `map-rs/` and all 12 `map-go/` commits. The isolation discipline (Go written from specs and frozen vectors without reading Rust source) is real and valuable, but "independent" and "separately-authored" mean *different parties* in IETF usage. This is the kind of overclaim a reviewer will check in thirty seconds and then distrust everything else. Say what you actually did: *"two implementations by the same author under a source-isolation rule."*
+
+> **R8-09 (MINOR).** `README.md` says **16/16** in three places; the harness actually reports **26/26** and `AGENTS.md` says 26/26. README understates itself.
+
+> **R8-10 (MINOR).** `README.md` contents table says *"TV-001…016 … NV-001…010"*; actual set is TV-001…020 / NV-001…012 (Status section has it right). Same table says x402's *"adapter in progress"* — `map-rs/adapters/x402-adapter/` exists with `real.rs`, `http402.rs`, `flow.rs`.
+
+> **R8-11 (NIT, self-verifying).** `draft-map-index-01` §2: *"This is a set of **10 Internet-Drafts**"* above a table listing 11. (Already anticipated in `REVIEW-PROCESS.md` as an example — it's live.)
+
+---
+
+## 7. Recommendation
+
+**Publish-subset — but not on the path currently planned, and not this quarter.**
+
+The full family fails RFC 4846's relevance test not on quality but on posture: it is a complete standards-track protocol suite, and the ISE page explicitly excludes *"foundational formats upon which standards are expected to be built."* Eleven documents, ~20 registries, and a conformance-class system is a working group's output submitted to a venue that publishes individual contributions. It will not survive Step 4 of the ISE's own twelve-step process.
+
+**Submit two documents, both Informational, both registry-free:**
+
+1. **`draft-map-arch-01`**, reworked — goals, threat model TH1–TH15, the zone model, and the scalability analysis, presented as *"an architecture for decentralized agent capability networks"* with a real related-work section. The zone model (Zones 0–3 gating where payloads may flow) is the piece an IETF reader will find immediately useful and nobody else in the table above specifies it. Strip the Manolito technical claims; cut `ops` §7.1.
+
+2. **`draft-map-pay-01`, reduced to the metering contribution** — the three-moment discipline (agreed/submitted/settled), `UsageWatermark`, exact decimal arithmetic with no rounding, and metered pause/resume. Drop the settlement-method registry (that's the registry problem in miniature), drop the `pay:x402` method definition (stale, and it belongs in a versioned registry not an RFC), keep x402/AP2/Lightning as informative examples of rails this layers over. **This is your strongest and most differentiated material**, and it lands in a genuine gap: AP2 authorizes a cart, x402 settles a fixed amount, and nothing standardizes continuous exact metering.
+
+**Hold everything else.** `core`, `identity`, `discovery`, `tasks`, `trust`, `wire`, `ops` are the registry-bearing documents and the ones most exposed to `agentproto`, A2A v1.0, and ADS. `intro` and `index` are scaffolding for a family that isn't being submitted; fold what's needed into the arch document. `01-design-critique.md` should never be submitted or cited in a submitted draft — it critiques private chat transcripts, and citing it is what makes R8-01 and R8-02 unavoidable.
+
+**Before either document goes anywhere:**
+1. Write the related-work section. It's the ISE's core question and you currently have no answer. (R8-01)
+2. Remove every "attached" reference. (R8-02)
+3. Author real references sections. (R8-04)
+4. Fix the independence claim. (R8-08)
+5. Wait for the 2026-10-08 telechat outcome on `agentproto`, then position explicitly against the chartered scope.
+
+**On technical soundness — RFC 4846's second test:** it passes, and by a margin. Both implementations build and test green, 26/26 live interop is real and I reproduced it, the vectors are byte-exact, the deterministic-CBOR/verify-received-bytes discipline is right, and the engineering-policy section is more rigorous than most WG output. The objections above are about *positioning, provenance, and process* — not about whether the protocol works. That's the frustrating part: the work is better than its framing, and the framing is what will sink it.
+
+---
+
+Want me to draft the related-work section text (R8-01) and the reference sections (R8-04) as proposed text for you to rule on? I haven't modified anything in the repo.
+
+I'll verify each draft's actual external dependencies first — the reference lists have to match what the text really uses, not what I assume.
+
+Verified the dependency map against the actual text. Now drafting both pieces.
+
+Both drafted. Nothing in the repo was modified — this is proposal text for your Stage 2 triage gate.
+
+## R8-01 — Related Work
+
+**Placement.** I checked the cross-reference graph before choosing: `arch §12` and `intro §2` are both free positions.
+
+```bash
+grep -roh "arch §[0-9]*" --include=*.md .   # highest referenced: arch §11
+grep -roh "intro §[0-9]*" --include=*.md .  # zero hits
+```
+
+So a new `## 12. Related Work and Positioning` in arch (pushing Security/IANA/References to 13/14/15) and a new `## 2. Related Work` in intro break **zero** existing cross-references.
+
+**The text** has six subsections — agent communication protocols (A2A/MCP/agentproto, plus a line on FIPA-ACL and KQML so the section doesn't look like it started in 2024), capability discovery (ADS/OASF/ERC-8004), identity and delegation (DIDs/DIDComm/WIMSE/GNAP/webbotauth), evidence and receipts (SCITT/acta-receipts/AP2/ERC-8004), payment (AP2/x402), and a positioning summary.
+
+Two judgment calls worth flagging for your ruling:
+
+- **The ADS comparison is written to be useful to a reviewer, not flattering to MAP.** It concedes the shared instincts up front, then draws the real distinction — ADS's "two-**level** mapping" is an index axis, MAP's "two-**plane**" is a stability axis — and says explicitly that a deployment could run MAP's two planes *over* an ADS-style index. A reviewer who has read ADS will otherwise assume you're renaming their idea.
+- **The §12.6 closing paragraph does RFC 4846 §2's disclosure duty explicitly** (*"Any submission that constitutes an alternative to, or is in conflict with, an IETF Standard … must clearly indicate that relationship"*) and positions MAP as a potential *consumer* of an agentproto dialog protocol rather than a competitor. That framing is what keeps the RFC 5742 conflict review short.
+
+**The part that matters more than the new text** is §A.4 — four deletions without which you're arguing against two opponents at once. Verified counts: **25 `Cn` critique citations across 7 drafts** (arch 2, discovery 6, identity 1, ops 7, pay 1, tasks 5, trust 3), plus intro §3's "Problem (critique)" table caption. Note the two spellings:
+
+```bash
+grep -rnE "critique \(?C[0-9]" map-spec/draft-map-*-01.md
+```
+
+`pay`'s is in the abstract and a plain `critique C[0-9]` grep misses it.
+
+## R8-04 — Reference sections
+
+Per-draft normative/informative splits for all eleven, derived from what each draft actually invokes, plus ready-to-paste entries for 30 RFCs and 31 non-RFC specs.
+
+Three things the pass surfaced that you should rule on separately:
+
+1. **New finding, R8-12 (MAJOR).** `map:cap:` (discovery §4) and `pay:x402` (pay §5) are **unregistered URI schemes**. Registration is BCP 35 / RFC 7595. Either register them, re-express as URNs, or state they're opaque identifiers with URI-like syntax and drop RFC 3986 to informative in those two drafts.
+
+2. **R8-03 becomes a bibliography, not an opinion.** Writing core's normative list makes it concrete that it contains libp2p, Noise, BLAKE3 and multiformats — four specs with no version discipline — and identity's may contain did:key v0.9. If you demote libp2p to informative and make raw QUIC/TLS 1.3 normative, core's normative non-RFC set shrinks to multiformats and BLAKE3, both fixed byte-level specs.
+
+3. **`ops` is blocked behind R8-06.** Adding `[RFC8126]` (which §3's policy names require) and `[RFC8726]` puts §3.5's *"the designated experts become IANA-appointed Expert Reviewers"* on the same page as *"The ISE will not appoint a DE."* Don't do ops's reference pass until you've ruled on the registry question.
+
+One correction to `SUBMISSION.md` item 3 while you're in there: it says *"the citation tags … are already present in the text."* True for arch, core, index, intro and wire only. `discovery`, `identity`, `ops`, `pay`, `tasks` and `trust` have **no citation tags at all** beyond BCP 14 — that text has to be written, not reformatted. And `build/md2rfc.py` has to learn to emit `<references>`; it currently emits none in any of the eleven rendered XML files.

@@ -1,0 +1,105 @@
+I'll start by getting oriented in the repo, then work through the six verification tasks in order. Let me look at the structure first.
+
+Now let's actually build and test. I'll run Rust and Go test suites in parallel in the background since these can take a while.
+
+While tests build, let's dig into the test-vector self-reference question — the most important item. Let me read the vector generator and the vectors doc.
+
+Good — this single script does cover all 26 cells. Let's actually run it now.
+
+While the interop matrix runs, let's check dependency independence (item 5).
+
+Now let's move to the planted-bug harness validation. First set up a disposable worktree so I never touch the main tree.
+
+Now let's find the relevant Rust source: CBOR canonicality check and Ed25519 signature verification.
+
+Good, found it. Let's inspect the CBOR decoder and envelope signature verification code.
+
+Now let's plant the first bug: accept non-canonical (unsorted) CBOR map keys.
+
+Confirmed catch. Now restore and verify green before the next experiment.
+
+Clean. Now experiment 2: skip the Ed25519 signature check in envelope verification.
+
+Now let's plant the signature-skip bug by commenting out the verify call.
+
+Caught immediately by unit tests, ~12s to red. Restore and confirm green.
+
+Now let's plant a bug on the Go side. Let's find the Go envelope signature verification.
+
+Let's test the DHT soft-fail hypothesis — a genuine coverage-hole candidate.
+
+This is the valuable finding — a real coverage hole. Let's restore and confirm green.
+
+# MAP Internet-Draft Family — Independent Auditor Report
+
+Everything below was reproduced live in this session (Windows, mingw + GNU Rust toolchain, Go 1.25.7, PowerShell). Not examined: ProVerif formal models (need WSL2), idnits/line-width claims, `ERRATA.md`/`CHANGELOG.md` full text, spec sections beyond those cited, and cryptographic correctness of `cbor2`/`pynacl` themselves (I checked *provenance*, not their internals).
+
+## 1. Claim vs. measured
+
+| Claim (source) | Measured | Verdict |
+|---|---|---|
+| Rust "271 test attributes / 47 conformance cases" | **303 tests pass, 0 fail, 0 warnings** (`cargo +stable-x86_64-pc-windows-gnu test --workspace`); `map-conformance` = **48** tests | STALE — undercounts by 32 (repo grew: `gateway` +26, `x402_adapter` +20 since that figure was taken). Off-by-one on conformance (48, not 47). |
+| Go "57 test functions / 33 vectors" | **56** top-level `Test`/`Fuzz` functions pass, 0 fail; `gofmt -l` clean; `go vet ./...` clean; `TestProduceParity` logs "all 33 frozen vectors reproduced byte-exact" | Off-by-one on function count (56, not 57). **33-vector figure is exact** (21 TV incl. 010b + 12 NV = 33). |
+| `interop/MATRIX.md`: 26/26 (16 core TCP + 6 task + 4 pay, libp2p/QUIC) | **Reproduced live: 26/26**, both orientations, all PASS | CONFIRMED |
+| `AGENTS.md`: "Current result: 26/26" | matches | CONFIRMED — **this claim is already correct.** The audit brief's premise ("AGENTS.md still claims a stale 16/16+6/6") is itself stale: commit `56bce96` ("sync its interop figure to MATRIX.md"), already on `main`, fixed it before this session started. |
+| `README.md` top matter: "a live pairwise interop matrix (**16/16**, `interop/MATRIX.md`)" and the "Live interop matrix" section's "**16/16 passing**" | Actual gate is 26/26 (16+6+4) | **STALE.** `README.md` (lines 16, 118) undercounts relative to the very file it cites and relative to `AGENTS.md`. Needs the same fix `AGENTS.md` already got. |
+| `SUBMISSION.md`: "16 core + 6 task + 4 pay cells" | matches | CONFIRMED |
+| AGENTS.md independence command: `go list -deps ./cbor ./envelope ./identity ./session ./hello ./receipt ./discovery ./conformance \| grep -E 'libp2p\|multiformats\|mr-tron'` MUST be empty | **Empty** — confirmed | CONFIRMED |
+| AGENTS.md: libp2p confined to `net`, `dht`, `cmd/*` | Checked all 15 local packages: libp2p-family deps appear **only** in `net`, `dht`, `cmd/map-excuse`, `cmd/map-interop`, `cmd/map-requester` | CONFIRMED exactly as stated |
+
+## 2. Interop matrix — live run
+
+All 26 cells PASS both orientations (echo, replay, seqgap, tamper, relay, versiondisjoint, wrongsid, delegated over TCP loopback; task-stream/task-multichunk/task-transcript and pay-postpaid/pay-metered over `/ip4/127.0.0.1/udp/0/quic-v1`). Everything runs on loopback — no external network dependency, and unlike the Go DHT test (§4 below), every cell's pass/fail comes from a real process-exit-code + `OK`/`FAIL` line check, not a soft log. No silent no-ops observed.
+
+## 3. Test-vector self-reference audit (the important one)
+
+`map-spec/test-vectors/gen_vectors.py` is the **sole source** of every TV/NV byte string. Both conformance suites reproduce *this script's own output*, not each other's and not any external oracle. Precisely:
+
+- **What's genuinely independent:** Ed25519 signing/verification runs through `pynacl` (libsodium binding) — real third-party crypto, not author code. Deterministic CBOR encoding runs through `cbor2`'s `canonical=True` — a real third-party encoder. Multibase base58btc runs through the `base58` package. **Crucially**, `map-go/identity` verifies these same pynacl-produced signatures using **Go's stdlib `crypto/ed25519`** (`TestVerifyStrictAcceptsValid` et al.) — a genuinely independent, cross-language re-verification of the raw Ed25519 math (RFC 8032). That part of "byte-exact parity" is real evidence, not circular.
+- **What's self-referential:** every *protocol-layout* choice — field numbers, which fields are lists vs. singletons, the Merkle-leaf preimage format, the DHT key preimage string, which fields exist in which message — comes from this one script, written by the one author of both implementations and both drafts. The TV-001/TV-002 "regression guard" bytes are literal hex strings hardcoded in `gen_vectors.py` and asserted equal *within the same script* — they were produced by an earlier run of this same code, not derived independently.
+- **Consequence:** a bug shared by the spec text, `gen_vectors.py`, and both implementations (e.g., a wrong field number, a wrong Merkle preimage) would be invisible to the entire test-vector apparatus, because all three trace to the same design decisions by the same person. This is close to structurally unavoidable for a brand-new protocol (there is no independent MAP implementation to check against), but it means "byte-exact test-vector parity" should be read narrowly: it proves the two implementations converged on the *same reading* of the spec, not that the reading is *correct* against anything external.
+- **Nothing in the repo cross-checks against a published RFC 8032 Ed25519 KAT, an RFC 8949 §4.2 published CBOR example, a third-party COSE_Sign1 test vector, or an external multihash/DHT tool.** That would be the cheapest way to close this gap for the crypto/encoding primitives (the protocol-layout part can't be externally anchored — there's nothing to anchor it to).
+
+## 4. Planted-bug results (worktree, restored to clean between each; `git status --short` empty and rebuild green before the next)
+
+| # | Bug planted | Where | Caught by | Time to red |
+|---|---|---|---|---|
+| 1 | Accept non-canonical (unsorted) CBOR map keys | `map-rs/crates/map-core/src/cbor.rs` decoder | `map-conformance::n3_non_canonical`, `run_all_is_green_and_complete` | ~68s (full workspace rebuild) |
+| 2 | Skip Ed25519 signature check (`let _ = id_verify(...)`) | `map-rs/crates/map-core/src/envelope.rs::open` | `map-conformance::n1_tampered_payload`, `n2_wrong_aad`, `nv001_tampered` | ~15s |
+| 3 | Flip length-prefix byte order (BE→LE) on read only | `map-rs/crates/map-net/src/framing.rs::read_frame` | `map-net::oversize_prefix_rejected_before_body`, `roundtrip_multiple_frames` | ~12s |
+| 4 | Skip Ed25519 signature check | `map-go/envelope/envelope.go::Open` | `conformance::TestReject` (NV-001), `session::TestTamperRejected` | ~5s |
+| 5 | **`dht.Router.FindProviders` silently returns `(nil, nil)`** instead of querying the DHT | `map-go/dht/dht.go` | **Nothing. `go test ./...` reports full PASS.** | never (no failure) |
+
+**#5 is the finding that matters.** `map-go/dht/dht_test.go::TestDescriptorPublishFetch` hard-asserts the local publish/fetch round-trip (codec + local store — genuinely tested), but the actual cross-node Kademlia lookup is wrapped in `if err != nil { t.Logf(...) } else { if !found { t.Logf(...) } }` — **every branch is `t.Logf`, none is `t.Fatalf`/`t.Errorf`.** I made `FindProviders` a no-op that always returns zero providers; the full suite still reported `ok` for every package. Cross-node DHT provider discovery — the mechanism `discovery §5/§6` actually depends on for a real mesh — has **zero enforced test coverage** in this repo. A real regression here would ship silently.
+
+**Related, lower-severity finding (same shape, Rust side):** `map-rs/crates/map-net/tests/net_it.rs` (the 2-node real-libp2p loopback integration test, TASK-012 FR-6) is gated `#![cfg(feature = "net-tests")]` and is **not compiled or run** by the documented `cargo +stable-x86_64-pc-windows-gnu test --workspace` (confirmed: it built with 0 tests both in my baseline run and here). `AGENTS.md`/`README.md` describe this command as covering "unit + integration + conformance" — it does not cover this integration suite unless you separately know to pass `--features net-tests -- --ignored`, which appears nowhere in the documented build commands. The interop matrix's libp2p/QUIC task/pay cells cover *similar* ground live, which is why I rank this MINOR rather than MAJOR, unlike the Go DHT gap which has no compensating coverage at all.
+
+## 5. Independence rule (ops §6.1 two-impl bar)
+
+`go list -deps` confirms `AGENTS.md`'s claim exactly: `cbor`, `envelope`, `identity`, `session`, `hello`, `receipt`, `discovery`, `conformance`, plus `pay` and `tasks`, are **entirely libp2p/multiformats/mr-tron-free**; libp2p-family deps appear only in `net`, `dht`, `cmd/*`. On the *mechanical* independence question, the claim holds.
+
+On the *substantive* independence question the brief actually asks ("independent enough... given one author wrote both"): it doesn't, and can't, by construction. One person authored the drafts, `gen_vectors.py`, and both codebases. The Go implementation not consulting Rust *source* is a real and useful discipline (it forces two honest readings of the same spec text, which is how `AGENTS.md`'s own "wrongsid" note — Go implemented the SessionID check first, Rust was missing it and got patched — happened), but it is not the same as two implementations from two independent teams with two independent readings of intent. Report this as: mechanical bar met, substantive two-vendor bar not met and not really achievable solo — that's a disclosure item for the ISE cover note, not a defect.
+
+## 6. Ambiguity report (`map-go/README.md` §"Ambiguity report") vs. current -01 text
+
+All five are **already resolved in the -01 drafts** — the report is stale, not wrong-but-still-open:
+
+1. **Sharded-key text format** — `draft-map-discovery-01.md` §6 (line 233): *"`s` is rendered as its unpadded base-10 ASCII decimal ('0'..'255' — e.g. shard 141 contributes the three bytes `31 34 31`), not as a raw byte or hex; the derived-constants test vector K′ fixes this form."* Resolved.
+2. **Delegated-envelope kid** — `draft-map-identity-01.md` §4 (line 117): *"the envelope `kid` MUST equal the chain LEAF's subject... and the verifier resolves the chain root's issuer as the accountable identity."* This directly contradicts the README's claim that the draft says "chain root MUST equal envelope kid" — the draft has already been patched to say LEAF, matching TV-012 and the Go code. Resolved.
+3. **Max-depth counting** — same §4 (line 120): *"a chain is invalid (2003) when any certificate has more certificates between itself and the leaf than its declared max-depth — a cert with max-depth 0 must itself be the leaf cert."* Matches the Go implementation's chosen reading exactly. Resolved.
+4. **HELLO vs HELLO_ACK field shapes** — `draft-map-core-01.md` §6.1 (line 232): *"Note the field-shape asymmetry under identical field numbers: Hello fields 1/2 are lists... while HelloAck fields 1/2 are singletons... implementers regularly miss this; TV-001/TV-003 are the byte-level guard."* Already explicit. Resolved.
+5. **Policy-reject NVs (NV-006/008)** — `draft-map-pay-01.md` §3.1 (line 145) and `draft-map-tasks-01.md` §6 (line 260) both explicitly say the receiver "MUST treat [it] as a rejection" / "reject or re-quote" with **no wire code**, matching `gen_vectors.py`'s own comment that these are policy rejections, not core §9 errors. Already explicit, and correctly *not* inventing a code. Resolved.
+
+**Action:** update `map-go/README.md`'s ambiguity report to either remove it or retitle as "ambiguities encountered and since closed in -01," citing the sentences above — as written it currently implies the -01 drafts still contain gaps they don't.
+
+## 7. Every number that needs correcting
+
+- `README.md` line 16 and the "Live interop matrix" section (~line 118): "16/16" → **26/26 (16 core + 6 task + 4 pay)**, to match `AGENTS.md`/`MATRIX.md`.
+- `map-go/README.md` "Ambiguity report" (§6 above): mark all five items resolved, or delete.
+- Any external reference to "271 Rust test attributes / 47 conformance cases": → **303 tests / 48 conformance cases** (this will keep drifting; consider generating the count rather than hand-maintaining it).
+- Any external reference to "57 Go test functions": → **56** (33-vector figure was already exact, no change).
+- `AGENTS.md`'s "16/16+6/6" staleness the brief warned about: **already fixed on `main`** — no action needed, but worth noting the brief's own premise was outdated by the time I checked.
+
+## What I did not examine
+
+ProVerif model re-verification (needs WSL2, not attempted this session), `idnits`/72-column line-width claims, full `ERRATA.md`/`CHANGELOG.md` text, spec sections other than discovery §5/§6, identity §4, core §6.1, pay §3.1, tasks §6, and the internal correctness of `cbor2`/`pynacl`/Go stdlib `crypto/ed25519` beyond confirming they're genuine independent libraries. I also didn't attempt planted-bug experiments against the pay/escrow/dispute machinery or the delegation-chain depth/scope checks specifically — the two I ran against signature/CBOR/framing were chosen as the highest-leverage checks of the "does the harness actually work" question, and the one that mattered (DHT) surfaced on the first non-crypto-path attempt.

@@ -1,0 +1,44 @@
+I'll start by reading the formal/ directory, the README, and results, then set up a disposable worktree for planted-bug experiments and re-run ProVerif under WSL2.
+
+Now the models themselves. I'll read all nine in two batches.
+
+I've read through all nine models and their stored logs, and found three logs that already contradict the README table. Next I'll check the WSL ProVerif install, pull the spec text the models claim to encode, and set up a disposable worktree.
+
+Confirmed the spec: TH covers the whole envelope bytes, and §7.3's P2 states an envelope recorded on one session can't verify on another. Now pulling the envelope header fields, cited Rust session code, pay/identity clauses, and top-level claim documents in parallel.
+
+I've gathered the spec text. Now I'll run the planted-bug series with a driver script that applies each mutation, runs ProVerif, restores the worktree, and re-verifies the baseline before moving to the next experiment.
+
+E12b remained green with the improved query, E15a flipped red once the honest flow became reachable, and E6b was inconclusive. Next I'll run a second batch: injective anti-relay queries (with/without responder nonce), the E7 attack trace, a no-leak variant isolating the E8 chain-link bug, and a payee-removed pair for E12.
+
+The nested escaping mangled the helper. I'll write the second-batch editor as its own plain file and rerun.
+
+My E1, E3, and E11 mutations didn't actually disable the checks since the `checksign` destructor was still blocking bad signatures. I'll redo these mutations properly before drawing any conclusions.
+
+All experiments are done and the tree is clean. Writing the report, then removing the disposable worktree.
+
+Worktree gone, main tree clean (the leftover prune error is about a different, pre-existing `map-rfc-audit-worktree` entry that is not mine and I left alone).
+
+**Bottom line: the sentence "P1–P6 are machine-checked" cannot go to the ISE.** Three of the six properties are vacuous, and two of those are proved over an empty trace set according to the author's own stored logs. The full report is in the file above; the parts that matter most:
+
+**Per-property verdicts**
+
+| Property | Verdict | Why |
+|---|---|---|
+| P1 downgrade | WEAK | Q1 is `event ==> v = v2` with the event emitted only inside `if chosen = v2`. It verifies a map-session recheck, not the spec's TH mechanism. |
+| P2 anti-relay | VACUOUS as shipped, repairable | The CB-collision query is true by symbolic term structure, and its "different msgid" filter excludes the one collision that does exist. The real injective anti-relay property is false in the shipped model and **true** once the ACK gets the fresh responder msg-id the spec and Rust already have. |
+| P3 delegation | WEAK | A four-row hand-written table over three constants. Removing the chain-link check or the fail-closed caveat check leaves Q4 green. |
+| P4 escrow | VACUOUS | All antecedent events fire sequentially in the same branch as the conclusion. Pause is a parallel branch, so `NotPaused` always fires. The control changes no query result. |
+| P5 dispute | VACUOUS | `DisputeResolved` is unreachable: the arbiter checks the dispute signature against its own key. Log line 64 of `pay-dispute.pv.log` says so. |
+| P6 metering | VACUOUS | `Settled` is unreachable. `rate` and `cap` are declared and never used. Making the honest flow reachable falsifies the headline query with no bug planted. |
+
+**Claims that are false on inspection.** The README table says the P5 and P6 reachability guards are reachable and the P4 control fails. The stored logs show the opposite in all three cases. Ops §6.3 still says P4–P6 are "not yet modeled", which contradicts SUBMISSION.md but is closer to the truth.
+
+**Planted bugs nothing catches.** Initiator accepting an unsigned HELLO_ACK, responder accepting an unsigned HELLO, responder dropping the expected-peer pin, verifier dropping the chain-link check, verifier dropping caveat fail-closed, payer charging on an unsigned release, arbiter resolving without the table lookup, provider mis-tagging usage. Every honest model except the two P1/P3 controls admits at least one removed security check with no query change. Restore-to-green took under half a second each time.
+
+**One new protocol-level observation.** An agreement query added to the honest handshake model is false: an insider can copy A's msgid and SessionID into its own HELLO to B, and B's signed ACK splices into A's session because handshake bodies carry no recipient. TH catches it on the first in-session envelope, so the impact is a false "session established" on A's side, but core §6.1's "the HELLO exchange is therefore itself authenticated and MITM-resistant" overstates what the exchange alone provides.
+
+**Harness note.** My first attempt at three signature-removal mutations left the `let chk = checksign(...)` destructor in place, which still blocks on failure. I caught it when a result contradicted prediction, redid them, and report only the corrected runs.
+
+The report contains paste-ready replacement text for ops §6.3, SUBMISSION.md, the root README, the intro draft, and core §6.1, plus a prioritized list of eight models to add. First on that list is the P2 fix, which is one `new` and one query change and turns the weakest claim into the strongest.
+
+Not examined: Tamarin, the Rust and Go payment code, the interop and conformance suites, and the ERRATA rulings against the dispute model.

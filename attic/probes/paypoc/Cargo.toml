@@ -1,0 +1,10 @@
+[package]
+name = "paypoc"
+version = "0.0.0"
+edition = "2021"
+[workspace]
+[dependencies]
+map-pay = { path = "../../../map-rs/crates/map-pay" }
+map-core = { path = "../../../map-rs/crates/map-core" }
+map-identity = { path = "../../../map-rs/crates/map-identity" }
+map-tasks = { path = "../../../map-rs/crates/map-tasks" }

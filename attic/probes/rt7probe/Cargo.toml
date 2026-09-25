@@ -1,0 +1,10 @@
+[package]
+name = "rt7probe"
+version = "0.0.0"
+edition = "2021"
+[workspace]
+[dependencies]
+map-trust = { path = "../../../map-rs/crates/map-trust" }
+map-identity = { path = "../../../map-rs/crates/map-identity" }
+map-tasks = { path = "../../../map-rs/crates/map-tasks" }
+map-discovery = { path = "../../../map-rs/crates/map-discovery" }

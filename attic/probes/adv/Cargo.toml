@@ -1,0 +1,12 @@
+[package]
+name = "adv"
+version = "0.0.0"
+edition = "2021"
+
+[dependencies]
+map-core = { path = "../../../map-rs/crates/map-core" }
+map-trust = { path = "../../../map-rs/crates/map-trust" }
+map-identity = { path = "../../../map-rs/crates/map-identity" }
+map-tasks = { path = "../../../map-rs/crates/map-tasks" }
+
+[workspace]

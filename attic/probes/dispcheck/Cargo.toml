@@ -1,0 +1,12 @@
+[package]
+name = "dispcheck"
+version = "0.0.0"
+edition = "2021"
+
+[dependencies]
+map-pay = { path = "../../../map-rs/crates/map-pay" }
+map-identity = { path = "../../../map-rs/crates/map-identity" }
+map-core = { path = "../../../map-rs/crates/map-core" }
+map-tasks = { path = "../../../map-rs/crates/map-tasks" }
+
+[workspace]

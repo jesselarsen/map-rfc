@@ -1,0 +1,30 @@
+I'll start by verifying the repo state and reading the primary normative source.
+
+Now the implementation. Reading the Rust pay crate.
+
+Now let me empirically confirm the two dispute-engine soundness claims (terms-1 overbilling, and payer-forged CHUNK for claim 1).
+
+I have enough to report. Loading the design guidance before writing the deliverable.
+
+Findings verified. Writing the review deliverable.
+
+Review published: **https://claude.ai/artifact/TFrQNoh1VQDExecsKvKNyU**
+
+## Verdict
+
+**Not publishable as one document.** Split three ways: (1) core settlement §1–§4 + §5.2.2 prepaid — this is the part with two implementations and live interop; (2) escrow + disputes §5.2.3/§5.2.4/§6 as a separate Experimental document; (3) `pay:credit-ledger` and `pay:x402` as per-method documents, which is what §5.1's own Specification Required policy demands.
+
+The family's own rule settles it independently — ops §6.1: *"no document leaves draft status without two independent implementations passing the full matrix."* `interop/MATRIX.md:96-104` covers pay-postpaid and pay-metered only. Terms 1/2, §6 disputes and `pay:x402` have one implementation each (`map-go/pay/codec.go:11` says so plainly).
+
+## Six BLOCKING findings
+
+- **R4-01 — negative amounts.** No draft in the family requires a non-negative Amount, and §5.2.4's operator rules admit a negative release verbatim. I ran it against the unmodified crate: a `hold(-50000)` + `release(-50000)` moved 50 000 minor units *from payee to payer* from a zero balance, and the plain `pay(-50000)` entry passes `verify_entry`. The x402 path guards this (`flow.rs` `to_atomic`), so the invariant is known and just unstated.
+- **R4-04 — claim 0 is defeated by one signature.** §6.3 makes any `COMPLETE` a full rebuttal; nothing requires its root to be recomputable. Executed: prepaid + nothing delivered → claim 0 `Supported`; payee mints one bogus `COMPLETE` → `Rebutted`; payer's fallback claim 1 → `Insufficient` (no chunks to present). Total non-delivery after prepayment is unadjudicable.
+- **R4-03 — claim 1 is unilaterally forgeable.** §6.3's signer rule is role-agnostic, so a payer-sealed `CHUNK` with tampered content is accepted as "the delivered transcript" → `Supported` against an honest provider. Dropping one real chunk does the same without forging.
+- **R4-02 — the keystone artifact doesn't exist.** The countersigned checkpoint anchors §4.2 cancel accounting, §5.2.3 check 5, and claims 0/3. Its bytes live only in `ERRATA.md:25-34`, not any draft (repo rule: drafts > task docs); `CHECKPOINT`/`CHECKPOINT_ACK` have code points and no codec in either language. Claim 3 is therefore inert against any real deployment.
+- **R4-05 — the one exact-arithmetic rule is wrong.** §4.1 says the invoice delta is measured from the last invoice the requester *settled*; `billing.rs:143` and `metered.go:356` both use last *accepted*, and §4.2's own plural "outstanding invoice(s)" agrees with the code.
+- **R4-06 — no normative references.** pay-01's References section is `[RFC2119] [RFC8174]`, while §5.1 imposes MUST on x402 (cited as "x402.org" — no version), EIP-3009, BOLT12, CBOR tag 4, COSE_Sign1. Seven methods registered under Specification Required with no defining documents.
+
+Also worth your attention among the MAJORs: **escrow expiry is a free option for the payer** (silence after COMPLETE returns 100% to the payer; no timeout-to-payee, no arbiter path — the named operator is explicitly forbidden from breaking the tie); **release is bounded only by ≤ held**, so a payee's dominant strategy collapses escrow into prepay; **ops §5.1 G-7's per-*task* ceiling is implemented per *attempt*** with no accumulator; and **`http402.rs:331` hardcodes `chain_id: 0`** into the EIP-712 domain `RealSigner` signs.
+
+Suites are green — 157 Rust tests across the four pay crates, `go test ./pay/...` passes. That's the point worth flagging against `SUBMISSION.md:48-49` ("None is a wire-format or normative protocol issue"): the four demonstrated findings above all pass through code with full test coverage. I didn't modify the repo; the probes live in two throwaway crates in the scratchpad that path-depend on `map-pay` unmodified, and they'd make better regression tests than evidence if you want them.

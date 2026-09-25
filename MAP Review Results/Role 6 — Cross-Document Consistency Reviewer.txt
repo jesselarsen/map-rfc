@@ -1,0 +1,45 @@
+I'll start by mapping the repo structure and sizing up the documents before diving into verification.
+
+This is a large multi-dimensional audit. I'll read the 11 drafts myself for the normative analysis and contradiction table, while delegating four mechanical extraction passes (registry-vs-implementation, CDDL, BCP14 census, terminology/cross-references) to background agents so I can cross-check their raw findings against the primary sources myself.
+
+Four background agents are running: registry-vs-implementation, CDDL validation, BCP14 census, and terminology/cross-references. While those work, I'll read the remaining drafts and support files myself to build the primary contradiction table.
+
+Constants line up with the registry so far. Let me quickly view the full Rust msg_type.rs file to cross-check every constant in one pass.
+
+This matches wire-01 §3.2 exactly — no drift here. This confirms the message-type registry itself is solid; I'll let the background agent dig through error codes, chunk kinds, and the Go side in full. I have enough primary material now to begin assembling the report while the agents finish.
+
+I've now read all 11 drafts, the governance docs (README, SUBMISSION.md, CLAUDE.md, ops-01, ERRATA.md), and cross-checked several registries against the Rust implementation directly. Beyond confirming the seeded contradictions, I've turned up a number of new ones firsthand — including an internal contradiction in `draft-map-identity-01` itself (delegation chain length capped at both 8 and 5), several broken cross-references, a stale `ops-01` §6.1/§6.3 that understates completed interop and formal-verification work, and a self-contradicting root `README.md` (TV/NV counts disagree between its own lines 14 and 36/83). Four background agents are still working through the mechanical extraction passes (registry-vs-code, CDDL parsing, BCP14 census, terminology/cross-references) — I'll fold their results in once they land and produce the full report.
+
+I'll pause here and resume once the background agents report back (or the fallback check fires in ~10 minutes).
+
+The registry-integrity agent finished and independently confirmed the identity-01 chain-length contradiction (8 vs. 5), plus surfaced a new, significant finding: several registered message types (TOOL_CALL/GRANT/RESULT, CHECKPOINT/CHECKPOINT_ACK, RESUME, CHALLENGE/CHALLENGE_RESPONSE, ROTATE/REVOKE) have no working codec in map-rs, and map-go's implementation gap is even larger (missing STATUS_QUERY/CAP_QUERY, RECEIPT/EVIDENCE, ROTATE/REVOKE entirely) — which undercuts the "full protocol, implemented twice" claim in the README. Still waiting on the CDDL, BCP14, and terminology/cross-reference agents.
+
+I'll wait for the remaining agents to complete.
+
+Excellent — the CDDL agent found two genuinely invalid CDDL blocks (non-parsing syntax in `CtxQuery` and `Checkpoint`), several dangling type references (`Usage`, `ContextRef`), a real prose-vs-test-vector contradiction on SessionID in HELLO, and confirmed the HELLO/HELLO_ACK list-vs-singleton pattern is intentional and correctly guarded (not a bug). Still waiting on the BCP14 and terminology/cross-reference agents.
+
+Waiting on the remaining two agents.
+
+BCP14 census done — a very strong result: the "~191" figure is basically just a raw grep for "MUST" (undercounting the real ~395 total across all eleven keywords), and the agent found that `draft-map-arch-01` (Informational) is the sole normative source for at least three real protocol rules (Z2 anti-laundering, mandatory post-settlement data deletion, and the REQUIRED/RECOMMENDED conformance-class structure) that Standards-track and BCP documents merely cite back to it. Waiting on the last agent (terminology/cross-references).
+
+All four background agents are in. Combined with my own primary-source reading (all 11 drafts, README/CLAUDE/SUBMISSION/ops/ERRATA/REVIEW-PROMPTS, plus direct spot-checks against map-rs/map-go source), I have a full picture. Let me write this up.
+
+## Summary
+
+The full review is in [MAP-consistency-review.md](MAP-consistency-review.md) (sent above). Highlights:
+
+**All eight seeded claims confirmed** — the "10 vs 11 drafts" count, wire-01's std/info mislabel in SUBMISSION.md, the 16/16-vs-26/26 interop number, the seven-vs-eight std/bcp count, README's self-contradicting TV/NV counts (it disagrees with *itself*, not just with the code), the 23-vs-31 task packages, the Apache-2.0-vs-MIT/Apache license mismatch, and CLAUDE.md's now-false "no build/test command" claim.
+
+**New findings beyond the seed list**, roughly in order of how much I'd worry about them:
+
+- **`ops-01` §6.3 is stale in the *understating* direction**: it still claims the payment binding-chain formal work is "not yet modeled," but `pay-auth.pv`/`pay-dispute.pv`/`pay-meter.pv` (TASK-027/028) already prove exactly that. Same root cause as the interop staleness (#3 in the table) — `ops-01` just hasn't been touched since those landed.
+- **`draft-map-identity-01.md` contradicts itself**: §4 caps delegation chains at 8 certificates, §10 says "default 5." Both `map-rs` and `map-go` implement 8, so §10 is the wrong number.
+- **Two CDDL blocks don't parse at all** (`CtxQuery` uses a non-existent `as` operator and an undefined `float-as-decimal` primitive; `Checkpoint.5` has literal English prose sitting inside CDDL braces), and two shared types (`Usage`, `ContextRef`) are used family-wide but never formally defined anywhere.
+- **A real prose-vs-test-vector contradiction**: core-01 says the HELLO_ACK responder MUST echo the SessionID, but the byte-exact normative TV-001/TV-003 vectors carry no SessionID at all.
+- **`draft-map-arch-01` (Informational) is the sole normative home for three real protocol rules** — the anti-laundering zone rule, a data-deletion MUST, and the whole REQUIRED/RECOMMENDED conformance-class structure — that Standards-track and BCP documents only ever cite back to it.
+- **A cluster of ~13 broken/stale cross-references**, the worst being four garbled section numbers in one `trust-01` §3 paragraph (`tasks §82`, `§105/§454`, `pay §638`, `tasks §181` — none exist) and a pair of documents (`core-01`/`identity-01`) that drifted to citing *each other's* wrong section number for the same delegation-chain topic.
+- **Two implementation-vs-spec functional bugs shared by both `map-rs` and `map-go`**: neither round-trips the `crit`/`ext` Body keys (violating invariant I3), and both reject a spec-legal SessionID-scoped `FLOW_CREDIT` that `trust-01` relies on for evidence exchange.
+- **The "implemented twice" claim overstates coverage**: several registered message types (tool invocation, checkpoints, canary challenges, key rotation/revocation) have no working codec in `map-rs`, and `map-go`'s gap is larger still — it's missing status/capability query and the entire trust-receipt layer.
+- **The "~191 MUST/SHOULD/MAY" figure undercounts by ~2×** — it's just a raw grep of "MUST," missing the other ten BCP14 keyword categories. Real total is ~395 (~263 after stripping boilerplate).
+
+Not examined: cross-references inside the test-vectors/gen_vectors/ERRATA files, the render pipeline's own line-width/reference-formatting counts, and re-running the ProVerif models or the actual test suites (I verified file presence and source constants directly instead of re-executing).

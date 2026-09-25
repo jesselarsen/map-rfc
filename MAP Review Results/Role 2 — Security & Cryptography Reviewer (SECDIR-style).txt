@@ -1,0 +1,35 @@
+I'll review the MAP drafts and implementations as a SECDIR reviewer. First, I'll map the repository, then read core and identity drafts, then cross-check against the Rust and Go code.
+
+The full review is attached above as a file. Here is the condensed version. Nothing in the repository was modified; the five probe tests live in a throwaway module in my scratchpad.
+
+**Verification done.** Read core and identity in full plus the Security Considerations of all eleven drafts. Read the Rust envelope, CBOR, replay, HELLO, delegation, identity and session code, and the Go CBOR, envelope, delegation, identity, session, HELLO and libp2p transport code. Ran the Go tests for the in-scope packages (pass; the Go envelope package has no in-package tests) and the Rust tests for map-core, map-identity and map-session (51 pass). Wrote five probe tests against map-go for behaviors I read in the code; four confirmed fail-open results.
+
+## Findings by priority
+
+**1. Channel binding. BLOCKING.** The identity-pair exporter is authorized normatively by core §7.3 clause 3 ("concatenation of both peers' static public keys"), not just used by the reference implementation. It is not a channel binding under RFC 5056: it is public and per-pair, not per-connection.
+- What it prevents: cross-session replay between honest peers, but only because the transcript hash covers fresh HELLO and HELLO_ACK MsgIDs. Relay by a third peer is stopped by the kid-equals-PeerID check, not by the CB.
+- What it does not prevent: a transparent relay on any leg the transport does not authenticate. Both legs compute the identical CB and every signature verifies. The harness TCP transport and the WebSocket-behind-TLS-terminator case in §10 are exactly this.
+- The stated backstop is false as implemented. Core §10 and §14 say the msg-id cache and sequence numbers "prevent cross-connection replay regardless". Both implementations create the replay cache per session and restart seq at 0, so nothing but MsgID freshness separates connections. The spec never states MsgID freshness as a security requirement.
+- The formal claim overstates. ops §6.3 calls P2 "anti-relay". The formal README says the exporter is modeled as public and the replay cache is out of scope. P2 proves CB uniqueness given fresh transcripts, nothing about relay.
+- The RECOMMENDED transport is the only one implemented, and §14 says it SHOULD be treated as Zone 2 or higher. The reference deployment therefore cannot run at Zone 1 under its own rules, and the drafts do not say so.
+- Verdict: disclosed in good faith, but the spec under-specifies. Proposed text for §7.3, §6.1, §7.1, §10 and ops §6.3 is in the file.
+
+**2. Downgrade. MAJOR.** The transcript hash construction is sound: it covers the whole HELLO and HELLO_ACK envelope bytes, so unknown extensions are covered. The defect is that the HelloAck key 8 comment defines a second, different transcript hash over "fields 1..5", neither implementation emits it, and a wrong value is never rejected. Delete key 8 or make it verified. Also under-specified: HKDF salt versus IKM order, exporter byte order in §7.3, the TLS exporter context and length, IANA registration of the exporter label, and the CB formula for suite 2 whose KDF has no salt input.
+
+**3. Anti-replay. MAJOR plus divergence report.** The two replay modules are semantically identical: same keys, same windows, dense seq, arrival-time eviction, full-map scan per message, no bound without §8.3 rate limits, which neither implements. The spec defect is §14's instruction to widen the skew window without stating that cache lifetime must be at least twice the skew. Both implementations accept independent parameters, so a deployment that follows §14 literally gets a working replay.
+
+**4. Signature scope. Sound, one shared defect.** Both verify over received bytes including for delegated envelopes, and both use strict Ed25519. The Go hand-rolled decoder rejects every non-canonical form I could construct by reading it. The defect: `crit` is fail-open in both. Probe: an envelope declaring an unknown critical extension is accepted by Go, and the Rust body parser never reads key 8. That is the only mechanism for making a future security extension mandatory.
+
+**5. Delegation. MAJOR, several.** Probe-confirmed against Go: an audience-caveated chain is accepted with no audience check, and a chain that widens zone scope is accepted. Rust fails closed on both. Rust accepts a child cert with absent scope under a scoped parent; Go rejects it. The task-pin caveat is enforced by no consumer in either tree. No test vector or interop cell covers any of these. Separately: chains are validated once at HELLO and never again, so expiry and revocation mid-session are ignored; ROTATE and REVOKE are unimplemented in both; the rotation countersignature is a SHOULD with no registered extension key while §10 calls it a requirement; and core §4.3 rule 7 and §7.3 still describe kid as the chain root, contradicting the patched identity §3.2 and §4.
+
+**6. Crypto agility. MAJOR.** Asserted by arch G7 and core §2 suite 3, but the CDDL fixes the signature at 64 bytes, alg at -8, and AgentID at 66 bytes maximum. ML-DSA-44 fits none of those. The identity-equals-PeerID rule holds only for Ed25519. HELLO is signed before the suite is chosen and the spec does not say with what. Honest fix for -01 is to drop suite 3 and the agility claim.
+
+## The three objections a SECDIR review raises first
+
+1. This is not channel binding, the recommended transport depends on it, and the stated mitigation is not what the code does.
+2. Agility is claimed and structurally impossible in the current envelope.
+3. The two implementations enforce different delegation rules on the caveats that matter, `crit` is fail-open in both, and core still contradicts identity on what `kid` is.
+
+## Not examined
+
+No live libp2p or QUIC sessions were run. ProVerif models were read, not re-run. Conformance vector suites were not executed beyond unit tests. The interop harness code, discovery DHT records, task transcripts, trust receipts, pay settlement and disputes, and the gateway were reviewed only through their Security Considerations sections. No fuzzing was run.
