@@ -47,11 +47,14 @@ impl MeshIndex {
             .insert(agent);
     }
 
-    /// FR-3: providers published under `K'(cap, shard)`, deterministically sorted.
-    pub fn providers(&self, cap: &str, shard: u8) -> Vec<AgentId> {
+    /// FR-3: providers published under `K'(cap, s)`, deterministically sorted.
+    /// Layer D-6 (reviewer finding A3, shard flooding): a record under shard
+    /// `s` whose `shard(agent) != s` is discarded on the query side, so an
+    /// agent providing under all 256 keys still appears only in its own shard.
+    pub fn providers(&self, cap: &str, s: u8) -> Vec<AgentId> {
         self.providers
-            .get(&sharded_capability_key(cap, shard))
-            .map(|s| s.iter().cloned().collect())
+            .get(&sharded_capability_key(cap, s))
+            .map(|set| set.iter().filter(|a| shard(a) == s).cloned().collect())
             .unwrap_or_default()
     }
 

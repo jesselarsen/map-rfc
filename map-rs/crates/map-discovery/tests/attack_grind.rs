@@ -7,8 +7,12 @@
 //! used by evaluation E3 (the attacker-budget axis) and sanity-checks that
 //! shard hits are uniform. Run in release mode:
 //! `cargo test -p map-discovery --release --test attack_grind -- --ignored --nocapture`
+//!
+//! `epoch_salt_invalidates_ground_ids` (not ignored) checks the experimental
+//! mitigation, layer D-8: IDs ground for one shard under one salt are spread
+//! uniformly under the next.
 
-use map_discovery::shard;
+use map_discovery::{shard, shard_epoch};
 use map_identity::Keypair;
 use std::time::Instant;
 
@@ -34,4 +38,24 @@ fn shard_grinding_rate() {
     );
     let expected = n / 256;
     assert!(hits > expected / 2 && hits < expected * 2, "shard hits not uniform: {hits}");
+}
+
+#[test]
+fn epoch_salt_invalidates_ground_ids() {
+    // Grind 64 identities into shard 141 under salt A...
+    let target = 141u8;
+    let mut ground = Vec::new();
+    let mut i = 0u32;
+    while ground.len() < 64 {
+        let mut seed = [0u8; 32];
+        seed[..4].copy_from_slice(&i.to_le_bytes());
+        let id = Keypair::from_seed(seed).agent_id();
+        if shard_epoch(&id, b"epoch-A") == target {
+            ground.push(id);
+        }
+        i += 1;
+    }
+    // ...then rotate the salt: expected survivors ~64/256 = 0.25.
+    let survivors = ground.iter().filter(|id| shard_epoch(id, b"epoch-B") == target).count();
+    assert!(survivors <= 3, "{survivors} of 64 ground IDs still in the target shard");
 }

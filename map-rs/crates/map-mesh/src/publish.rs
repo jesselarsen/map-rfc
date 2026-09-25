@@ -7,6 +7,8 @@ use map_identity::Keypair;
 
 /// Descriptor validity ceiling (discovery §2): ≤ 24 h.
 pub const MAX_DESCRIPTOR_VALIDITY_MS: u64 = 24 * 3600 * 1000;
+/// Tolerated clock skew for a descriptor's timestamp (layer R-3 default).
+pub const DESCRIPTOR_CLOCK_SKEW_MS: u64 = 120_000;
 /// Republish interval ceiling (discovery §5): ≤ 6 h.
 pub const MAX_REPUBLISH_INTERVAL_MS: u64 = 6 * 3600 * 1000;
 
@@ -64,6 +66,15 @@ pub fn ingest_descriptor_envelope(
         .body
         .ttl_ms
         .ok_or_else(|| MeshError::InvalidDescriptor("descriptor missing ttl".into()))?;
+    // Layer D-5 (finding A8): validity is checked on ingest, including the
+    // 24 h ceiling and a bounded clock skew. Without these, a descriptor could
+    // claim a century-long ttl or a future timestamp and never expire.
+    if ttl == 0 || ttl > MAX_DESCRIPTOR_VALIDITY_MS {
+        return Err(MeshError::InvalidDescriptor("descriptor ttl out of range (0, 24h]".into()));
+    }
+    if opened.body.timestamp_ms > now_ms.saturating_add(DESCRIPTOR_CLOCK_SKEW_MS) {
+        return Err(MeshError::InvalidDescriptor("descriptor timestamp in the future".into()));
+    }
     if now_ms > opened.body.timestamp_ms.saturating_add(ttl) {
         return Err(MeshError::InvalidDescriptor("descriptor ttl expired".into()));
     }

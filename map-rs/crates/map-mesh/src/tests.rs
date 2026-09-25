@@ -210,7 +210,7 @@ fn cap_query_end_to_end() {
             assert!(bad.is_empty());
         },
         |b_sess| {
-            serve_one(b_sess, &index, &StatusSnapshot::default()).unwrap();
+            serve_one(b_sess, &index, &StatusSnapshot::default(), &mut RateLimiter::default()).unwrap();
         },
     );
     // A's cache now holds B's verified descriptor (fetched from an untrusted index).
@@ -288,7 +288,7 @@ fn status_query_report_echo_and_no_caching() {
             assert!(cache.get(&kp(2).agent_id()).is_none());
         },
         |b_sess| {
-            serve_one(b_sess, &MeshIndex::new(), &snap).unwrap();
+            serve_one(b_sess, &MeshIndex::new(), &snap, &mut RateLimiter::default()).unwrap();
         },
     );
     let _ = report;

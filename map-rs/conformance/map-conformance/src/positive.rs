@@ -119,6 +119,8 @@ fn tv002_core() -> Result<ReceiptCore, String> {
         rating: Some(92),
         payment_ref: None,
         transcript_root: None,
+        zone: None,
+        resumed_from: None,
     })
 }
 

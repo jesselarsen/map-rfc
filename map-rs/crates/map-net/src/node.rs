@@ -249,12 +249,15 @@ impl MapNode {
         rx.blocking_recv().map_err(|_| NetError::Closed)?.map_err(NetError::Swarm)
     }
 
-    /// Providers advertising `cap` under this node's view of the DHT (FR-5).
+    /// Providers advertising `cap` under shard `shard` in this node's view of
+    /// the DHT. Records whose agent does not belong to that shard are dropped
+    /// here, on the querier side (layer D-6 / binding DHT-10, finding A3).
     pub fn find_providers(&self, cap: &str, shard: u8) -> Result<Vec<AgentId>, NetError> {
         let key = kad::RecordKey::new(&sharded_capability_key(cap, shard));
         let (tx, rx) = oneshot::channel();
         self.send(Command::GetProviders { key, reply: tx })?;
-        rx.blocking_recv().map_err(|_| NetError::Closed)
+        let found = rx.blocking_recv().map_err(|_| NetError::Closed)?;
+        Ok(found.into_iter().filter(|a| map_discovery::shard(a) == shard).collect())
     }
 
     /// Fetch a descriptor's signed envelope bytes by cid (FR-5). The caller MUST

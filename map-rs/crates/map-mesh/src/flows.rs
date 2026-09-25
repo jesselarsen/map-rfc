@@ -21,7 +21,7 @@ use map_core::msg_type;
 use map_discovery::{Descriptor, DescriptorCache};
 use map_identity::AgentId;
 use map_session::{Clock, MsgIdSource, Session, Transport};
-use std::collections::BTreeSet;
+use std::collections::{BTreeSet, HashMap};
 
 /// Default (and max) descriptors per CAP_RESPONSE batch (R2 — bound the reply).
 pub const DEFAULT_CAP_LIMIT: usize = 8;
@@ -45,6 +45,52 @@ pub struct StatusReport {
     pub echo: Option<[u8; 8]>,
 }
 
+/// Per-peer token bucket for discovery/status queries (binding DHT-9,
+/// reviewer finding A8). Deterministic: the caller supplies the clock
+/// reading, never a wall-clock read. One limiter is shared across all of a
+/// responder's sessions, keyed by the peer's authenticated AgentID.
+#[derive(Clone, Debug)]
+pub struct RateLimiter {
+    capacity: f64,
+    refill_per_ms: f64,
+    buckets: HashMap<AgentId, (f64, u64)>, // (tokens, last refill ms)
+}
+
+impl RateLimiter {
+    /// `burst` queries at once, refilled at `per_second` queries per second.
+    pub fn new(burst: u32, per_second: u32) -> Self {
+        RateLimiter {
+            capacity: burst as f64,
+            refill_per_ms: per_second as f64 / 1000.0,
+            buckets: HashMap::new(),
+        }
+    }
+
+    /// Spend one token for `peer` at `now_ms`; `false` means rate-limited.
+    pub fn allow(&mut self, peer: &AgentId, now_ms: u64) -> bool {
+        let (tokens, last) = self
+            .buckets
+            .entry(peer.clone())
+            .or_insert((self.capacity, now_ms));
+        let elapsed = now_ms.saturating_sub(*last) as f64;
+        *tokens = (*tokens + elapsed * self.refill_per_ms).min(self.capacity);
+        *last = (*last).max(now_ms);
+        if *tokens >= 1.0 {
+            *tokens -= 1.0;
+            true
+        } else {
+            false
+        }
+    }
+}
+
+impl Default for RateLimiter {
+    /// 32-query burst, 8 queries per second sustained.
+    fn default() -> Self {
+        RateLimiter::new(32, 8)
+    }
+}
+
 /// Result of serving one message.
 #[derive(Debug, PartialEq, Eq)]
 pub enum ServeOutcome {
@@ -57,11 +103,13 @@ pub enum ServeOutcome {
 /// Serve exactly one incoming query against `index`/`status` and reply. A
 /// malformed or unsupported query is answered with an ERROR (mapped core §9
 /// code) and still returns `Served` — a bad query MUST NOT kill the loop (§10).
-/// Only transport/session failures return `Err`.
+/// A peer over its `limiter` budget gets ERROR 1005 (retryable) instead of
+/// an answer (binding DHT-9). Only transport/session failures return `Err`.
 pub fn serve_one<T: Transport, C: Clock, M: MsgIdSource>(
     session: &mut Session<T, C, M>,
     index: &MeshIndex,
     status: &StatusSnapshot,
+    limiter: &mut RateLimiter,
 ) -> Result<ServeOutcome, MeshError> {
     let inc = match session.recv() {
         Ok(i) => i,
@@ -69,6 +117,11 @@ pub fn serve_one<T: Transport, C: Clock, M: MsgIdSource>(
         Err(e) => return Err(MeshError::Session(e)),
     };
     let now = session.now_ms();
+    let peer = session.accountable_peer().clone();
+    if !limiter.allow(&peer, now) {
+        session.send(msg_type::ERROR, ErrorMsg::new(codes::RATE_LIMITED, true).to_value())?;
+        return Ok(ServeOutcome::Served);
+    }
     match inc.msg_type {
         t if t == msg_type::CAP_QUERY => match parse_cap_query(&inc.content) {
             Ok((cap, shard, limit)) => {
@@ -91,8 +144,9 @@ pub fn serve_until_close<T: Transport, C: Clock, M: MsgIdSource>(
     session: &mut Session<T, C, M>,
     index: &MeshIndex,
     status: &StatusSnapshot,
+    limiter: &mut RateLimiter,
 ) -> Result<(), MeshError> {
-    while serve_one(session, index, status)? == ServeOutcome::Served {}
+    while serve_one(session, index, status, limiter)? == ServeOutcome::Served {}
     Ok(())
 }
 

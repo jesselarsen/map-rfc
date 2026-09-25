@@ -15,7 +15,7 @@ pub mod publish;
 mod tests;
 
 pub use flows::{
-    query_caps, query_status, serve_one, serve_until_close, ServeOutcome, StatusReport,
+    query_caps, query_status, serve_one, serve_until_close, RateLimiter, ServeOutcome, StatusReport,
     StatusSnapshot, DEFAULT_CAP_LIMIT,
 };
 pub use index::{IndexIngest, MeshIndex};

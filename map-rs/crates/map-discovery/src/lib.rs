@@ -74,6 +74,17 @@ pub fn shard(agent: &AgentId) -> u8 {
     Sha256::digest(agent.as_bytes())[0]
 }
 
+/// Layer D-8 (experimental, finding A4): an epoch-salted shard. Rotating
+/// `epoch_salt` reassigns every agent's shard at once, so an identity ground
+/// for a favourable shard under one salt is worthless under the next. Not
+/// wired into publication or lookup; evaluation E3 measures it.
+pub fn shard_epoch(agent: &AgentId, epoch_salt: &[u8]) -> u8 {
+    let mut h = Sha256::new();
+    h.update(epoch_salt);
+    h.update(agent.as_bytes());
+    h.finalize()[0]
+}
+
 /// K(cap) — the unsharded capability index key (discovery §5).
 pub fn capability_key(cap: &str) -> Vec<u8> {
     multihash_sha256(format!("map:idx:1:{cap}").as_bytes())

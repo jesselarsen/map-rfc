@@ -1,11 +1,9 @@
 //! Regression test for Role 7 finding A8 (quadratic replay cache), ported
-//! from `attic/probes/adv/src/bin/replay.rs`. `ReplayCache::check` scans the
-//! whole cache on every call, so per-message cost grows with cache size
-//! (probe, release build: 1.26 µs at n=2000, 40.82 µs at n=64000).
-//!
-//! Asserts the SECURE behaviour (roughly constant per-message cost) and is
-//! `#[ignore]`d until the fix lands (accountability-layer plan, P3). It is a
-//! timing ratio with a generous bound, not an absolute timing.
+//! from `attic/probes/adv/src/bin/replay.rs`. Before P3, `ReplayCache::check`
+//! rescanned the whole cache on every call (probe, release build: 1.26 µs at
+//! n=2000, 40.82 µs at n=64000). Expiry is now queue-ordered and amortized
+//! O(1). This is a timing ratio with a generous bound, not an absolute
+//! timing.
 
 use map_core::envelope::MsgId;
 use map_core::replay::ReplayCache;
@@ -26,7 +24,6 @@ fn per_msg_nanos(n: u64) -> f64 {
 }
 
 #[test]
-#[ignore = "Role 7 A8 open; fixed in accountability-layer P3"]
 fn replay_cache_per_message_cost_is_flat() {
     let small = per_msg_nanos(1_000);
     let large = per_msg_nanos(16_000);

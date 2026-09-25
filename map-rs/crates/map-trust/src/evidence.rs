@@ -8,16 +8,17 @@
 //! provider check stops a holder filing a receipt under the wrong
 //! (provider, capability) cell.
 //!
-//! Planned for P3: layer rule T-2 requires these gates inside
-//! [`TrustProjection::apply`] itself, so that `rebuild` enforces them too
-//! (reviewer finding A1; see `tests/attack_farming.rs`). Until then this
-//! function is the only place they are applied.
+//! The admissibility gates themselves (dual signatures for positive evidence,
+//! no self-dealing, no future dating, zero-weight issuers) live in
+//! [`TrustProjection::apply`] (layer T-2), so they hold here and in `rebuild`
+//! alike. This function adds only the subject filter.
 
 use crate::{TrustProjection, Verified};
 use map_identity::AgentId;
 
-/// Apply verified evidence about `subject` to a projection, enforcing both
-/// gates (dual-signed; `subject` is the provider). Returns the count applied.
+/// Apply verified evidence about `subject` to a projection: receipts that do
+/// not name `subject` as provider are ignored, and the rest pass through
+/// [`TrustProjection::apply`]'s gates. Returns the count applied.
 pub fn apply_verified_evidence(
     evidence: &[Verified],
     subject: &AgentId,
@@ -27,8 +28,7 @@ pub fn apply_verified_evidence(
 ) -> usize {
     let mut applied = 0;
     for v in evidence {
-        if v.dual && &v.core.provider == subject {
-            proj.apply(v, now_ms, trust_in_issuer);
+        if &v.core.provider == subject && proj.apply(v, now_ms, trust_in_issuer).is_ok() {
             applied += 1;
         }
     }
@@ -57,6 +57,8 @@ mod tests {
             rating: None,
             payment_ref: None,
             transcript_root: None,
+            zone: None,
+            resumed_from: None,
         };
         let cb = core.encode().unwrap();
         Receipt {

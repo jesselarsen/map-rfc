@@ -1,11 +1,12 @@
-//! MAP trust bounded context (draft-map-trust-01).
+//! MAP trust: dual-signed execution receipts and the observer-local trust
+//! projection (spec/layer.md §6, §8).
 //!
-//! Data semantics (trust §1, normative): a receipt is a past-tense,
-//! immutable domain event identified by its content address. The store is
-//! append-only with idempotent, replay-safe ingestion. Trust scores are
-//! *derived* — [`TrustProjection::rebuild`] from the store must reproduce
-//! any incrementally maintained projection, and the test suite enforces
-//! exactly that (ops §6.2 "projection rebuild").
+//! A receipt is a past-tense, immutable fact identified by its content
+//! address. The store is append-only with idempotent, replay-safe ingestion.
+//! Trust scores are *derived*: [`TrustProjection::rebuild`] from the store
+//! reproduces any incrementally maintained projection (T-1), and the
+//! admissibility rules R-1..R-4 live inside [`TrustProjection::apply`] so both
+//! paths enforce them identically (T-2).
 
 use map_core::cbor::{decode, encode, CborError, Value};
 use map_identity::{verify, AgentId, IdentityError, Keypair};
@@ -96,8 +97,15 @@ pub struct ReceiptCore {
     pub metrics: Metrics,
     /// Subjective assertion by the requester; never "verified" (trust §3).
     pub rating: Option<u8>,
+    /// Key 10: payment reference; carries a Multihash voucher-digest when
+    /// metering is used (layer §9.3).
     pub payment_ref: Option<Vec<u8>>,
     pub transcript_root: Option<[u8; 32]>,
+    /// Key 12: the data-sensitivity zone the task ran under (layer §10).
+    pub zone: Option<u8>,
+    /// Key 13: Multihash of the countersigned CheckpointArtifact this task
+    /// resumed from (layer §7.4).
+    pub resumed_from: Option<Vec<u8>>,
 }
 
 impl ReceiptCore {
@@ -134,6 +142,12 @@ impl ReceiptCore {
         }
         if let Some(t) = &self.transcript_root {
             m.push((Value::Uint(11), Value::Bytes(t.to_vec())));
+        }
+        if let Some(z) = self.zone {
+            m.push((Value::Uint(12), Value::Uint(z as u64)));
+        }
+        if let Some(r) = &self.resumed_from {
+            m.push((Value::Uint(13), Value::Bytes(r.clone())));
         }
         Value::Map(m)
     }
@@ -201,6 +215,24 @@ impl ReceiptCore {
                     .ok_or(TrustError::BadField(11))?,
             ),
         };
+        let zone = match v.map_get(12) {
+            None => None,
+            Some(x) => Some(
+                x.as_uint()
+                    .filter(|z| *z <= 3)
+                    .map(|z| z as u8)
+                    .ok_or(TrustError::BadField(12))?,
+            ),
+        };
+        let resumed_from = match v.map_get(13) {
+            None => None,
+            Some(x) => Some(
+                x.as_bytes()
+                    .filter(|b| b.len() == 34 && b[..2] == [0x12, 0x20])
+                    .ok_or(TrustError::BadField(13))?
+                    .to_vec(),
+            ),
+        };
         Ok(ReceiptCore {
             task,
             requester,
@@ -213,6 +245,8 @@ impl ReceiptCore {
             rating,
             payment_ref,
             transcript_root,
+            zone,
+            resumed_from,
         })
     }
 }
@@ -241,12 +275,18 @@ pub struct Receipt {
     pub sig_provider: Option<[u8; 64]>,
 }
 
-/// A receipt whose signatures verified against the identities in its core.
+/// A receipt whose present signatures verified against the identities in its
+/// core (layer R-1). Which parties signed decides admissibility (R-4).
 #[derive(Clone, Debug)]
 pub struct Verified {
     pub core: ReceiptCore,
-    /// Both signatures present and valid — the strongest evidence class.
+    /// Both signatures present and valid: the only class that can carry
+    /// positive evidence.
     pub dual: bool,
+    /// The requester (role 1) signature is present and valid.
+    pub requester_signed: bool,
+    /// The provider (role 2) signature is present and valid.
+    pub provider_signed: bool,
 }
 
 impl Receipt {
@@ -352,6 +392,8 @@ impl Receipt {
         }
         Ok(Verified {
             dual: self.sig_requester.is_some() && self.sig_provider.is_some(),
+            requester_signed: self.sig_requester.is_some(),
+            provider_signed: self.sig_provider.is_some(),
             core,
         })
     }
@@ -408,16 +450,26 @@ impl ReceiptStore {
 }
 
 // ---------------------------------------------------------------------
-// Beta-reputation projection (trust §7, informative formula; normative
-// rebuild rule). Derived data: never authoritative over its evidence.
+// Observer-local Beta-reputation projection (layer §8). Derived data: never
+// authoritative over its evidence.
 // ---------------------------------------------------------------------
 
+/// Projection policy (layer §8). Every field is local policy.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct ProjParams {
-    /// Recency decay per day (trust §7 recommends ≈0.98).
+    /// Recency decay per day (layer §8.2 recommends ≈0.98), computed from the
+    /// receipt's `ended`, never from ingestion time (T-1).
     pub daily_decay: f64,
     /// Symmetric Beta prior applied at read time (α₀ = β₀ = prior).
     pub prior: f64,
+    /// R-3 skew bound: a receipt whose `ended` is later than the evaluation
+    /// time plus this bound does not count at that evaluation time.
+    pub skew_ms: u64,
+    /// T-3 per-issuer cap: the most total (weighted, decayed) evidence one
+    /// issuer may contribute to one (provider, capability) cell. Applied at
+    /// read time, so the result is independent of ingestion order. `None`
+    /// leaves it uncapped; the default is chosen by evaluation E1.
+    pub issuer_cap: Option<f64>,
 }
 
 impl Default for ProjParams {
@@ -425,14 +477,34 @@ impl Default for ProjParams {
         ProjParams {
             daily_decay: 0.98,
             prior: 1.0,
+            skew_ms: 120_000,
+            issuer_cap: None,
         }
     }
 }
 
+/// Why [`TrustProjection::apply`] did not count a receipt.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Skip {
+    /// R-2: requester == provider.
+    SelfDealing,
+    /// R-3: `ended` lies beyond the evaluation time plus the skew bound.
+    FutureDated,
+    /// R-4: not dual-signed and not an admissible requester-only negative.
+    NotAdmissible,
+    /// T-3: the issuer weighs 0 (or a non-finite weight was supplied).
+    ZeroWeight,
+    /// Outcome 3 (cancelled) carries no evidence by default (layer §8.2).
+    Cancelled,
+}
+
+/// Per-issuer (α, β) accumulations for one (provider, capability) cell.
+type Cell = HashMap<AgentId, (f64, f64)>;
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct TrustProjection {
     params: ProjParams,
-    cells: HashMap<(AgentId, String), (f64, f64)>, // (alpha, beta)
+    cells: HashMap<(AgentId, String), Cell>,
 }
 
 impl TrustProjection {
@@ -443,48 +515,122 @@ impl TrustProjection {
         }
     }
 
-    /// Fold one verified receipt in. `trust_in_issuer` weights the evidence
-    /// by the evaluator's trust in the requester-signer (trust §7).
-    pub fn apply(&mut self, v: &Verified, now_ms: u64, trust_in_issuer: f64) {
-        let days = now_ms.saturating_sub(v.core.ended_ms) as f64 / 86_400_000.0;
-        let w = trust_in_issuer * self.params.daily_decay.powf(days);
-        let cell = self
-            .cells
-            .entry((v.core.provider.clone(), v.core.capability.clone()))
-            .or_insert((0.0, 0.0));
-        match v.core.outcome {
-            Outcome::Ok => cell.0 += w,
-            Outcome::Failed | Outcome::Timeout => cell.1 += w,
-            Outcome::Cancelled => {}
-            Outcome::Disputed => cell.1 += 2.0 * w,
+    /// Fold one verified receipt in, enforcing the admissibility rules
+    /// (layer R-2..R-4 and T-3) inside the projection itself, so incremental
+    /// use and [`rebuild`](Self::rebuild) cannot diverge (T-2). R-1 is
+    /// [`Receipt::verify`]. `issuer_weight` is the observer's weight for the
+    /// receipt's requester (the issuer); see [`IssuerWeights`].
+    pub fn apply(&mut self, v: &Verified, now_ms: u64, issuer_weight: f64) -> Result<(), Skip> {
+        let c = &v.core;
+        if c.requester == c.provider {
+            return Err(Skip::SelfDealing);
         }
+        if c.ended_ms > now_ms.saturating_add(self.params.skew_ms) {
+            return Err(Skip::FutureDated);
+        }
+        let negative = matches!(c.outcome, Outcome::Failed | Outcome::Timeout | Outcome::Disputed);
+        let requester_only = v.requester_signed && !v.provider_signed;
+        if !(v.dual || (requester_only && negative)) {
+            return Err(Skip::NotAdmissible);
+        }
+        if c.outcome == Outcome::Cancelled {
+            return Err(Skip::Cancelled);
+        }
+        if !(issuer_weight.is_finite() && issuer_weight > 0.0) {
+            return Err(Skip::ZeroWeight);
+        }
+        let days = now_ms.saturating_sub(c.ended_ms) as f64 / 86_400_000.0;
+        let w = issuer_weight * self.params.daily_decay.powf(days);
+        let entry = self
+            .cells
+            .entry((c.provider.clone(), c.capability.clone()))
+            .or_default()
+            .entry(c.requester.clone())
+            .or_insert((0.0, 0.0));
+        match c.outcome {
+            Outcome::Ok => entry.0 += w,
+            Outcome::Failed | Outcome::Timeout => entry.1 += w,
+            Outcome::Disputed => entry.1 += 2.0 * w,
+            Outcome::Cancelled => unreachable!("filtered above"),
+        }
+        Ok(())
     }
 
-    /// `(score, confidence)` per trust §7: score = α/(α+β) with the prior
-    /// folded in at read time; gate on confidence, not score alone.
+    /// `(score, confidence)` (layer §8.2): score = α/(α+β) with the prior
+    /// folded in at read time; confidence = α+β. Each issuer's contribution
+    /// is scaled down to `issuer_cap` first when a cap is set. Gate
+    /// decisions on confidence, not score alone. `None` if no admissible
+    /// evidence exists for the cell.
     pub fn score(&self, provider: &AgentId, capability: &str) -> Option<(f64, f64)> {
-        let (a, b) = self
-            .cells
-            .get(&(provider.clone(), capability.to_string()))?;
+        let cell = self.cells.get(&(provider.clone(), capability.to_string()))?;
+        let (mut a, mut b) = (0.0, 0.0);
+        let mut issuers: Vec<_> = cell.iter().collect();
+        issuers.sort_by(|x, y| x.0.cmp(y.0)); // deterministic summation order
+        for (_, (ia, ib)) in issuers {
+            let total = ia + ib;
+            let scale = match self.params.issuer_cap {
+                Some(cap) if total > cap && total > 0.0 => cap / total,
+                _ => 1.0,
+            };
+            a += ia * scale;
+            b += ib * scale;
+        }
         let p = self.params.prior;
         Some(((a + p) / (a + b + 2.0 * p), a + b))
     }
 
-    /// Recompute from evidence alone. The normative rebuild rule (trust §7):
-    /// this MUST reproduce any incrementally maintained projection.
+    /// Recompute from evidence alone (T-1): this reproduces any incrementally
+    /// maintained projection over the same receipts, weights and evaluation
+    /// time.
     pub fn rebuild<F: Fn(&AgentId) -> f64>(
         store: &ReceiptStore,
         now_ms: u64,
         params: ProjParams,
-        trust_in_issuer: F,
+        issuer_weight: F,
     ) -> Result<TrustProjection, TrustError> {
         let mut p = TrustProjection::new(params);
         for r in store.iter() {
             let v = r.verify()?; // defensive; ingest already verified
-            let w = trust_in_issuer(&v.core.requester);
-            p.apply(&v, now_ms, w);
+            let w = issuer_weight(&v.core.requester);
+            let _ = p.apply(&v, now_ms, w); // skipped receipts are simply not evidence
         }
         Ok(p)
+    }
+}
+
+/// Observer-local issuer weighting with the properties layer rule T-3
+/// requires: the observer's own receipts weigh 1, issuers the observer has
+/// explicitly configured weigh their configured value, and **every other
+/// issuer weighs 0** (never the Beta prior's neutral 0.5). This zero
+/// default is what defeats a Sybil ring of fresh requester identities.
+///
+/// How an observer *derives* weights for other issuers (transitive trust,
+/// agreement with its own experience, …) is deferred to evaluation E1
+/// (decision D5); this type only fixes the endpoints.
+#[derive(Clone, Debug)]
+pub struct IssuerWeights {
+    observer: AgentId,
+    known: HashMap<AgentId, f64>,
+}
+
+impl IssuerWeights {
+    pub fn new(observer: AgentId) -> Self {
+        IssuerWeights { observer, known: HashMap::new() }
+    }
+
+    /// Weigh `issuer` at `weight` (clamped to [0, 1]).
+    pub fn with(mut self, issuer: AgentId, weight: f64) -> Self {
+        let w = if weight.is_finite() { weight.clamp(0.0, 1.0) } else { 0.0 };
+        self.known.insert(issuer, w);
+        self
+    }
+
+    pub fn weight(&self, issuer: &AgentId) -> f64 {
+        if *issuer == self.observer {
+            1.0
+        } else {
+            self.known.get(issuer).copied().unwrap_or(0.0)
+        }
     }
 }
 
@@ -520,6 +666,8 @@ mod tests {
             rating: Some(80),
             payment_ref: None,
             transcript_root: None,
+            zone: None,
+            resumed_from: None,
         };
         let core_bytes = core.encode().unwrap();
         Receipt {
@@ -582,13 +730,13 @@ mod tests {
             receipt(&a, &b, 1, Outcome::Ok, true),
             receipt(&a, &b, 1, Outcome::Ok, true), // duplicate delivery
             receipt(&a, &b, 2, Outcome::Failed, true),
-            receipt(&c, &b, 3, Outcome::Ok, false), // unilateral
+            receipt(&c, &b, 3, Outcome::Ok, false), // requester-only positive: not evidence (R-4)
             receipt(&a, &c, 4, Outcome::Disputed, true),
             receipt(&a, &b, 5, Outcome::Cancelled, true),
         ];
         for r in batch {
             if store.ingest(r.clone()).unwrap() == Ingest::Ingested {
-                incremental.apply(&r.verify().unwrap(), now, 1.0);
+                let _ = incremental.apply(&r.verify().unwrap(), now, 1.0);
             }
         }
         assert_eq!(store.len(), 5); // duplicate skipped
@@ -599,8 +747,9 @@ mod tests {
         let (score, conf) = rebuilt
             .score(&b.agent_id(), "map:cap:inference/text-generation")
             .unwrap();
-        assert!(score > 0.5 && score < 1.0);
-        assert!(conf > 0.0);
+        // b: one Ok and one Failed from `a` count; c's requester-only Ok does not.
+        assert!((score - 0.5).abs() < 1e-12, "score {score}");
+        assert!((conf - 2.0).abs() < 1e-3, "confidence {conf}"); // ~1 min of decay
         // Cancelled contributed no weight; disputed provider scored worse.
         let (score_c, _) = rebuilt
             .score(&c.agent_id(), "map:cap:inference/text-generation")

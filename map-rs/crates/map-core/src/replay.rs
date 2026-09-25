@@ -6,7 +6,7 @@
 
 use crate::envelope::MsgId;
 use map_identity::AgentId;
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 
 /// ±120 s clock-skew window (core §4.3 rule 5).
 pub const DEFAULT_SKEW_MS: u64 = 120_000;
@@ -22,11 +22,18 @@ pub enum ReplayCheck {
     OutOfWindow,
 }
 
-/// Bounded by rate limits (core §8.3); entries expire after `window_ms`.
+/// Bounded by rate limits; entries expire after `window_ms`.
+///
+/// Expiry is amortized O(1) per check (reviewer finding A8): entries are also
+/// queued in arrival order, and only the queue's expired front is popped,
+/// instead of rescanning the whole map on every message. If the caller's clock
+/// steps backwards, entries may stay longer than `window_ms`. That errs on the
+/// safe side (a replay is still caught), never the unsafe one.
 pub struct ReplayCache {
     skew_ms: u64,
     window_ms: u64,
     seen: HashMap<(AgentId, MsgId), u64>,
+    order: VecDeque<(u64, (AgentId, MsgId))>,
 }
 
 impl Default for ReplayCache {
@@ -45,6 +52,7 @@ impl ReplayCache {
             skew_ms,
             window_ms,
             seen: HashMap::new(),
+            order: VecDeque::new(),
         }
     }
 
@@ -63,13 +71,23 @@ impl ReplayCache {
             return ReplayCheck::OutOfWindow;
         }
         let cutoff = now_ms.saturating_sub(self.window_ms);
-        self.seen.retain(|_, arrived| *arrived >= cutoff);
+        while let Some((arrived, _)) = self.order.front() {
+            if *arrived >= cutoff {
+                break;
+            }
+            let (arrived, key) = self.order.pop_front().expect("front exists");
+            // Remove only if the map still holds this exact arrival.
+            if self.seen.get(&key) == Some(&arrived) {
+                self.seen.remove(&key);
+            }
+        }
 
         let key = (sender.clone(), msg_id);
         if self.seen.contains_key(&key) {
             return ReplayCheck::Replayed;
         }
-        self.seen.insert(key, now_ms);
+        self.seen.insert(key.clone(), now_ms);
+        self.order.push_back((now_ms, key));
         ReplayCheck::Fresh
     }
 

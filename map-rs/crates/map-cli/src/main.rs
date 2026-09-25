@@ -202,6 +202,8 @@ fn synth_receipts(a: &Keypair, b: &Keypair, n: u64) -> Vec<Receipt> {
             rating: Some((50 + (i * 7) % 50) as u8),
             payment_ref: None,
             transcript_root: None,
+            zone: None,
+            resumed_from: None,
         };
         let core_bytes = core.encode().expect("synthetic receipt core encodes");
         out.push(Receipt {
@@ -250,7 +252,7 @@ fn cmd_projection_demo(args: &[String]) -> Result<(), CliError> {
                 let v = r
                     .verify()
                     .map_err(|e| CliError::Failure(format!("verify failed: {e}")))?;
-                incremental.apply(&v, now_ms, 1.0);
+                let _ = incremental.apply(&v, now_ms, 1.0); // skipped = not evidence (T-2)
             }
             Ingest::Duplicate => {}
         }
@@ -366,7 +368,7 @@ mod tests {
         let mut incremental = TrustProjection::new(params);
         for r in &receipts {
             if store.ingest(r.clone()).unwrap() == Ingest::Ingested {
-                incremental.apply(&r.verify().unwrap(), now_ms, 1.0);
+                let _ = incremental.apply(&r.verify().unwrap(), now_ms, 1.0);
             }
         }
         let rebuilt = TrustProjection::rebuild(&store, now_ms, params, |_| 1.0).unwrap();

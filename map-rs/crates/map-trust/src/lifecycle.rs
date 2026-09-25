@@ -69,6 +69,8 @@ mod tests {
             rating: None,
             payment_ref: None,
             transcript_root: None,
+            zone: None,
+            resumed_from: None,
         }
     }
 
