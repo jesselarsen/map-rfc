@@ -1,7 +1,7 @@
 //! Payment message and reference codecs (pay §3/§3.1/§4). Pure to_value/
 //! from_value; field numbers exactly per the drafts' CDDL. Pay refs are
 //! (id, digest) pairs; the digest is `pay_ref_digest` over the referenced
-//! message's canonical content (see that fn and map-spec/ERRATA.md).
+//! message's canonical content (see that fn and docs/history/ERRATA.md).
 
 use crate::{Amount, Asset, PayError};
 use map_core::cbor::Value;
@@ -134,7 +134,7 @@ impl UsageWatermark {
 /// (neither `Session::send` nor `recv` exposes it). This MVP therefore digests
 /// the canonical re-encoding of the referenced message content, which is
 /// deterministic and equivalent for the price-switch defense (a different quote
-/// → different content → different digest). Recorded in map-spec/ERRATA.md.
+/// → different content → different digest). Recorded in docs/history/ERRATA.md.
 pub fn pay_ref_digest(content_bytes: &[u8]) -> Vec<u8> {
     let mut out = Vec::with_capacity(34);
     out.extend_from_slice(&[0x12, 0x20]);

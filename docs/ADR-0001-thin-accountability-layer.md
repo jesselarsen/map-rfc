@@ -1,7 +1,7 @@
 # ADR-0001: Rework MAP into a thin accountability layer; publish as an arXiv systems paper
 
 - **Status:** Accepted (2026-09-24)
-- **Supersedes:** the IETF Independent-Submission plan in `map-spec/SUBMISSION.md`, tag `map-v1-ietf`
+- **Supersedes:** the IETF Independent-Submission plan in `map-v1-ietf:map-spec/SUBMISSION.md`, tag `map-v1-ietf`
 - **Deciders:** Jesse Larsen (author)
 
 ## Context

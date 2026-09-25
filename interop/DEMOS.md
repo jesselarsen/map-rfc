@@ -159,7 +159,7 @@ result: **16/16 core + 6/6 task PASS**.
 
 The transcript codec is cross-impl-verified by
 `map-go/tasks/transcript_test.go` against the canonical Python oracle roots
-(see `map-spec/test-vectors/map-test-vectors.md` TV-008). Because the
+(see `spec/test-vectors/map-test-vectors.md` TV-008). Because the
 session framing, envelope, and transcript bytes are identical by
 construction, the same task scenarios run Rust ↔ Go over the shared libp2p
 task-mode.

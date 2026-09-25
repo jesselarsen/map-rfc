@@ -14,7 +14,7 @@ import (
 	"github.com/jesselarsen/map-rfc/map-go/receipt"
 )
 
-const vectorsPath = "../../map-spec/test-vectors/map-test-vectors.md"
+const vectorsPath = "../../spec/test-vectors/map-test-vectors.md"
 
 func loadVF(t *testing.T) *VectorFile {
 	t.Helper()

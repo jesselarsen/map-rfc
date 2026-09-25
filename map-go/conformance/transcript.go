@@ -1,5 +1,5 @@
 // Package conformance reproduces and checks the frozen MAP test-vector
-// set (map-spec/test-vectors/map-test-vectors.md) byte-for-byte: every
+// set (spec/test-vectors/map-test-vectors.md) byte-for-byte: every
 // positive vector is regenerated from seeds and consumed; every negative
 // vector is rejected with the required error class.
 package conformance

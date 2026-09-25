@@ -1,5 +1,5 @@
 //! Normative vector constants, copied EXACTLY from the single source of truth
-//! `map-spec/test-vectors/map-test-vectors.md`. Do not edit these to make a
+//! `spec/test-vectors/map-test-vectors.md`. Do not edit these to make a
 //! test pass — if a producer path disagrees, the bug is in map-core/map-trust
 //! (TASK-003 §11/§17). TASK-004 extends this file in lockstep with new TVs.
 

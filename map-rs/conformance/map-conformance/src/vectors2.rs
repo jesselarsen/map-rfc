@@ -1,5 +1,5 @@
 //! TV-003..TV-010, NV-001..NV-005, and derived constants (TASK-004), copied
-//! EXACTLY from `map-spec/test-vectors/map-test-vectors.md`. Same rule as
+//! EXACTLY from `spec/test-vectors/map-test-vectors.md`. Same rule as
 //! `vectors.rs`: the markdown is authoritative; a mismatch is a code bug, not a
 //! reason to edit these.
 

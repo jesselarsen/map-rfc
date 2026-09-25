@@ -9,7 +9,7 @@ import (
 )
 
 // Vector-file reader. The single source of truth is
-// map-spec/test-vectors/map-test-vectors.md (TASK-015 §FR-3); this parser
+// spec/test-vectors/map-test-vectors.md (TASK-015 §FR-3); this parser
 // collects, per "## …" / "### …" section, every line that is entirely hex
 // (the file indents each blob by two spaces on one line). The last blob of
 // a TV/NV section is always the complete envelope/receipt.

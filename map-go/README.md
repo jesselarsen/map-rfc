@@ -3,8 +3,8 @@
 The second, independent MAP implementation (TASK-015; ops §6.1
 two-implementation rule). Scope is **byte-exact conformance to the full
 frozen test-vector set** — produce, consume, reject — not feature parity
-with `map-rs`. Written from `map-spec/draft-map-*.md` and
-`map-spec/test-vectors/` only (independence rule, TASK-015 §1); no
+with `map-rs`. Written from the v1 drafts (`map-v1-ietf:map-spec/draft-map-*.md`) and
+`spec/test-vectors/` only (independence rule, TASK-015 §1); no
 `map-rs` source was read, including the registry-mirror files (the code
 points and error codes used here come from core §5/§9 directly).
 
@@ -44,7 +44,7 @@ go test ./cbor -fuzz FuzzDecode -fuzztime 60s   # optional: decoder fuzz
 ```
 
 The conformance suite reads the single source of truth,
-`../map-spec/test-vectors/map-test-vectors.md`, at test time and:
+`../spec/test-vectors/map-test-vectors.md`, at test time and:
 
 - **produces** every frozen positive vector (TV-001..015, TV-010b) AND
   every negative vector byte-for-byte from the deterministic seeds
@@ -60,7 +60,7 @@ The conformance suite reads the single source of truth,
 
 Note: TV-007 (ASSIGN with content-addressed `InputSpec` key 2) is
 produce+consume here — this closes, on the Go side, the parity hole
-recorded in `map-spec/ERRATA.md` (2026-07-05) where the Rust codec is
+recorded in `docs/history/ERRATA.md` (2026-07-05) where the Rust codec is
 consume-only for TV-007.
 
 ## Packages

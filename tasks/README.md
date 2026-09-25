@@ -1,5 +1,11 @@
 # tasks/ — Implementation-Specification Packages
 
+> **Historical (v1).** These packages drove the v1 IETF-style
+> implementation program. They reference `map-spec/draft-map-*` documents,
+> which exist only at tag `map-v1-ietf` (read them with
+> `git show map-v1-ietf:map-spec/<file>`). The current work plan is in
+> `memory.md` §0; the current spec is `spec/`.
+
 This directory holds the engineering task packages that drive the MAP
 reference-implementation program (ops §8) under a split-role model:
 

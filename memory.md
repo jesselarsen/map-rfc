@@ -84,6 +84,46 @@ path or roadmap.
   are green (Rust, plus Go vet/test).
 - Gate for P3: every `attack_*` test passes under `--ignored`.
 
+**P1 status (2026-09-24): DONE.**
+- New `spec/` directory:
+  - `layer.md`: normative. Rule IDs R-/C-/T-/M-/Z-/D-.
+  - `binding-a2a.md`: A2A-*, verified against A2A v1.0.1.
+  - `binding-libp2p-discovery.md`: DHT-*.
+  - `mapping-payment-rails.md`: RAIL-*, informative.
+- v1 drafts, `build/` and `SUBMISSION.md` removed from the branch (they stay
+  in the tag). Vectors moved to `spec/test-vectors/`. ERRATA, CHANGELOG, the
+  critique and the REVIEW docs moved to `docs/history/`.
+- Rulings made while reviewing the drafts (they supersede anything
+  contradicting them):
+  1. **Zones are the requester's classification** of the counterparty
+     (1 allowlist / 2 authenticated mesh / 3 ephemeral-gateway), never a
+     provider claim. Z-1: a zone-z task goes only to counterparties
+     classified ≤ z. Descriptor key 5 is the zone labels a provider
+     *accepts*, not a trust claim.
+  2. **Receipt signing order is binding-defined.** Over A2A the provider
+     proposes at the terminal state and the requester countersigns. The
+     tolerance anchors to the *countersigner's* own observation.
+  3. **The Sybil ring is closed by T-3** (unknown issuer = 0), not by R-4.
+     R-4 is only the lone-provider guard.
+  4. **Checkpoint v2** = `CheckpointArtifact {1 core-bytes, ?2 sig_req, ?3 sig_prov}`,
+     signing input `enc(["MAPCheckpoint", role, core-bytes])`, with usage,
+     zone and voucher-digest inside the signed core. The v1
+     `"MAPCheckpointAck"` input is retired.
+  5. ReceiptCore keys 1–11 are unchanged (TV-002 bytes stable). Added: 12
+     zone, 13 resumed-from.
+  6. `Amount` mantissa is `uint`. Disjoint-path lookups (D-9/DHT-12) and the
+     epoch salt (D-8/DHT-13) are **experimental**.
+- A2A facts verified at v1.0.1:
+  - header `A2A-Extensions` (not `X-`)
+  - unified `Part` oneof {text|raw|url|data}
+  - `Message.referenceTaskIds`
+  - no TIMEOUT state; `REJECTED` produces no receipt
+  - checkpoints delivered mid-`WORKING` is implementation-defined, so the
+    fallback is a transient `INPUT_REQUIRED`
+  - x402 `upto` is single-settlement; only `batch-settlement` fits
+    cumulative metering
+  - the MPP generic voucher byte form is unverified (RAIL-5 fallback)
+
 ## 1. What this project is
 
 A standards-track-style specification family ("MAP") for a decentralized,
