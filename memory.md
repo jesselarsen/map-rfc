@@ -59,13 +59,18 @@ path or roadmap.
   pipeline, the Manolito framing and name. did:key and multiformats become
   informative.
 
-**Open decisions (author):**
+**Decisions (author):**
+| # | Decision | Status | Blocks |
+|---|---|---|---|
+| D1 | Name | **DECIDED 2026-09-24:** keep the acronym, re-expand it as **MAP = Mutual Attestation Protocol**, drop "Manolito". Wire tags (`"MAPReceipt"`, `"MAPCheckpointAck"`, `map:cap:`) stay byte-stable. | P3 |
+| D2 | A2A binding via extension URI + metadata over JSON/HTTP | recommended, not yet confirmed | P4 |
+| D3 | libp2p | **DECIDED:** discovery plane only (descriptor publication + STATUS_QUERY). The work plane runs over A2A/HTTPS. | P2 |
+| D4 | Go's role | **DECIDED:** FULL second implementation. Go ports the A2A provider *and* requester for the kept layers, so the interop matrix exercises both directions. Budget P4/P5 accordingly. | P5 |
+| — | Publishing | **DECIDED:** push `map-v1-ietf` and push `accountability-layer` at each phase gate. `main` is untouched. | — |
+
+**Still open:**
 | # | Decision | Blocks |
 |---|---|---|
-| D1 | New name; the wire tags `"MAPReceipt"`/`"MAPCheckpointAck"` are signed bytes | P3 |
-| D2 | A2A binding via extension URI + metadata over JSON/HTTP (recommended) | P4 |
-| D3 | libp2p for the discovery plane only (recommended) | P2 |
-| D4 | Go = verifier-only (recommended) | P5 |
 | D5 | Default issuer weighting: own dual-signed history, unknown issuers = 0 (recommended) | P3/E1 |
 | D6 | TaskID under A2A: `H(tag‖requesterNonce‖providerAgentID‖a2a.taskId)` | P4 |
 | D7 | arXiv cs.CR primary, cross-listed cs.MA/cs.NI; needs an endorser | P9 |
