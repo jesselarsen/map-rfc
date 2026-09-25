@@ -935,11 +935,14 @@ out = prefix + new + negatives + derived
 # retired are annotated, never removed or renumbered. Bytes are unchanged.
 RETIRED_V1 = {"TV-006", "TV-007", "TV-008", "TV-009", "TV-010", "TV-010b", "TV-013",
               "TV-014", "TV-015", "TV-016", "TV-017", "TV-018", "TV-019", "TV-020",
-              "NV-006", "NV-008", "NV-010", "NV-011", "NV-012"}
+              "NV-006", "NV-008", "NV-010", "NV-011", "NV-012",
+              # P3: delegation removed from v2 (layer §3.3)
+              "TV-011", "TV-012", "NV-007", "NV-009"}
 RETIRED_NOTE = """> **Status (2026-09-25, v2 accountability-layer rework).** Vectors marked
 > **RETIRED(v1)** belong to message types that v2 retired: the v1 task
-> protocol (OFFER/ASSIGN/CHUNK/COMPLETE/RESERVE/LEASE) and the v1 settlement
-> and dispute protocol (PAY_*). Their bytes are unchanged and still
+> protocol (OFFER/ASSIGN/CHUNK/COMPLETE/RESERVE/LEASE), the v1 settlement
+> and dispute protocol (PAY_*), and delegation (DelegationCert and delegated
+> envelopes; layer §3.3 drops it). Their bytes are unchanged and still
 > regenerate from `gen_vectors.py`, but no v2 implementation is required to
 > consume them. Retired vectors are never renumbered or reused. TV-008's
 > transcript-root derivation remains live through the *Derived constants*

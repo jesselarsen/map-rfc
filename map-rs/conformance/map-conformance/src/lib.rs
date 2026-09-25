@@ -51,23 +51,18 @@ pub fn cases() -> Vec<(&'static str, fn() -> Result<(), String>)> {
         ("N8 duplicate receipt", negative::case_n8_duplicate_receipt),
         ("N9 swapped roles", negative::case_n9_swapped_roles),
         ("N10 wrong role domain", negative::case_n10_role_domain),
-        // Envelope/HELLO/ERROR/descriptor/delegation vectors and the derived
-        // constants. Task, pay and dispute vectors (TV-006..010, TV-010b,
-        // TV-013..020, NV-006/008/010/011/012) are RETIRED(v1) with their
+        // Envelope/HELLO/ERROR/descriptor vectors and the derived constants.
+        // Task, pay, dispute and delegation vectors are RETIRED(v1) with their
         // message types (spec/test-vectors/map-test-vectors.md).
         ("TV-003 HELLO_ACK", extended::case_tv003_hello_ack),
         ("TV-004 ERROR", extended::case_tv004_error),
         ("TV-005 DESCRIPTOR", extended::case_tv005_descriptor),
-        ("TV-011 DelegationCert", extended::case_tv011_cert),
-        ("TV-012 delegated OFFER", extended::case_tv012_delegated_offer),
         ("Derived constants", extended::case_derived_constants),
         ("NV-001 tampered", extended::case_nv001_tampered),
         ("NV-002 wrong tag", extended::case_nv002_wrong_tag),
         ("NV-003 non-canonical", extended::case_nv003_non_canonical),
         ("NV-004 stale seq", extended::case_nv004_stale_seq),
         ("NV-005 swapped sigs", extended::case_nv005_swapped_sigs),
-        ("NV-007 widened delegation scope", extended::case_nv007_widened_scope),
-        ("NV-009 delegation depth exceeded", extended::case_nv009_depth_exceeded),
     ]
 }
 
@@ -145,16 +140,12 @@ mod tests {
     case_test!(tv003_hello_ack, extended::case_tv003_hello_ack);
     case_test!(tv004_error, extended::case_tv004_error);
     case_test!(tv005_descriptor, extended::case_tv005_descriptor);
-    case_test!(tv011_cert, extended::case_tv011_cert);
-    case_test!(tv012_delegated_offer, extended::case_tv012_delegated_offer);
     case_test!(derived_constants, extended::case_derived_constants);
     case_test!(nv001_tampered, extended::case_nv001_tampered);
     case_test!(nv002_wrong_tag, extended::case_nv002_wrong_tag);
     case_test!(nv003_non_canonical, extended::case_nv003_non_canonical);
     case_test!(nv004_stale_seq, extended::case_nv004_stale_seq);
     case_test!(nv005_swapped_sigs, extended::case_nv005_swapped_sigs);
-    case_test!(nv007_widened_scope, extended::case_nv007_widened_scope);
-    case_test!(nv009_depth_exceeded, extended::case_nv009_depth_exceeded);
 
     #[test]
     fn run_all_is_green_and_complete() {
@@ -164,7 +155,7 @@ mod tests {
             "conformance failures: {:?}",
             report.failed
         );
-        assert_eq!(report.passed.len(), 28);
-        assert_eq!(report.total(), 28);
+        assert_eq!(report.passed.len(), 24);
+        assert_eq!(report.total(), 24);
     }
 }

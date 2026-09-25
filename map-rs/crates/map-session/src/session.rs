@@ -12,7 +12,7 @@ use map_core::cbor::Value;
 use map_core::errors::{codes, ErrorMsg};
 use map_core::hello::{channel_binding, negotiate, transcript_hash, Hello, HelloAck, Negotiated, NegotiateError};
 use map_core::replay::{ReplayCache, ReplayCheck, SeqTracker};
-use map_core::{msg_type, open, open_delegated, seal, seal_delegated, Body, EnvelopeError, MsgId};
+use map_core::{msg_type, open, seal, Body, EnvelopeError, MsgId};
 use map_identity::{AgentId, Keypair};
 
 /// Lifecycle per core §12. Initiator: `Idle → HelloSent → Established → Closed`;
@@ -48,9 +48,6 @@ pub enum SessionError {
     Sequence,
     /// A method was called in a state that forbids it (→ 1006).
     State,
-    /// The peer's handshake delegation chain (ProtHdr key 33) failed to
-    /// validate (→ 2003).
-    BadDelegation,
     /// Peer sent CLOSE.
     PeerClosed { code: u16, reason: String },
     /// Peer sent ERROR.
@@ -67,7 +64,6 @@ impl SessionError {
             SessionError::TooLarge => codes::TOO_LARGE,
             SessionError::State => codes::STATE_VIOLATION,
             SessionError::BadSignature | SessionError::PeerMismatch => codes::BAD_SIGNATURE,
-            SessionError::BadDelegation => codes::BAD_DELEGATION,
             SessionError::PeerClosed { code, .. } | SessionError::PeerError { code, .. } => *code,
             SessionError::Transport | SessionError::Envelope(_) => return None,
         })
@@ -84,26 +80,17 @@ impl From<EnvelopeError> for SessionError {
 pub struct SessionConfig {
     pub keypair: Keypair,
     /// The peer identity authenticated by the transport (core §7.3 / TH4).
-    /// When the peer delegates, this is its LEAF (the actual signing key), not
-    /// the accountable root — see [`Session::accountable_peer`].
     pub expected_peer: AgentId,
     /// Local HELLO offer (initiator) / answer basis (responder).
     pub hello: Hello,
-    /// Optional delegation chain (ordered leaf..root, identity §4) proving this
-    /// endpoint's key is authorized by a root identity. When non-empty, our
-    /// handshake envelope carries it in ProtHdr key 33; the peer validates it
-    /// and records our ROOT as accountable. Empty = no delegation.
-    pub delegation_chain: Vec<Vec<u8>>,
 }
 
 impl SessionConfig {
-    /// A config with no delegation chain (the common case).
     pub fn new(keypair: Keypair, expected_peer: AgentId, hello: Hello) -> Self {
         SessionConfig {
             keypair,
             expected_peer,
             hello,
-            delegation_chain: Vec::new(),
         }
     }
 }
@@ -132,8 +119,8 @@ pub struct Session<T: Transport, C: Clock, M: MsgIdSource> {
     negotiated: Negotiated,
     th: [u8; 32],
     cb: [u8; 32],
-    /// The peer's accountable identity: the delegation-chain ROOT if the peer
-    /// delegated during the handshake, else its leaf (== `expected_peer`).
+    /// The peer's accountable identity: its authenticated signing key
+    /// (== `expected_peer`). Delegation was removed in v2 (layer §3.3).
     accountable_peer: AgentId,
     out_seq: u64,
     in_seq: SeqTracker,
@@ -176,8 +163,8 @@ impl<T: Transport, C: Clock, M: MsgIdSource> Session<T, C, M> {
             // Best-effort notify; we have no CB yet so this is an empty-aad ERROR.
             return Err(SessionError::PeerMismatch);
         }
-        // Record the responder's accountable identity (root if it delegated).
-        let accountable = peer_accountable(&ack_env, &opened.sender, &cfg.keypair.agent_id(), clock.now_ms())?;
+        // v2 has no delegation (layer §3.3): the signer is accountable.
+        let accountable = opened.sender.clone();
         // The responder MUST echo our session-id (this impl's requirement; see
         // report R3 — core §6 does not yet mandate it).
         if opened.body.session_id != Some(session_id) {
@@ -220,16 +207,8 @@ impl<T: Transport, C: Clock, M: MsgIdSource> Session<T, C, M> {
             session.emit_handshake_error(codes::BAD_SIGNATURE);
             return Err(SessionError::PeerMismatch);
         }
-        // If the initiator delegated (ProtHdr key 33), validate the chain and
-        // record its ROOT as accountable; the transport-auth check above already
-        // bound the LEAF. A bad chain is a 2003 rejection.
-        let accountable = match peer_accountable(&hello_env, &opened.sender, &cfg.keypair.agent_id(), clock.now_ms()) {
-            Ok(id) => id,
-            Err(_) => {
-                session.emit_handshake_error(codes::BAD_DELEGATION);
-                return Err(SessionError::BadDelegation);
-            }
-        };
+        // v2 has no delegation (layer §3.3): the signer is accountable.
+        let accountable = opened.sender.clone();
         let mut in_replay = ReplayCache::new();
         match in_replay.check(&opened.sender, opened.body.msg_id, opened.body.timestamp_ms, clock.now_ms()) {
             ReplayCheck::Fresh => {}
@@ -465,8 +444,8 @@ impl<T: Transport, C: Clock, M: MsgIdSource> Session<T, C, M> {
     pub fn cb(&self) -> [u8; 32] {
         self.cb
     }
-    /// The peer's accountable identity (delegation root if it delegated, else
-    /// its leaf). Receipts and trust accrue here (identity §4 / trust §5).
+    /// The peer's accountable identity (its authenticated signing key).
+    /// Receipts and trust accrue here.
     pub fn accountable_peer(&self) -> &AgentId {
         &self.accountable_peer
     }
@@ -543,31 +522,9 @@ impl<T: Transport, C: Clock> PreEstablished<'_, T, C> {
     }
 }
 
-/// Seal a handshake envelope, attaching the config's delegation chain (ProtHdr
-/// key 33) when present. Empty chain → a plain `seal` (byte-identical to before).
+/// Seal a handshake envelope (out-of-session: empty external_aad).
 fn seal_handshake(cfg: &SessionConfig, body: &Body) -> Result<Vec<u8>, EnvelopeError> {
-    if cfg.delegation_chain.is_empty() {
-        seal(&cfg.keypair, body, b"")
-    } else {
-        seal_delegated(&cfg.keypair, body, b"", &cfg.delegation_chain)
-    }
-}
-
-/// Resolve the peer's accountable identity from a handshake envelope: the
-/// delegation-chain ROOT if it carries key 33, else the `leaf` (its signer).
-/// `our_id` is passed as the audience for any audience-caveat'd chain.
-fn peer_accountable(
-    env: &[u8],
-    leaf: &AgentId,
-    our_id: &AgentId,
-    now_ms: u64,
-) -> Result<AgentId, SessionError> {
-    match open_delegated(env, b"", Some(our_id), now_ms) {
-        Ok(od) => Ok(od.scope.root),
-        Err(EnvelopeError::MissingHeader(_)) => Ok(leaf.clone()),
-        Err(EnvelopeError::Delegation(_)) => Err(SessionError::BadDelegation),
-        Err(e) => Err(SessionError::Envelope(e)),
-    }
+    seal(&cfg.keypair, body, b"")
 }
 
 /// Out-of-session envelope body: keys {0,1,2,3,6,10}, no recipient, no seq (§7).

@@ -73,61 +73,6 @@ fn handshake_establishes_with_identical_th_cb_negotiated() {
 }
 
 #[test]
-fn handshake_with_delegation_records_root_as_accountable() {
-    // Initiator signs with its LEAF key (SK) and presents a 2-link chain
-    // RIK -> DK -> SK. The responder must accept (leaf == transport peer) and
-    // record RIK (the root) as the accountable peer. (TASK-010 FR-5.)
-    use map_core::delegation::{issue, DelegateBody};
-
-    let (rik, dk, sk) = (kp(10), kp(11), kp(12));
-    let mk = |iss: &Keypair, sub: &Keypair| {
-        issue(
-            iss,
-            &DelegateBody {
-                issuer: iss.agent_id(),
-                subject: sub.agent_id(),
-                not_before_ms: TS - 1000,
-                not_after_ms: TS + 1_000_000,
-                caps: None,
-                zones: None,
-                max_depth: None,
-                caveats: vec![],
-            },
-        )
-        .unwrap()
-    };
-    let chain = vec![mk(&dk, &sk), mk(&rik, &dk)]; // leaf..root
-
-    let b_id = kp(2).agent_id();
-    let sk_id = sk.agent_id();
-    let (ta, tb) = InMemoryDuplex::pair(&sk_id, &b_id);
-
-    thread::scope(|s| {
-        // Responder B authenticates the LEAF (SK) at the transport layer.
-        let sk_for_b = sk_id.clone();
-        let hb = s.spawn(move || {
-            let b = Session::respond(cfg(2, sk_for_b, default_hello()), tb, FixedClock { ms: TS }, CountingMsgIds::new()).unwrap();
-            b.accountable_peer().clone()
-        });
-
-        let a_cfg = SessionConfig {
-            keypair: kp(12), // SK — the leaf/transport key
-            expected_peer: b_id.clone(),
-            hello: default_hello(),
-            delegation_chain: chain,
-        };
-        let a = Session::initiate(a_cfg, ta, FixedClock { ms: TS }, CountingMsgIds::new()).unwrap();
-        let accountable = hb.join().unwrap();
-
-        assert_eq!(a.state(), SessionState::Established);
-        // Responder attributes the session to the ROOT, not the leaf.
-        assert_eq!(accountable, rik.agent_id());
-        // B did not delegate, so the initiator sees B's leaf as accountable.
-        assert_eq!(a.accountable_peer(), &b_id);
-    });
-}
-
-#[test]
 fn private_message_delivered_with_seq_zero() {
     let a_id = kp(1).agent_id();
     let b_id = kp(2).agent_id();

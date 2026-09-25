@@ -8,7 +8,6 @@
 //! (`map-go/cmd/map-interop`); see `interop/MATRIX.md`.
 
 use map_core::cbor::Value;
-use map_core::delegation::{issue, DelegateBody};
 use map_core::envelope::{seal, Body, MsgId, PROTOCOL_VERSION_1_0};
 use map_core::errors::codes;
 use map_core::hello::Hello;
@@ -24,14 +23,12 @@ fn now_ms() -> u64 {
 
 const TEST_MSG_TYPE: u16 = 0xF000;
 const MAX: u32 = 262_144;
-const CAP: &str = "map:cap:inference/text-generation";
 
 struct Flags {
     role: String,
     addr: String,
     seed: [u8; 32],
     peer_seed: [u8; 32],
-    issuer_seed: Option<[u8; 32]>,
     scenario: String,
 }
 
@@ -63,7 +60,7 @@ pub fn run(args: &[String]) -> ! {
 
 fn parse(args: &[String]) -> Result<Flags, String> {
     let (mut role, mut addr, mut scenario) = (None, None, None);
-    let (mut seed, mut peer_seed, mut issuer_seed) = (None, None, None);
+    let (mut seed, mut peer_seed) = (None, None);
     let mut i = 2; // args[0]=bin, args[1]="interop"
     while i < args.len() {
         let val = args.get(i + 1).cloned();
@@ -72,7 +69,6 @@ fn parse(args: &[String]) -> Result<Flags, String> {
             "--addr" => addr = val,
             "--seed" => seed = val.and_then(|v| parse_seed(&v)),
             "--peer-seed" => peer_seed = val.and_then(|v| parse_seed(&v)),
-            "--issuer-seed" => issuer_seed = val.and_then(|v| parse_seed(&v)),
             "--scenario" => scenario = val,
             // The v1 libp2p task/pay cells are retired (P2); only TCP remains.
             "--transport" if val.as_deref() == Some("tcp") => {}
@@ -85,7 +81,6 @@ fn parse(args: &[String]) -> Result<Flags, String> {
         addr: addr.ok_or("missing --addr")?,
         seed: seed.ok_or("missing/invalid --seed")?,
         peer_seed: peer_seed.ok_or("missing/invalid --peer-seed")?,
-        issuer_seed,
         scenario: scenario.ok_or("missing --scenario")?,
     })
 }
@@ -120,30 +115,11 @@ fn dial_cfg(f: &Flags) -> SessionConfig {
     if f.scenario == "versiondisjoint" {
         cfg.hello.versions = vec![0x0200];
     }
-    if f.scenario == "delegated" {
-        if let Some(is) = &f.issuer_seed {
-            cfg.delegation_chain = vec![delegation_cert(&kp(is), &kp(&f.seed))];
-        }
-    }
     cfg
 }
 
 fn listen_cfg(f: &Flags) -> SessionConfig {
     SessionConfig::new(kp(&f.seed), kp(&f.peer_seed).agent_id(), std_hello())
-}
-
-fn delegation_cert(issuer: &Keypair, subject: &Keypair) -> Vec<u8> {
-    let body = DelegateBody {
-        issuer: issuer.agent_id(),
-        subject: subject.agent_id(),
-        not_before_ms: 0,
-        not_after_ms: 1u64 << 62,
-        caps: Some(vec![CAP.to_string()]),
-        zones: None,
-        max_depth: Some(1),
-        caveats: vec![],
-    };
-    issue(issuer, &body).expect("cert issues")
 }
 
 fn echo_content() -> Value {
@@ -198,7 +174,6 @@ fn err_code(e: &SessionError) -> Option<u16> {
         SessionError::State => codes::STATE_VIOLATION,
         SessionError::TooLarge => codes::TOO_LARGE,
         SessionError::Malformed => codes::MALFORMED,
-        SessionError::BadDelegation => codes::BAD_DELEGATION,
         SessionError::Handshake(_) => codes::UNSUPPORTED_VERSION,
         SessionError::PeerError { code, .. } => *code,
         SessionError::PeerClosed { code, .. } => *code,
@@ -244,7 +219,7 @@ fn run_dial(f: &Flags) -> Result<(), String> {
     let tr = dial_transport(f)?;
     let mut s = Session::initiate(dial_cfg(f), tr, SystemClock, RandomMsgIds).map_err(|e| format!("handshake: {e:?}"))?;
     match f.scenario.as_str() {
-        "echo" | "delegated" => {
+        "echo" => {
             s.send(TEST_MSG_TYPE, echo_content()).map_err(|e| format!("send: {e:?}"))?;
             let got = s.recv().map_err(|e| format!("recv echo: {e:?}"))?;
             if !echo_ok(&got.content) {
@@ -317,13 +292,6 @@ fn run_listen(f: &Flags) -> Result<(), String> {
     match f.scenario.as_str() {
         "versiondisjoint" => Err("handshake unexpectedly succeeded".into()),
         "echo" => echo_loop(&mut s),
-        "delegated" => {
-            let root = f.issuer_seed.as_ref().map(|is| kp(is).agent_id());
-            if Some(s.accountable_peer().clone()) != root {
-                return Err("accountable peer != issuer root".into());
-            }
-            echo_loop(&mut s)
-        }
         "replay" => {
             s.recv().map_err(|e| format!("first msg must be ok: {e:?}"))?;
             expect_local_code(recv_err(&mut s), codes::REPLAY)

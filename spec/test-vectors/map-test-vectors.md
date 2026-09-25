@@ -7,8 +7,9 @@ All signatures are Ed25519 (RFC 8032) and verify against the keys below.
 
 > **Status (2026-09-25, v2 accountability-layer rework).** Vectors marked
 > **RETIRED(v1)** belong to message types that v2 retired: the v1 task
-> protocol (OFFER/ASSIGN/CHUNK/COMPLETE/RESERVE/LEASE) and the v1 settlement
-> and dispute protocol (PAY_*). Their bytes are unchanged and still
+> protocol (OFFER/ASSIGN/CHUNK/COMPLETE/RESERVE/LEASE), the v1 settlement
+> and dispute protocol (PAY_*), and delegation (DelegationCert and delegated
+> envelopes; layer §3.3 drops it). Their bytes are unchanged and still
 > regenerate from `gen_vectors.py`, but no v2 implementation is required to
 > consume them. Retired vectors are never renumbered or reused. TV-008's
 > transcript-root derivation remains live through the *Derived constants*
@@ -260,7 +261,7 @@ signature (Ed25519 by Key B, hex):
 Complete envelope 18([protected, {}, payload, signature]) (hex, 265 bytes):
   d2845828a20127045822ed01c93c1b6a4ec188ddaf89164b788a66d375dca5169d05ba1b26b676204a00459da05898a5001901000119040002500b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b031b0000019e704488000aa6015010101010101010101010101010101010020003a100826b69736f343231373a555344c482251a004016400581a201717061793a6372656469742d6c65646765720240061b0000019e704dafc0095820d06d15802fbb8ac7c5b07129175d7b461c8e74b69ca0ad7b7a84f890c0f05e2558403e664720467526a6dc0a282670e6f33c44f0c3797a255b228e8b32c8e6f933cda6a750b1e5fd6fe4fbc20367bf80ebfcb237bbdecb35da66b8a414fc826bc00f
 
-## TV-011 — DelegationCert (0x0502), signed by Key A (RIK)
+## TV-011 — DelegationCert (0x0502), signed by Key A (RIK) — RETIRED(v1)
 
 Field numbers per identity §4. msg-id = h'0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d', timestamp 1780000000000.
 RIK (Key A) delegates to DK (seed SHA-256("MAP-TEST-VECTOR-KEY-A-DK")); cap
@@ -283,7 +284,7 @@ signature (Ed25519 by Key A, hex):
 Complete envelope 18([protected, {}, payload, signature]) (hex, 285 bytes):
   d2845828a20127045822ed0165c883140cbc33dcf60c2fee834eb54fc90dcc2a9cb724472f0ff287a9bface1a058aca5001901000119050202500d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d031b0000019e704488000aa6015822ed0165c883140cbc33dcf60c2fee834eb54fc90dcc2a9cb724472f0ff287a9bface1025822ed0181c3463ad6a73897c0ddb99ed4d3a2f16dd8d62dfc46886e14ffc4fdcece7909031b0000019e70448800041b0000019e704dafc0058178216d61703a6361703a696e666572656e63652f746578742d67656e65726174696f6e070158400a07f2e7b74f92c87b0ac4541e8f4ea6d7a42b1bb2e5977cfc38e14c605ff5ce14f3b730db92d445b39bb82b9ce68a6417c11d0ec4e1e98931f6e4b8aceffd0d
 
-## TV-012 — delegated OFFER (0x0200), signed by DK, chain in ProtHdr key 33
+## TV-012 — delegated OFFER (0x0200), signed by DK, chain in ProtHdr key 33 — RETIRED(v1)
 
 Field numbers per tasks §2. msg-id = h'0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e', timestamp 1780000000000.
 An OFFER signed by DK (the leaf), carrying the 1-link chain [TV-011] in the
@@ -534,7 +535,7 @@ first byte flipped). Like NV-004, this is a policy rejection, not a wire error.
 envelope (hex, 265 bytes):
   d2845828a20127045822ed01c93c1b6a4ec188ddaf89164b788a66d375dca5169d05ba1b26b676204a00459da05898a5001901000119040002500c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c031b0000019e704488000aa6015010101010101010101010101010101010020003a100826b69736f343231373a555344c482251a004016400581a201717061793a6372656469742d6c65646765720240061b0000019e704dafc00958202f6d15802fbb8ac7c5b07129175d7b461c8e74b69ca0ad7b7a84f890c0f05e255840e35e2cccaaa7f5c61e6506c6256199bbe5708b2e1bbdb4aa24913a6e0e42b6599baf9af78d66a868eda899b5f91754ff2f0ba0cc440a5507a89ec7d08618f20f
 
-### NV-007 — delegation chain that widens cap scope → BAD_DELEGATION (2003)
+### NV-007 — delegation chain that widens cap scope → BAD_DELEGATION (2003) — RETIRED(v1)
 A 2-link chain RIK→DK→SK where the child (DK→SK) broadens the cap scope beyond
 its parent (identity §4 attenuation is tighten-only). The envelope is signed by
 SK (the leaf) and opens; `open_delegated` MUST reject the chain with a widened-
@@ -553,7 +554,7 @@ opens — but the lease is semantically invalid (cf. NV-004/NV-006, policy rejec
 envelope (hex, 192 bytes):
   d2845828a20127045822ed01c93c1b6a4ec188ddaf89164b788a66d375dca5169d05ba1b26b676204a00459da0584fa50019010001190210025015151515151515151515151515151515031b0000019e704488000aa3015020202020202020202020202020202020020003821b0000019e70849e401b0000019e70bb8cc058405dc5405464a88fe16a84b304c1a350dc56dab23948ee1fa46820f0802673a3e06203c757001e2d883c1cea3e5a2b2e526496c6bf9d141cbed2ac0d3514195109
 
-### NV-009 — delegation chain exceeding max-depth → BAD_DELEGATION (2003)
+### NV-009 — delegation chain exceeding max-depth → BAD_DELEGATION (2003) — RETIRED(v1)
 A 2-link chain RIK→DK→SK whose parent (RIK→DK) declares max-depth 0 (key 7) —
 DK may not further delegate — yet DK→SK does. Both links carry the IDENTICAL
 scope ("map:cap:inference/text-generation"), so scope is NOT widened; only the identity §4 depth bound is

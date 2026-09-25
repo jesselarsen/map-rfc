@@ -1,5 +1,16 @@
 # MAP formal analysis (TASK-014 + TASK-027)
 
+> **v2 status (2026-09-25, accountability-layer rework).** Only **P1** (HELLO
+> downgrade resistance) and **P2** (anti-relay via channel binding) model
+> components v2 keeps, and v2 uses them on the discovery/status plane only
+> (binding-libp2p-discovery DHT-14). **P3** (`delegation*.pv`) models
+> delegation, which v2 removed (layer §3.3). **P4–P6** (`pay-*.pv`) model the
+> retired v1 settlement code and were vacuous anyway (2026-09-18 review).
+> These files stay for the record only; no v2 claim rests on them. P2 as
+> shipped is vacuous (true by term structure). Its repair (responder nonce +
+> injective query) is P3 work in the rework plan, as is a new model of
+> receipt/checkpoint non-repudiation.
+
 Machine-checked models of the security properties ops §6.3 identifies as
 carrying the security story: **P1** downgrade resistance of HELLO/HELLO_ACK
 (core §6.2 transcript hash), **P2** anti-relay via channel binding (core

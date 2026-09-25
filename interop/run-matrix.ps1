@@ -2,7 +2,7 @@
 #
 # Builds both peer binaries, runs every scenario in BOTH orientations
 # (Rust dials -> Go listens, and Go dials -> Rust listens) over TCP loopback,
-# and prints the 16-cell result table. Exit 0 iff all cells pass.
+# and prints the 14-cell result table. Exit 0 iff all cells pass.
 #
 # Usage:  pwsh interop/run-matrix.ps1
 # Requires: Go on PATH (C:\Program Files\Go\bin) and the GNU Rust toolchain
@@ -13,11 +13,11 @@ $repo = Split-Path -Parent $PSScriptRoot
 $interop = Join-Path $repo "interop"
 
 # --- fixed test seeds (32-byte hex; identical key derivation in both impls) ---
-$SEED_A  = "01" * 32   # dialer (also the delegation ROOT / RIK)
+$SEED_A  = "01" * 32   # dialer
 $SEED_B  = "02" * 32   # listener
-$SEED_DK = "03" * 32   # delegated leaf (dialer signs with this under --delegate)
 
-$scenarios = @("echo","replay","seqgap","tamper","relay","versiondisjoint","wrongsid","delegated")
+# "delegated" was retired with delegation (P3, layer §3.3).
+$scenarios = @("echo","replay","seqgap","tamper","relay","versiondisjoint","wrongsid")
 
 # --- build both binaries ------------------------------------------------------
 Write-Host "Building Go peer (map-interop)..."
@@ -40,18 +40,10 @@ if (-not (Test-Path $RUST)) { Write-Error "rust binary missing" }
 
 # argument list for a peer, given impl kind ("go"/"rust"), role, port, scenario
 function PeerArgs($kind, $role, $port, $scen) {
-  # seeds depend on scenario (delegated uses the DK leaf + issuer root)
-  if ($scen -eq "delegated") {
-    if ($role -eq "dial")  { $seed = $SEED_DK; $peer = $SEED_B;  $issuer = $SEED_A }
-    else                   { $seed = $SEED_B;  $peer = $SEED_DK; $issuer = $SEED_A }
-  } else {
-    if ($role -eq "dial")  { $seed = $SEED_A; $peer = $SEED_B }
-    else                   { $seed = $SEED_B; $peer = $SEED_A }
-    $issuer = $null
-  }
+  if ($role -eq "dial")  { $seed = $SEED_A; $peer = $SEED_B }
+  else                   { $seed = $SEED_B; $peer = $SEED_A }
   $addr = if ($role -eq "listen") { "127.0.0.1:0" } else { "127.0.0.1:$port" }
   $a = @("--role",$role,"--addr",$addr,"--seed",$seed,"--peer-seed",$peer,"--scenario",$scen)
-  if ($issuer) { $a += @("--issuer-seed",$issuer) }
   if ($kind -eq "rust") { $a = @("interop") + $a }
   return $a
 }
@@ -125,7 +117,7 @@ foreach ($scen in $scenarios) {
 
 Write-Host ""
 if ($allPass) {
-  Write-Host "RESULT: 16/16 core PASS (TCP, both orientations)"
+  Write-Host "RESULT: 14/14 core PASS (TCP, both orientations)"
   exit 0
 } else {
   Write-Host "RESULT: FAILURES PRESENT"

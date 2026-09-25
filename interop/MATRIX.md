@@ -8,7 +8,8 @@ is written from the spec and vectors, never from Rust source.)
 ## Latest run
 
 - **Date:** 2026-09-25
-- **Result:** **16 / 16 core (TCP) PASS**
+- **Result:** **14 / 14 core (TCP) PASS** (the `delegated` cell was retired
+  with delegation in P3, layer §3.3)
 - **Implementations:** `map-rs` (Rust) ↔ `map-go` (Go)
 - **Commit:** the accountability-layer P2 commit (Rust prune: v1 task and
   pay runtimes removed; the Rust interop peer now serves only the core
@@ -33,17 +34,15 @@ is written from the spec and vectors, never from Rust source.)
 | relay | PASS | PASS | a frame CB-bound to session A fails in session B (2000) — the live §7.3 anti-relay property |
 | versiondisjoint | PASS | PASS | no mutual version → handshake ERROR 1001, both sides |
 | wrongsid | PASS | PASS | in-session frame with a foreign SessionID → 1006, session closed (core §6.1) |
-| delegated | PASS | PASS | delegated HELLO (chain in ProtHdr key 33) validates cross-impl; accountable identity resolves to the chain root (identity §4/§6) |
 
 Each scenario runs in both orientations (dialer/listener swapped), so the
-table's 8 rows × 2 columns = the 16 cells.
+table's 7 rows × 2 columns = the 14 cells.
 
 ## Scenario contract
 
 Both peers (`map-cli interop` and `map-go/cmd/map-interop`) implement the
 same contract: one scenario per invocation, `--role dial|listen`, keys
-derived from 32-byte `--seed`/`--peer-seed` (and `--issuer-seed` for the
-delegation root under `delegated`), a listener prints `LISTENING <addr>`
+derived from 32-byte `--seed`/`--peer-seed`, a listener prints `LISTENING <addr>`
 when bound, and every run's last stdout line is `OK <scenario>` or
 `FAIL <scenario>: <detail>`. The adversarial frames (seqgap, tamper,
 wrongsid, relay) are crafted at the envelope layer using each session's

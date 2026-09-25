@@ -1,20 +1,16 @@
 //! Extended vectors consumed/rejected by the Rust implementation: TV-003
-//! HELLO_ACK, TV-004 ERROR, TV-005 DESCRIPTOR, TV-011/012 delegation,
-//! NV-001..005 and NV-007/009 (each rejected with the named class), and the
-//! derived constants (TH, CB, transcript root) recomputed from the primitives.
+//! HELLO_ACK, TV-004 ERROR, TV-005 DESCRIPTOR, NV-001..005 (each rejected with
+//! the named class), and the derived constants (TH, CB, transcript root)
+//! recomputed from the primitives.
 //!
-//! Task, pay and dispute vectors are RETIRED(v1) with their message types
-//! (P2 of the accountability-layer rework); their cases live at tag
-//! map-v1-ietf. TV-012 stays because it exercises delegated envelopes, not
-//! OFFER semantics. Delegation itself is under review (layer spec §3.3 drops
-//! it; memory.md §0).
+//! Task, pay and dispute vectors were RETIRED(v1) in P2; delegation vectors
+//! (TV-011/012, NV-007/009) in P3, with delegation itself (layer §3.3). Their
+//! cases live at tag map-v1-ietf.
 
-use crate::positive::{key_a, key_b, sha256};
+use crate::positive::key_b;
 use crate::vectors::TV001_HEX;
 use crate::vectors2::*;
 use crate::from_hex;
-use map_core::delegation::DelegError;
-use map_core::{open_delegated, validate_cert};
 use map_core::cbor::{encode, CborError};
 use map_core::envelope::{open, EnvelopeError, Opened};
 use map_core::errors::ErrorMsg;
@@ -78,85 +74,6 @@ pub fn case_tv005_descriptor() -> Result<(), String> {
         return Err("descriptor did not round-trip byte-for-byte".into());
     }
     Ok(())
-}
-
-/// Delegation validity time inside every TV-011/012/NV-007 cert window.
-const DELEG_NOW_MS: u64 = 1_780_000_100_000;
-
-fn key_a_dk() -> Keypair {
-    Keypair::from_seed(sha256(b"MAP-TEST-VECTOR-KEY-A-DK"))
-}
-
-/// TV-011 — a DelegationCert: RIK (Key A) delegates to DK. Validate it and
-/// confirm issuer/subject; content round-trips through the codec (produce-guard).
-pub fn case_tv011_cert() -> Result<(), String> {
-    let body = validate_cert(&from_hex(TV011_ENV_HEX)?, DELEG_NOW_MS)
-        .map_err(|e| format!("TV-011 validate_cert: {e}"))?;
-    if body.issuer != key_a().agent_id() {
-        return Err("TV-011 issuer != RIK (Key A)".into());
-    }
-    if body.subject != key_a_dk().agent_id() {
-        return Err("TV-011 subject != DK".into());
-    }
-    // Produce-guard: re-encode the parsed body and compare to the wire content.
-    let content = &open(&from_hex(TV011_ENV_HEX)?, b"")
-        .map_err(|e| format!("TV-011 open: {e}"))?
-        .body
-        .content;
-    let re = encode(&body.to_value()).map_err(|e| format!("encode: {e}"))?;
-    let orig = encode(content).map_err(|e| format!("encode content: {e}"))?;
-    if re != orig {
-        return Err("TV-011 DelegateBody did not round-trip byte-for-byte".into());
-    }
-    Ok(())
-}
-
-/// TV-012 — a delegated OFFER signed by DK carrying [TV-011]. `open_delegated`
-/// resolves the accountable root to RIK and attenuates scope to CAP.
-pub fn case_tv012_delegated_offer() -> Result<(), String> {
-    let od = open_delegated(&from_hex(TV012_ENV_HEX)?, b"", None, DELEG_NOW_MS)
-        .map_err(|e| format!("TV-012 open_delegated: {e}"))?;
-    if od.opened.sender != key_a_dk().agent_id() {
-        return Err("TV-012 leaf signer != DK".into());
-    }
-    if od.scope.root != key_a().agent_id() {
-        return Err("TV-012 accountable root != RIK (Key A)".into());
-    }
-    if od.scope.caps.as_deref() != Some(&["map:cap:inference/text-generation".to_string()][..]) {
-        return Err(format!("TV-012 scope caps unexpected: {:?}", od.scope.caps));
-    }
-    if od.scope.depth_left != 1 {
-        return Err(format!("TV-012 depth_left {} != 1", od.scope.depth_left));
-    }
-    // Plain open() still accepts it and ignores key 33 (byte-frozen behavior).
-    if open(&from_hex(TV012_ENV_HEX)?, b"").map_err(|e| format!("open: {e}"))?.sender
-        != key_a_dk().agent_id()
-    {
-        return Err("TV-012 plain open sender != DK".into());
-    }
-    Ok(())
-}
-
-/// NV-007 — a chain whose child widens cap scope. Opens as an envelope, but the
-/// chain MUST be rejected (identity §4 tighten-only → WidenedScope, wire 2003).
-pub fn case_nv007_widened_scope() -> Result<(), String> {
-    match open_delegated(&from_hex(NV007_HEX)?, b"", None, DELEG_NOW_MS) {
-        Ok(_) => Err("NV-007 chain accepted (must not)".into()),
-        Err(EnvelopeError::Delegation(DelegError::WidenedScope { .. })) => Ok(()),
-        Err(e) => Err(format!("NV-007 expected WidenedScope, got {e:?}")),
-    }
-}
-
-/// NV-009 — a 2-link chain whose PARENT declares max-depth 0 while the child
-/// delegates one hop further; scopes are identical (no widening), isolating
-/// the identity §4 depth bound. MUST reject as DepthExceeded (wire 2003).
-/// (TASK-018; max-depth counting per the 2026-07-12 ARCHITECT RULING.)
-pub fn case_nv009_depth_exceeded() -> Result<(), String> {
-    match open_delegated(&from_hex(NV009_HEX)?, b"", None, DELEG_NOW_MS) {
-        Ok(_) => Err("NV-009 chain accepted (must not)".into()),
-        Err(EnvelopeError::Delegation(DelegError::DepthExceeded)) => Ok(()),
-        Err(e) => Err(format!("NV-009 expected DepthExceeded, got {e:?}")),
-    }
 }
 
 /// Recompute TH, CB, and the transcript root from primitives and match them.
