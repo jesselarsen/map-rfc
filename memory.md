@@ -6,6 +6,79 @@ unverified, and what to do next. Tip: in Claude Code, either rename this to
 `CLAUDE.md` or add the line `@memory.md` to your `CLAUDE.md` so it loads
 automatically.
 
+## 0. 2026-09 PIVOT — RESUME HERE (supersedes §1–§8 where they conflict)
+
+**Everything from §1 on is historical (v1).** Read it for the protocol decisions
+that carry over (deterministic CBOR + COSE, verify the received bytes, one
+Ed25519 AgentID, no self-reported trust). Do not read it for goals, submission
+path or roadmap.
+
+**What happened.**
+- 2026-09-18: eight role-based external reviews (`MAP Review Results/`).
+  - ERRATA Track 0 (claim corrections) is done in `a1df777`.
+  - The reviews demonstrated real exploits: negative Amount; forgeable dispute
+    claims 0/1; receipt farming 0.998/conf 501 in ~150 ms; shard flooding;
+    node-ID grinding ~60k IDs/s; a quadratic replay cache. They also found
+    ProVerif P4–P6 vacuous.
+- 2026-09-24 prior-art review, three findings:
+  - The ISE cannot publish the family: RFC 8726 bars the registries.
+  - The "who has this file → who can do this task" thesis is pre-empted by
+    arXiv:2603.03753.
+  - Metering is pre-empted by MPP sessions and x402 batch-settlement. The
+    tolerance band is telecom reconciliation practice.
+- **Decision (author):** drop the IETF track. Rework MAP into a thin
+  **accountability layer** over A2A + an ADS-style DHT + MPP/x402. Publish an
+  **arXiv systems paper with a quantitative evaluation**.
+
+**Where things are.**
+- **Tag `map-v1-ietf`** (`4107aaa`): the frozen v1 snapshot, including the
+  review results and `attic/probes/`. `main` stays there.
+- **Branch `accountability-layer`**: all new work.
+- **Rationale:** `docs/ADR-0001-thin-accountability-layer.md`.
+- **Plan:** `C:\Users\Master\.claude\plans\i-think-an-arxiv-humble-swing.md`
+  (outside the repo). Phases:
+  - P0 housekeeping
+  - P1 spec skeleton in `spec/`
+  - P2 prune the Rust code
+  - P3 fix the kept layers (A1, A3, A4, A8, R4-02 checkpoint codec, R4-05, formal P2)
+  - P4 A2A binding + voucher mapping
+  - P5 Go verifier-only
+  - P6 `map-sim` harness
+  - P7 experiments E1–E5
+  - P8 spec final
+  - P9 paper
+- **Kept (the contribution):**
+  1. dual-signed receipts
+  2. observer-local trust with the rebuild rule
+  3. requester-countersigned checkpoints enabling resume on another provider
+  4. metering tied to receipts/checkpoints, mapped onto payer-signed cumulative vouchers
+  5. data-sensitivity zones (accountability, not confidentiality)
+  6. two-plane discovery with signed A2A Agent Cards as descriptors
+- **Dropped:** MAP's own task protocol (replaced by an A2A binding),
+  escrow/disputes/credit ledger/x402 method definition, the IETF render
+  pipeline, the Manolito framing and name. did:key and multiformats become
+  informative.
+
+**Open decisions (author):**
+| # | Decision | Blocks |
+|---|---|---|
+| D1 | New name; the wire tags `"MAPReceipt"`/`"MAPCheckpointAck"` are signed bytes | P3 |
+| D2 | A2A binding via extension URI + metadata over JSON/HTTP (recommended) | P4 |
+| D3 | libp2p for the discovery plane only (recommended) | P2 |
+| D4 | Go = verifier-only (recommended) | P5 |
+| D5 | Default issuer weighting: own dual-signed history, unknown issuers = 0 (recommended) | P3/E1 |
+| D6 | TaskID under A2A: `H(tag‖requesterNonce‖providerAgentID‖a2a.taskId)` | P4 |
+| D7 | arXiv cs.CR primary, cross-listed cs.MA/cs.NI; needs an endorser | P9 |
+
+**P0 status (2026-09-24):**
+- Probes preserved and re-run; they reproduce at `a1df777`.
+- Ported `#[ignore]` regression tests: `map-trust/tests/attack_farming.rs`,
+  `map-core/tests/attack_replay_cache.rs`, `map-mesh/tests/attack_shard_flood.rs`,
+  and `map-discovery/tests/attack_grind.rs` (a measurement).
+- All 6 regression tests FAIL with `--ignored`, as expected. The normal suites
+  are green (Rust, plus Go vet/test).
+- Gate for P3: every `attack_*` test passes under `--ignored`.
+
 ## 1. What this project is
 
 A standards-track-style specification family ("MAP") for a decentralized,

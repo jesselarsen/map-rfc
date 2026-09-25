@@ -64,10 +64,17 @@ grind(rt7) 16.51 us per keygen+shard; shard-141 hits=752 (expect 781)
   ledger. They stay here as the record of why it was removed. `Amount`
   non-negativity carries over into the kept metering code as a regression test.
 - **Trust and discovery probes (`adv`, `rt7probe`)** target kept layers. They
-  are ported as `#[ignore]` regression tests in the workspace:
-  - `map-trust/tests/attack_farming.rs`
-  - `map-core/tests/attack_replay_cache.rs`
-  - `map-discovery/tests/attack_grind.rs`
-
-  Each test asserts the *secure* behaviour and flips to passing when the fix
+  are ported as `#[ignore]` regression tests in the workspace. Each test
+  asserts the *secure* behaviour, so it fails today and passes once the fix
   lands. See `docs/ADR-0001-thin-accountability-layer.md`.
+  - `map-trust/tests/attack_farming.rs` (A1): self-dealing, future-dated,
+    honest-overtaken, and forged-unilateral / rebuild≠incremental. The Sybil
+    ring case waits for the issuer-weighting API (decision D5).
+  - `map-core/tests/attack_replay_cache.rs` (A8): per-message cost ratio.
+  - `map-mesh/tests/attack_shard_flood.rs` (A3): this is not from a probe; it
+    is the Role 7 description turned into a test.
+  - `map-discovery/tests/attack_grind.rs` (A4): a measurement that feeds E3,
+    not a pass/fail check.
+
+  Status at `4107aaa` with `--ignored`: all 6 regression tests FAIL as
+  expected, and the grind measurement reports ~59.8k keygen+shard/s.

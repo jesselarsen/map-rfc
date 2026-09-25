@@ -4,6 +4,26 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 @memory.md
 
+## Current direction (2026-09 pivot) — read this first
+
+The IETF submission track is **abandoned**. The v1 family (11 drafts + both
+implementations + the 2026-09-18 external review) is frozen at tag
+`map-v1-ietf`; `main` stays at that snapshot. Active work is on branch
+`accountability-layer`. It reworks MAP into a thin **accountability layer for
+delegated agent work** running over A2A (tasks), an ADS-style Kademlia DHT
+(discovery) and MPP/x402 (payment rails), and it will be published as an
+**arXiv systems paper with a quantitative evaluation**.
+
+- Rationale, the keep/drop table and positioning:
+  `docs/ADR-0001-thin-accountability-layer.md`.
+- Phase plan and open decisions (D1–D7): memory.md §0.
+- Reviewer exploit probes and their ported `#[ignore]` regression tests:
+  `attic/probes/README.md`.
+
+The sections below describe the v1 layout. They stay accurate until the P1
+(spec) and P2 (prune) phases land, and then they are rewritten. Where this
+section and the ones below conflict, this section wins.
+
 ## What this project is
 
 MAP — the Manolito Agent Protocol — is a standards-track-style specification
