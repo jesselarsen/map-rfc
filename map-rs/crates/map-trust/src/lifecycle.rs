@@ -32,6 +32,12 @@ impl Tolerance {
         claimed.abs_diff(observed) <= tol
     }
 
+    /// Usage counters only (tokens-in, tokens-out, ttft-ms, wall-ms): the
+    /// check a countersigner applies to a checkpoint (layer §6.5).
+    pub fn accepts_counters(&self, claimed: [u64; 4], observed: [u64; 4]) -> bool {
+        claimed.iter().zip(observed.iter()).all(|(c, o)| self.field_ok(*c, *o))
+    }
+
     /// True iff `claimed` agrees with the countersigner's `observed` core
     /// within this window on all four usage fields and both timestamps.
     pub fn accepts(&self, claimed: &ReceiptCore, observed: &ReceiptCore) -> bool {

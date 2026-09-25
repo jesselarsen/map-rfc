@@ -115,6 +115,7 @@ impl fmt::Display for AgentId {
 /// An Ed25519 keypair. Root/device/session tiers (identity §2) are a
 /// deployment discipline over this one type; the scaffold does not yet
 /// model delegation chains.
+#[derive(Clone)]
 pub struct Keypair {
     signing: SigningKey,
 }

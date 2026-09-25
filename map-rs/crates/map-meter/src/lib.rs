@@ -14,6 +14,8 @@
 use map_core::cbor::{CborError, Value};
 use std::fmt;
 
+pub mod voucher;
+
 #[derive(Debug, PartialEq)]
 pub enum MeterError {
     Cbor(CborError),

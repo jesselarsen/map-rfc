@@ -1710,6 +1710,7 @@ name = "map-meter"
 version = "0.1.0"
 dependencies = [
  "map-core",
+ "sha2",
 ]
 
 [[package]]
