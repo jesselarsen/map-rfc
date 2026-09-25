@@ -12,6 +12,7 @@ members = [
     "crates/map-net",
     "crates/map-cli",
     "adapters/ollama-provider",
+    "adapters/a2a",
     "conformance/map-conformance",
 ]
 

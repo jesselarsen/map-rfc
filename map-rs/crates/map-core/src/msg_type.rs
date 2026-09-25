@@ -16,6 +16,8 @@ pub const STATUS_QUERY: u16 = 0x0101;
 pub const STATUS_REPORT: u16 = 0x0102;
 pub const CAP_QUERY: u16 = 0x0103;
 pub const CAP_RESPONSE: u16 = 0x0104;
+/// v2 AgentDescriptor embedding the A2A Agent Card (layer §11.2).
+pub const DESCRIPTOR_V2: u16 = 0x0110;
 
 // 0x0200–0x02FF — Tasks (0x0206 unassigned)
 pub const OFFER: u16 = 0x0200;

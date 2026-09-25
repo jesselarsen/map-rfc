@@ -12,6 +12,9 @@ use sha2::{Digest, Sha256};
 use std::collections::HashMap;
 use std::fmt;
 
+pub mod v2;
+pub use v2::DescriptorV2;
+
 #[derive(Debug, PartialEq)]
 pub enum DiscoveryError {
     BadCapUri(String),

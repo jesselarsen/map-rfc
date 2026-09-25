@@ -11,5 +11,7 @@ map-core = { path = "../../crates/map-core" }
 map-discovery = { path = "../../crates/map-discovery" }
 map-transcript = { path = "../../crates/map-transcript" }
 map-trust = { path = "../../crates/map-trust" }
+map-a2a = { path = "../../adapters/a2a" }
+serde_json = "1"
 sha2.workspace = true
 hex.workspace = true

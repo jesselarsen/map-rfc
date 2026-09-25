@@ -1,0 +1,12 @@
+//! MAP over A2A v1.0 (spec/binding-a2a.md).
+//!
+//! MAP rides alongside A2A as an extension: an A2A client that does not
+//! activate it gets plain A2A. This crate holds the binding's pure pieces
+//! (canonical JSON, Agent Card signatures, the descriptor↔card rule, TaskID
+//! derivation, the Part→transcript mapping, and the provider/requester
+//! accountability flows); HTTP transport is layered on top.
+
+pub mod b64;
+pub mod jcs;
+pub mod card;
+pub mod descriptor;

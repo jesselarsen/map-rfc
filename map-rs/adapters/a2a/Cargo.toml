@@ -1,0 +1,17 @@
+[package]
+name = "map-a2a"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "MAP over A2A v1.0: extension binding (spec/binding-a2a.md): JCS, Agent Card JWS, descriptor-card checks, TaskID, transcript mapping, provider/requester flows"
+
+[dependencies]
+map-core = { path = "../../crates/map-core" }
+map-identity = { path = "../../crates/map-identity" }
+map-discovery = { path = "../../crates/map-discovery" }
+map-transcript = { path = "../../crates/map-transcript" }
+map-trust = { path = "../../crates/map-trust" }
+map-meter = { path = "../../crates/map-meter" }
+sha2.workspace = true
+# A2A is JSON. serde_json is used as a value model only (no derive macros).
+serde_json = { version = "1", features = ["float_roundtrip"] }

@@ -1002,6 +1002,62 @@ artifact (hex, {len(nv014)} bytes):
   {nv014.hex()}
 """
 
+# =====================================================================
+# TV-022: a signed A2A Agent Card carrying the MAP extension (binding A2A-1,
+# A2A §8.4 JWS with the payload detached; alg EdDSA, kid = Key B's AgentID in
+# multibase). JCS here is json.dumps(sort_keys, compact): identical to
+# RFC 8785 for this ASCII-only, integer-only document (asserted).
+# =====================================================================
+import base64, json
+
+def b64u(b: bytes) -> str:
+    return base64.urlsafe_b64encode(b).rstrip(b"=").decode()
+
+def jcs_ascii(o) -> bytes:
+    s = json.dumps(o, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+    assert s.isascii()
+    return s.encode()
+
+kid_b = b58(aid_b)
+card = {
+    "name": "MAP test vector provider",
+    "description": "TV-022 Agent Card",
+    "version": "1.0.0",
+    "supportedInterfaces": [{"url": "https://provider.example.org/a2a",
+                             "protocolBinding": "JSONRPC", "protocolVersion": "1.0"}],
+    "capabilities": {"streaming": False, "extensions": [{
+        "uri": "https://map-protocol.org/ext/accountability/v2",
+        "description": "MAP accountability layer: dual-signed receipts, countersigned checkpoints, zone labels, metering evidence.",
+        "required": False,
+        "params": {"agentId": kid_b, "supportedZones": [2, 3],
+                   "checkpointIntervalParts": 8, "acceptedVoucherRails": ["pay:mpp-tempo"]}}]},
+    "defaultInputModes": ["text/plain"],
+    "defaultOutputModes": ["text/plain"],
+    "skills": [{"id": "generate", "name": "Generate", "description": "Text generation", "tags": ["text"]}],
+}
+card_payload = jcs_ascii(card)
+card_protected = b64u(jcs_ascii({"alg": "EdDSA", "typ": "JOSE", "kid": kid_b}))
+card_input = (card_protected + "." + b64u(card_payload)).encode()
+card_sig = kb.sign(card_input).signature
+kb.verify_key.verify(card_input, card_sig)
+signed_card = dict(card)
+signed_card["signatures"] = [{"protected": card_protected, "signature": b64u(card_sig)}]
+tv022 = jcs_ascii(signed_card)
+
+v2 += f"""
+## TV-022 — signed A2A Agent Card with the MAP extension (binding A2A-1, D-4)
+
+Signed by Key B with alg EdDSA, kid = Key B's AgentID (multibase, {kid_b}).
+JWS signing input: BASE64URL(protected) || "." || BASE64URL(JCS(card without
+"signatures")), the payload detached (A2A §8.4.2). The signed card below is
+itself in RFC 8785 canonical form:
+
+{tv022.decode()}
+
+signed card, canonical JSON bytes (hex, {len(tv022)} bytes):
+  {tv022.hex()}
+"""
+
 out = prefix + new + negatives + derived + v2
 
 # v2 (accountability-layer rework, 2026-09-25): vectors whose message types v2
@@ -1036,6 +1092,7 @@ out = out.replace(_anchor, RETIRED_NOTE + _anchor)
 open("map-test-vectors.md", "w", encoding="utf-8").write(out)
 print("OK - vectors written and all signatures verified.")
 print("TV-021", len(tv021), "| NV-013", len(nv013), "| NV-014", len(nv014), "(v2 checkpoints)")
+print("TV-022", len(tv022), "(signed Agent Card)")
 print("TV-001", len(envelope), "| TV-002", len(receipt),
       "| new TVs 3..10 + 10b (bound quote) +", "6 negatives + derived constants")
 print("TV-010b", len(tv010b["envelope"]), "| NV-006", len(nv006))

@@ -63,7 +63,7 @@ path or roadmap.
 | # | Decision | Status | Blocks |
 |---|---|---|---|
 | D1 | Name | **DECIDED 2026-09-24:** keep the acronym, re-expand it as **MAP = Mutual Attestation Protocol**, drop "Manolito". Wire tags (`"MAPReceipt"`, `"MAPCheckpointAck"`, `map:cap:`) stay byte-stable. | P3 |
-| D2 | A2A binding via extension URI + metadata over JSON/HTTP | recommended, not yet confirmed | P4 |
+| D2 | A2A binding via extension URI + metadata over JSON/HTTP | **DECIDED 2026-09-25** (as recommended) | P4 |
 | D3 | libp2p | **DECIDED:** discovery plane only (descriptor publication + STATUS_QUERY). The work plane runs over A2A/HTTPS. | P2 |
 | D4 | Go's role | **DECIDED:** FULL second implementation. Go ports the A2A provider *and* requester for the kept layers, so the interop matrix exercises both directions. Budget P4/P5 accordingly. | P5 |
 | — | Publishing | **DECIDED:** push `map-v1-ietf` and push `accountability-layer` at each phase gate. `main` is untouched. | — |
@@ -72,7 +72,7 @@ path or roadmap.
 | # | Decision | Blocks |
 |---|---|---|
 | D5 | Default issuer weighting: own dual-signed history, unknown issuers = 0 (recommended) | P3/E1 |
-| D6 | TaskID under A2A: `H(tag‖requesterNonce‖providerAgentID‖a2a.taskId)` | P4 |
+| D6 | TaskID under A2A: `SHA-256(enc(["MAPTaskID", requesterNonce(16B), providerAgentID, a2aTaskId]))` (binding A2A-8) — **DECIDED 2026-09-25** | P4 |
 | D7 | arXiv cs.CR primary, cross-listed cs.MA/cs.NI; needs an endorser | P9 |
 
 **P0 status (2026-09-24):**
