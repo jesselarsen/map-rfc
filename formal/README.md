@@ -6,10 +6,26 @@
 > (binding-libp2p-discovery DHT-14). **P3** (`delegation*.pv`) models
 > delegation, which v2 removed (layer §3.3). **P4–P6** (`pay-*.pv`) model the
 > retired v1 settlement code and were vacuous anyway (2026-09-18 review).
-> These files stay for the record only; no v2 claim rests on them. P2 as
-> shipped is vacuous (true by term structure). Its repair (responder nonce +
-> injective query) is P3 work in the rework plan, as is a new model of
-> receipt/checkpoint non-repudiation.
+> These files stay for the record only; no v2 claim rests on them.
+>
+> **P2 repaired (2026-09-25).** The shipped CB-collision query was vacuous.
+> `hello-cb.pv` now gives HELLO_ACK a fresh responder nonce and states P2 as
+> the injective anti-relay correspondence for the honest pair. Logs are in
+> `results/*.pv.log`.
+>
+> | Model | Query | Result |
+> |---|---|---|
+> | `hello-cb.pv` | Q2: `inj-event(EnvelopeAccepted(A,B,cb,p)) ==> inj-event(EnvelopeSealed(A,B,cb,p))` | **true** (unbounded sessions, no replay cache modelled) |
+> | `hello-cb.pv` | Q2r: acceptance reachable (non-vacuity) | reachable (trace) |
+> | `hello-cb.pv` | Q3: session completion reachable | reachable (trace) |
+> | `hello-cb-control-relay.pv` | Q2, with CB derived without TH | **false** (trace), as designed |
+> | `hello-cb-control-downgrade.pv` | Q1, with the initiator recheck removed | **false** (trace), as designed |
+>
+> Planted-bug validation: `bash formal/plant-p2.sh` removes, one at a time,
+> the envelope signature check, the CB check, and the responder nonce. Q2
+> comes out **false** for all three. P1 (Q1) is unchanged and still **WEAK**
+> (guard equals conclusion). A model of receipt/checkpoint non-repudiation
+> is future work.
 
 Machine-checked models of the security properties ops §6.3 identifies as
 carrying the security story: **P1** downgrade resistance of HELLO/HELLO_ACK

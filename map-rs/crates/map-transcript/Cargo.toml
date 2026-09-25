@@ -3,8 +3,9 @@ name = "map-transcript"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
-description = "MAP transcript commitment: chunks, Merkle transcript root, flow credit (spec/layer.md §5)"
+description = "MAP transcript commitment and countersigned checkpoints: chunks, Merkle transcript root, CheckpointArtifact, resumption, flow credit (spec/layer.md §5, §7)"
 
 [dependencies]
 map-core = { path = "../map-core" }
+map-identity = { path = "../map-identity" }
 sha2.workspace = true

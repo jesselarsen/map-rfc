@@ -929,7 +929,80 @@ Merkle root (the TranscriptBuilder value; wrapped as Multihash in TV-009):
   {transcript_root.hex()}
 """
 
-out = prefix + new + negatives + derived
+# =====================================================================
+# v2 vectors (accountability-layer rework). TV-021: a dual-signed
+# CheckpointArtifact (layer §7.1): requester = Key A (role 1), provider =
+# Key B (role 2); both sign enc(["MAPCheckpoint", role, core-bytes]), so the
+# cumulative usage, zone and root are all covered by both signatures.
+# =====================================================================
+def tleaf(seq, kind, content):
+    return hashlib.sha256(bytes([0x00]) + enc([seq, kind, content])).digest()
+
+def tparent(l, r):
+    return hashlib.sha256(bytes([0x01]) + l + r).digest()
+
+cp_chunks = [b"Hello, ", b"accountable ", b"MAP!"]      # seq 0..2, kind 0
+cp_leaves = [tleaf(i, 0, c) for i, c in enumerate(cp_chunks)]
+cp_root = tparent(tparent(cp_leaves[0], cp_leaves[1]), cp_leaves[2])  # odd leaf promoted
+
+def checkpoint_artifact(root, sign_req=True, tamper_req=False):
+    ccore = {1: task_id, 2: aid_a, 3: aid_b, 4: 2,
+             5: bytes([0x12, 0x20]) + root,
+             6: {1: 10, 2: 3, 3: 120, 4: 900},
+             7: 2, 8: TS + 900}
+    ccore_enc = enc(ccore)
+    s_prov = kb.sign(enc(["MAPCheckpoint", 2, ccore_enc])).signature
+    s_req = ka.sign(enc(["MAPCheckpoint", 1, ccore_enc])).signature
+    kb.verify_key.verify(enc(["MAPCheckpoint", 2, ccore_enc]), s_prov)
+    ka.verify_key.verify(enc(["MAPCheckpoint", 1, ccore_enc]), s_req)
+    if tamper_req:
+        s_req = bytes([s_req[0] ^ 0x01]) + s_req[1:]
+    art = {1: ccore_enc, 3: s_prov}
+    if sign_req:
+        art[2] = s_req
+    return ccore_enc, enc(art)
+
+tv021_core, tv021 = checkpoint_artifact(cp_root)
+_, nv013 = checkpoint_artifact(cp_root, tamper_req=True)
+nv014_root = cp_root[:-1] + bytes([cp_root[-1] ^ 0x01])
+_, nv014 = checkpoint_artifact(nv014_root)
+
+v2 = f"""
+## TV-021 — CheckpointArtifact, dual-signed (layer §7.1)
+
+Transcript prefix (layer §5): three kind-0 leaves, seq 0..2, contents the
+UTF-8 strings "Hello, ", "accountable ", "MAP!". Transcript root (raw 32
+bytes; CheckpointCore key 5 carries it as Multihash 0x1220 || root):
+  {cp_root.hex()}
+
+CheckpointCore: task = TV-002's TaskID, requester = Key A, provider = Key B,
+through-seq 2, usage {{1: 10, 2: 3, 3: 120, 4: 900}}, zone 2, timestamp
+{TS + 900}. Signing input for role r: enc(["MAPCheckpoint", r, core-bytes]);
+role 1 = Key A (requester countersignature), role 2 = Key B (provider).
+
+core bytes (hex, {len(tv021_core)} bytes):
+  {tv021_core.hex()}
+
+artifact {{1: core-bytes, 2: sig_req, 3: sig_prov}} (hex, {len(tv021)} bytes):
+  {tv021.hex()}
+
+## Negative vectors (v2)
+
+### NV-013 — checkpoint with a corrupted requester countersignature → reject
+TV-021 with the first byte of sig_req flipped. The provider signature is
+valid; the artifact is not a valid resumption point (layer C-2 / R-1).
+artifact (hex, {len(nv013)} bytes):
+  {nv013.hex()}
+
+### NV-014 — dual-signed checkpoint whose root does not match the prefix → reject resume
+Both signatures are valid, but key 5 carries TV-021's root with its last byte
+flipped. Resuming from it against TV-021's transcript prefix MUST fail
+(layer §7.4 step 2: the successor recomputes the root and rejects).
+artifact (hex, {len(nv014)} bytes):
+  {nv014.hex()}
+"""
+
+out = prefix + new + negatives + derived + v2
 
 # v2 (accountability-layer rework, 2026-09-25): vectors whose message types v2
 # retired are annotated, never removed or renumbered. Bytes are unchanged.
@@ -962,6 +1035,7 @@ out = out.replace(_anchor, RETIRED_NOTE + _anchor)
 
 open("map-test-vectors.md", "w", encoding="utf-8").write(out)
 print("OK - vectors written and all signatures verified.")
+print("TV-021", len(tv021), "| NV-013", len(nv013), "| NV-014", len(nv014), "(v2 checkpoints)")
 print("TV-001", len(envelope), "| TV-002", len(receipt),
       "| new TVs 3..10 + 10b (bound quote) +", "6 negatives + derived constants")
 print("TV-010b", len(tv010b["envelope"]), "| NV-006", len(nv006))

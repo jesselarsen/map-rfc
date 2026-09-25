@@ -24,6 +24,24 @@
    fully legitimate registered peer B is separately willing to talk to
    (TASK-014 §9 edge case; also what feeds Q1's downgrade-attack search --
    see the comment on `responder` below).
+
+   v2 repair of P2 (2026-09-25, per the 2026-09-18 formal review, experiment
+   E6c). The shipped Q2 was vacuous: a CB-collision query whose
+   `suchthat otherMsgid <> msgidH` filter hid the one collision the model
+   did have, because HELLO_ACK echoed the initiator's msgid, so two B
+   sessions answering a replayed HELLO were byte-identical. Changes:
+   (a) HELLO_ACK carries the responder's own fresh nonce nB, mirroring the
+       fresh msg-id every real envelope carries (core §4.1 key 2; map-session
+       mints one for HELLO_ACK). TH therefore differs per responder session.
+   (b) Q2 is now the property core §7.3 actually states, as an INJECTIVE
+       correspondence scoped to the honest pair: each envelope B accepts
+       from A, on a given CB, matches a distinct envelope A sealed on that
+       CB. A replayed/relayed envelope would violate injectivity.
+   (c) Q2r shows the correspondence is not vacuous (acceptance is reachable).
+   The relay control (hello-cb-control-relay.pv) is regenerated from this
+   file with CB derived WITHOUT TH, and must make Q2 false.
+   P1 (Q1) is unchanged and remains WEAK per the review (guard-equals-
+   conclusion); v2 uses this handshake on the discovery/status plane only.
 *)
 
 (* ---------- Signatures (Ed25519 abstraction) ---------- *)
@@ -48,6 +66,7 @@ fun cat2(bitstring, bitstring): bitstring [data].
 fun pk2bs(pkey): bitstring [data].   (* coercion: embed a pubkey inside a bitstring term *)
 fun cat3(bitstring, bitstring, bitstring): bitstring [data].
 fun cat5(bitstring, pkey, bitstring, bitstring, bitstring): bitstring [data].
+fun cat6(bitstring, pkey, bitstring, bitstring, bitstring, bitstring): bitstring [data].
 
 free c: channel.
 
@@ -76,12 +95,6 @@ event SessionComplete(pkey, pkey, bitstring).        (* A, B, cb -- reachability
 event EnvelopeSealed(pkey, pkey, bitstring, bitstring).    (* sender, peer, cb, payload *)
 event EnvelopeAccepted(pkey, pkey, bitstring, bitstring).  (* peer, self, cb, payload *)
 
-(* Q2's real test (see below): does B ever compute the SAME CB for two
-   handshakes it can tell apart (different msgid)? `sessionCb` records
-   (msgid, cb) as B completes each handshake; `get ... suchthat` looks for
-   a PRIOR entry with the same cb but a DIFFERENT msgid. *)
-table sessionCb(bitstring, bitstring).
-event CbCollision(bitstring, bitstring, bitstring).  (* msgid1, msgid2, cb *)
 
 (* ==========================================================================
    Initiator (A). Offers {v1,v2}; re-derives the SessionID echo AND
@@ -98,7 +111,7 @@ let initiator(skA0: skey, pkB: pkey) =
   out(c, helloEnv);
   in(c, ackEnv: bitstring);
   let ackBody = getmess(ackEnv) in
-  let cat5(=tagAck, ackerPk, chosen, =msgidH, sidEchoed) = ackBody in
+  let cat6(=tagAck, ackerPk, chosen, =msgidH, sidEchoed, nB) = ackBody in
   let chk = checksign(ackEnv, ackerPk) in
   if chk = ackBody then
   if ackerPk = pkB then
@@ -130,11 +143,8 @@ let initiator(skA0: skey, pkB: pkey) =
    low-version ack that (if the initiator DIDN'T recheck `chosen`) could be
    spliced into A's own session -- this is precisely what the control
    variant (hello-cb-control-downgrade.pv) demonstrates is reachable.
-   Echoes the INITIATOR's SessionID (core §6.1).
-
-   After completing a handshake, B checks `sessionCb` for a PRIOR entry
-   with the same CB but a DIFFERENT msgid (Q2's actual test -- see above)
-   before recording its own.
+   Echoes the INITIATOR's SessionID (core §6.1) and adds its own fresh
+   nonce nB (repair (a)).
    ========================================================================== *)
 let responder(skB0: skey, expectedPeer: pkey) =
   in(c, helloEnv: bitstring);
@@ -145,28 +155,21 @@ let responder(skB0: skey, expectedPeer: pkey) =
   if chk = helloBody then
   (
     let chosen = (if offered = offerBoth then v2 else v1) in
-    let ackBody = cat5(tagAck, pk(skB0), chosen, msgidH, sidA) in
+    new nB: bitstring;   (* the responder's own fresh msg-id (repair (a)) *)
+    let ackBody = cat6(tagAck, pk(skB0), chosen, msgidH, sidA, nB) in
     let ackEnv = sign(ackBody, skB0) in
     event NegotiatedByResponder(claimedPk, pk(skB0), chosen);
     out(c, ackEnv);
     let exporter = h(cat2(pk2bs(claimedPk), pk2bs(pk(skB0)))) in
     let th = h(cat2(helloEnv, ackEnv)) in
     let cb = kdf(th, exporter) in
-    (
-      ( get sessionCb(otherMsgid, =cb) suchthat otherMsgid <> msgidH in
-          event CbCollision(otherMsgid, msgidH, cb)
-        else
-          insert sessionCb(msgidH, cb) )
-    | (
-        in(c, sealedEnv: bitstring);
-        let sealedBody = getmess(sealedEnv) in
-        let cat3(=tagMsg, cbIn, payload) = sealedBody in
-        if cbIn = cb then
-        let chk2 = checksign(sealedEnv, claimedPk) in
-        if chk2 = sealedBody then
-        event EnvelopeAccepted(claimedPk, pk(skB0), cb, payload)
-      )
-    )
+    in(c, sealedEnv: bitstring);
+    let sealedBody = getmess(sealedEnv) in
+    let cat3(=tagMsg, cbIn, payload) = sealedBody in
+    if cbIn = cb then
+    let chk2 = checksign(sealedEnv, claimedPk) in
+    if chk2 = sealedBody then
+    event EnvelopeAccepted(claimedPk, pk(skB0), cb, payload)
   ).
 
 (* ==========================================================================
@@ -181,25 +184,23 @@ let responder(skB0: skey, expectedPeer: pkey) =
 query pkA: pkey, pkB: pkey, v: bitstring;
   event(NegotiatedByInitiator(pkA, pkB, v)) ==> v = v2.
 
-(* Q2 (P2, core §7.3): channel-binding session separation. B never computes
-   the SAME CB for two handshakes it can tell apart (different msgid) --
-   i.e. CB genuinely depends on session-specific material (TH), not just
-   the (session-invariant, PUBLIC) exporter. This is the precise property
-   that makes "an envelope verifies only on the session whose CB it was
-   sealed under" possible: if CB can collide across distinguishable
-   sessions, a message sealed in one necessarily also verifies in the
-   other. (An accept/seal event-correspondence formulation was tried first
-   and rejected -- see formal/README.md "Modeling notes" for why a plain
-   correspondence is cb-strength-independent (holds trivially from
-   signature unforgeability alone) and an injective one is contaminated by
-   the -- correctly out-of-scope, §FR-5 -- msg-id replay-cache gap; CB
-   collision is the query that actually isolates what P2 is about.)
+(* Q2 (P2, core §7.3): anti-relay. For the honest pair, every envelope B
+   accepts from A on channel binding cb is matched by a DISTINCT envelope A
+   sealed on that same cb (injective correspondence). A frame replayed on B's
+   session, or relayed from one of B's sessions into another, would be a
+   second acceptance with one sealing and violate injectivity. Proved over
+   unbounded sessions with no replay cache modelled: the per-session
+   freshness comes from TH (which covers the responder's fresh nB), exactly
+   the mechanism core §7.3 relies on.
+   Expected: true. *)
+query cb: bitstring, p: bitstring;
+  inj-event(EnvelopeAccepted(pk(skA), pk(skB), cb, p)) ==>
+  inj-event(EnvelopeSealed(pk(skA), pk(skB), cb, p)).
 
-   Expected: no trace (query PROVED true, no CbCollision reachable) --
-   this is a proof over UNBOUNDED sessions (`!`), unlike Q1/Q3 which are
-   process-structural. *)
-query m1: bitstring, m2: bitstring, cb: bitstring;
-  event(CbCollision(m1, m2, cb)).
+(* Q2r: non-vacuity guard for Q2. Expected: "false" with a trace, i.e. B
+   genuinely accepts A's envelopes in this model. *)
+query cb: bitstring, p: bitstring;
+  event(EnvelopeAccepted(pk(skA), pk(skB), cb, p)).
 
 (* Q3: reachability sanity (non-vacuity guard). Expected result:
    "cannot be proved" WITH a witnessing trace -- that is success: it shows

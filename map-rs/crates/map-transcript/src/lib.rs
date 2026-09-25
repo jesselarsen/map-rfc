@@ -9,6 +9,12 @@
 use map_core::cbor::{encode, Value};
 use sha2::{Digest, Sha256};
 
+pub mod checkpoint;
+pub use checkpoint::{
+    check_successor, resume, verify_prefix, CheckpointArtifact, CheckpointCore, CheckpointError, Resumed,
+    VerifiedCheckpoint,
+};
+
 /// Chunk kinds (tasks §3). Kinds 0/1/4 are transcript-bearing.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum ChunkKind {

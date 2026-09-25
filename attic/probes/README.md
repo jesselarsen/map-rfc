@@ -80,3 +80,14 @@ grind(rt7) 16.51 us per keygen+shard; shard-141 hits=752 (expect 781)
 
   Status at `4107aaa` with `--ignored`: all 6 regression tests FAIL as
   expected, and the grind measurement reports ~59.8k keygen+shard/s.
+
+  **Since P3 (`00bac8d`): all 6 pass and are no longer ignored.** Added
+  alongside them:
+  - the Sybil-ring case (`attack_farming.rs`);
+  - descriptor-validity tests (`map-mesh/tests/attack_descriptor_validity.rs`);
+  - rate-limit tests (`map-mesh/tests/attack_rate_limit.rs`);
+  - the epoch-salt check (`attack_grind.rs`).
+
+  `negcheck`'s negative-amount case is closed at the type level: `Amount`'s
+  mantissa is a `u64`, and the decoder rejects negative mantissas
+  (`map-meter`).

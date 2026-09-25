@@ -1,0 +1,274 @@
+Process 0 (that is, the initial process):
+{1}out(c, pk(skA));
+{2}out(c, pk(skB));
+{3}new skC: skey;
+{4}out(c, skC);
+{5}out(c, pk(skC));
+(
+    {6}!
+    {7}let skA0: skey = skA in
+    {8}let pkB: pkey = pk(skB) in
+    {9}new msgidH: bitstring;
+    {10}new sidA: bitstring;
+    {11}let helloBody: bitstring = cat5(tagHello,pk(skA0),offerBoth,msgidH,sidA) in
+    {12}let helloEnv: bitstring = sign(helloBody,skA0) in
+    {13}out(c, helloEnv);
+    {14}in(c, ackEnv: bitstring);
+    {15}let ackBody: bitstring = getmess(ackEnv) in
+    {16}let cat5(=tagAck,ackerPk: pkey,chosen: bitstring,=msgidH,sidEchoed: bitstring) = ackBody in
+    {17}let chk: bitstring = checksign(ackEnv,ackerPk) in
+    {18}if (chk = ackBody) then
+    {19}if (ackerPk = pkB) then
+    {20}if (sidEchoed = sidA) then
+    {21}let exporter: bitstring = h(cat2(pk2bs(pk(skA0)),pk2bs(pkB))) in
+    {22}let th: bitstring = h(cat2(helloEnv,ackEnv)) in
+    {23}let cb: bitstring = kdf(th,exporter) in
+    {24}event NegotiatedByInitiator(pk(skA0),pkB,chosen);
+    {25}event SessionComplete(pk(skA0),pkB,cb);
+    {26}new payload: bitstring;
+    {27}let sealedBody: bitstring = cat3(tagMsg,cb,payload) in
+    {28}let sealedEnv: bitstring = sign(sealedBody,skA0) in
+    {29}event EnvelopeSealed(pk(skA0),pkB,cb,payload);
+    {30}out(c, sealedEnv)
+) | (
+    {31}!
+    {32}let skB0: skey = skB in
+    {33}let expectedPeer: pkey = pk(skA) in
+    {34}in(c, helloEnv_1: bitstring);
+    {35}let helloBody_1: bitstring = getmess(helloEnv_1) in
+    {36}let cat5(=tagHello,claimedPk: pkey,offered: bitstring,msgidH_1: bitstring,sidA_1: bitstring) = helloBody_1 in
+    {37}if (claimedPk = expectedPeer) then
+    {38}let chk_1: bitstring = checksign(helloEnv_1,claimedPk) in
+    {39}if (chk_1 = helloBody_1) then
+    {40}let chosen_1: bitstring = (if (offered = offerBoth) then v2 else v1) in
+    {41}let ackBody_1: bitstring = cat5(tagAck,pk(skB0),chosen_1,msgidH_1,sidA_1) in
+    {42}let ackEnv_1: bitstring = sign(ackBody_1,skB0) in
+    {43}event NegotiatedByResponder(claimedPk,pk(skB0),chosen_1);
+    {44}out(c, ackEnv_1);
+    {45}let exporter_1: bitstring = h(cat2(pk2bs(claimedPk),pk2bs(pk(skB0)))) in
+    {46}let th_1: bitstring = h(cat2(helloEnv_1,ackEnv_1)) in
+    {47}let cb_1: bitstring = kdf(th_1,exporter_1) in
+    {48}in(c, sealedEnv_1: bitstring);
+    {49}let sealedBody_1: bitstring = getmess(sealedEnv_1) in
+    {50}let cat3(=tagMsg,cbIn: bitstring,payload_1: bitstring) = sealedBody_1 in
+    {51}if (cbIn = cb_1) then
+    {52}let chk2: bitstring = checksign(sealedEnv_1,claimedPk) in
+    {53}if (chk2 = sealedBody_1) then
+    {54}event EnvelopeAccepted(claimedPk,pk(skB0),cb_1,payload_1)
+) | (
+    {55}!
+    {56}let skB0_1: skey = skB in
+    {57}let expectedPeer_1: pkey = pk(skC) in
+    {58}in(c, helloEnv_2: bitstring);
+    {59}let helloBody_2: bitstring = getmess(helloEnv_2) in
+    {60}let cat5(=tagHello,claimedPk_1: pkey,offered_1: bitstring,msgidH_2: bitstring,sidA_2: bitstring) = helloBody_2 in
+    {61}if (claimedPk_1 = expectedPeer_1) then
+    {62}let chk_2: bitstring = checksign(helloEnv_2,claimedPk_1) in
+    {63}if (chk_2 = helloBody_2) then
+    {64}let chosen_2: bitstring = (if (offered_1 = offerBoth) then v2 else v1) in
+    {65}let ackBody_2: bitstring = cat5(tagAck,pk(skB0_1),chosen_2,msgidH_2,sidA_2) in
+    {66}let ackEnv_2: bitstring = sign(ackBody_2,skB0_1) in
+    {67}event NegotiatedByResponder(claimedPk_1,pk(skB0_1),chosen_2);
+    {68}out(c, ackEnv_2);
+    {69}let exporter_2: bitstring = h(cat2(pk2bs(claimedPk_1),pk2bs(pk(skB0_1)))) in
+    {70}let th_2: bitstring = h(cat2(helloEnv_2,ackEnv_2)) in
+    {71}let cb_2: bitstring = kdf(th_2,exporter_2) in
+    {72}in(c, sealedEnv_2: bitstring);
+    {73}let sealedBody_2: bitstring = getmess(sealedEnv_2) in
+    {74}let cat3(=tagMsg,cbIn_1: bitstring,payload_2: bitstring) = sealedBody_2 in
+    {75}if (cbIn_1 = cb_2) then
+    {76}let chk2_1: bitstring = checksign(sealedEnv_2,claimedPk_1) in
+    {77}if (chk2_1 = sealedBody_2) then
+    {78}event EnvelopeAccepted(claimedPk_1,pk(skB0_1),cb_2,payload_2)
+)
+
+--  Process 1 (that is, process 0, with let moved downwards):
+{1}out(c, pk(skA));
+{2}out(c, pk(skB));
+{3}new skC: skey;
+{4}out(c, skC);
+{5}out(c, pk(skC));
+(
+    {6}!
+    {9}new msgidH: bitstring;
+    {10}new sidA: bitstring;
+    {7}let skA0: skey = skA in
+    {11}let helloBody: bitstring = cat5(tagHello,pk(skA0),offerBoth,msgidH,sidA) in
+    {12}let helloEnv: bitstring = sign(helloBody,skA0) in
+    {13}out(c, helloEnv);
+    {14}in(c, ackEnv: bitstring);
+    {15}let ackBody: bitstring = getmess(ackEnv) in
+    {16}let cat5(=tagAck,ackerPk: pkey,chosen: bitstring,=msgidH,sidEchoed: bitstring) = ackBody in
+    {17}let chk: bitstring = checksign(ackEnv,ackerPk) in
+    {18}if (chk = ackBody) then
+    {8}let pkB: pkey = pk(skB) in
+    {19}if (ackerPk = pkB) then
+    {20}if (sidEchoed = sidA) then
+    {24}event NegotiatedByInitiator(pk(skA0),pkB,chosen);
+    {22}let th: bitstring = h(cat2(helloEnv,ackEnv)) in
+    {21}let exporter: bitstring = h(cat2(pk2bs(pk(skA0)),pk2bs(pkB))) in
+    {23}let cb: bitstring = kdf(th,exporter) in
+    {25}event SessionComplete(pk(skA0),pkB,cb);
+    {26}new payload: bitstring;
+    {29}event EnvelopeSealed(pk(skA0),pkB,cb,payload);
+    {27}let sealedBody: bitstring = cat3(tagMsg,cb,payload) in
+    {28}let sealedEnv: bitstring = sign(sealedBody,skA0) in
+    {30}out(c, sealedEnv)
+) | (
+    {31}!
+    {34}in(c, helloEnv_1: bitstring);
+    {35}let helloBody_1: bitstring = getmess(helloEnv_1) in
+    {36}let cat5(=tagHello,claimedPk: pkey,offered: bitstring,msgidH_1: bitstring,sidA_1: bitstring) = helloBody_1 in
+    {33}let expectedPeer: pkey = pk(skA) in
+    {37}if (claimedPk = expectedPeer) then
+    {38}let chk_1: bitstring = checksign(helloEnv_1,claimedPk) in
+    {39}if (chk_1 = helloBody_1) then
+    {40}let chosen_1: bitstring = (if (offered = offerBoth) then v2 else v1) in
+    {32}let skB0: skey = skB in
+    {43}event NegotiatedByResponder(claimedPk,pk(skB0),chosen_1);
+    {41}let ackBody_1: bitstring = cat5(tagAck,pk(skB0),chosen_1,msgidH_1,sidA_1) in
+    {42}let ackEnv_1: bitstring = sign(ackBody_1,skB0) in
+    {44}out(c, ackEnv_1);
+    {48}in(c, sealedEnv_1: bitstring);
+    {49}let sealedBody_1: bitstring = getmess(sealedEnv_1) in
+    {50}let cat3(=tagMsg,cbIn: bitstring,payload_1: bitstring) = sealedBody_1 in
+    {46}let th_1: bitstring = h(cat2(helloEnv_1,ackEnv_1)) in
+    {45}let exporter_1: bitstring = h(cat2(pk2bs(claimedPk),pk2bs(pk(skB0)))) in
+    {47}let cb_1: bitstring = kdf(th_1,exporter_1) in
+    {51}if (cbIn = cb_1) then
+    {52}let chk2: bitstring = checksign(sealedEnv_1,claimedPk) in
+    {53}if (chk2 = sealedBody_1) then
+    {54}event EnvelopeAccepted(claimedPk,pk(skB0),cb_1,payload_1)
+) | (
+    {55}!
+    {58}in(c, helloEnv_2: bitstring);
+    {59}let helloBody_2: bitstring = getmess(helloEnv_2) in
+    {60}let cat5(=tagHello,claimedPk_1: pkey,offered_1: bitstring,msgidH_2: bitstring,sidA_2: bitstring) = helloBody_2 in
+    {57}let expectedPeer_1: pkey = pk(skC) in
+    {61}if (claimedPk_1 = expectedPeer_1) then
+    {62}let chk_2: bitstring = checksign(helloEnv_2,claimedPk_1) in
+    {63}if (chk_2 = helloBody_2) then
+    {64}let chosen_2: bitstring = (if (offered_1 = offerBoth) then v2 else v1) in
+    {56}let skB0_1: skey = skB in
+    {67}event NegotiatedByResponder(claimedPk_1,pk(skB0_1),chosen_2);
+    {65}let ackBody_2: bitstring = cat5(tagAck,pk(skB0_1),chosen_2,msgidH_2,sidA_2) in
+    {66}let ackEnv_2: bitstring = sign(ackBody_2,skB0_1) in
+    {68}out(c, ackEnv_2);
+    {72}in(c, sealedEnv_2: bitstring);
+    {73}let sealedBody_2: bitstring = getmess(sealedEnv_2) in
+    {74}let cat3(=tagMsg,cbIn_1: bitstring,payload_2: bitstring) = sealedBody_2 in
+    {70}let th_2: bitstring = h(cat2(helloEnv_2,ackEnv_2)) in
+    {69}let exporter_2: bitstring = h(cat2(pk2bs(claimedPk_1),pk2bs(pk(skB0_1)))) in
+    {71}let cb_2: bitstring = kdf(th_2,exporter_2) in
+    {75}if (cbIn_1 = cb_2) then
+    {76}let chk2_1: bitstring = checksign(sealedEnv_2,claimedPk_1) in
+    {77}if (chk2_1 = sealedBody_2) then
+    {78}event EnvelopeAccepted(claimedPk_1,pk(skB0_1),cb_2,payload_2)
+)
+
+-- Query event(NegotiatedByInitiator(pkA,pkB_1,v)) ==> v = v2[] in process 1.
+Translating the process into Horn clauses...
+Completing...
+Starting query event(NegotiatedByInitiator(pkA,pkB_1,v)) ==> v = v2[]
+goal reachable: event(NegotiatedByInitiator(pk(skA[]),pk(skB[]),v1[]))
+
+Derivation:
+Abbreviations:
+msgidH_3 = msgidH[!1 = @sid]
+sidA_3 = sidA[!1 = @sid]
+
+1. The message skC[] may be sent to the attacker at output {4}.
+attacker(skC[]).
+
+2. The message sign(cat5(tagHello[],pk(skA[]),offerBoth[],msgidH_3,sidA_3),skA[]) may be sent to the attacker at output {13}.
+attacker(sign(cat5(tagHello[],pk(skA[]),offerBoth[],msgidH_3,sidA_3),skA[])).
+
+3. By 2, the attacker may know sign(cat5(tagHello[],pk(skA[]),offerBoth[],msgidH_3,sidA_3),skA[]).
+Using the function getmess the attacker may obtain cat5(tagHello[],pk(skA[]),offerBoth[],msgidH_3,sidA_3).
+attacker(cat5(tagHello[],pk(skA[]),offerBoth[],msgidH_3,sidA_3)).
+
+4. By 3, the attacker may know cat5(tagHello[],pk(skA[]),offerBoth[],msgidH_3,sidA_3).
+Using the function 5-proj-cat5 the attacker may obtain sidA_3.
+attacker(sidA_3).
+
+5. By 3, the attacker may know cat5(tagHello[],pk(skA[]),offerBoth[],msgidH_3,sidA_3).
+Using the function 4-proj-cat5 the attacker may obtain msgidH_3.
+attacker(msgidH_3).
+
+6. The attacker has some term offered_2.
+attacker(offered_2).
+
+7. By 1, the attacker may know skC[].
+Using the function pk the attacker may obtain pk(skC[]).
+attacker(pk(skC[])).
+
+8. The attacker initially knows tagHello[].
+attacker(tagHello[]).
+
+9. By 8, the attacker may know tagHello[].
+By 7, the attacker may know pk(skC[]).
+By 6, the attacker may know offered_2.
+By 5, the attacker may know msgidH_3.
+By 4, the attacker may know sidA_3.
+Using the function cat5 the attacker may obtain cat5(tagHello[],pk(skC[]),offered_2,msgidH_3,sidA_3).
+attacker(cat5(tagHello[],pk(skC[]),offered_2,msgidH_3,sidA_3)).
+
+10. By 9, the attacker may know cat5(tagHello[],pk(skC[]),offered_2,msgidH_3,sidA_3).
+By 1, the attacker may know skC[].
+Using the function sign the attacker may obtain sign(cat5(tagHello[],pk(skC[]),offered_2,msgidH_3,sidA_3),skC[]).
+attacker(sign(cat5(tagHello[],pk(skC[]),offered_2,msgidH_3,sidA_3),skC[])).
+
+11. The message sign(cat5(tagHello[],pk(skC[]),offered_2,msgidH_3,sidA_3),skC[]) that the attacker may have by 10 may be received at input {58}.
+We have offered_2 ≠ offerBoth[].
+So the message sign(cat5(tagAck[],pk(skB[]),v1[],msgidH_3,sidA_3),skB[]) may be sent to the attacker at output {68}.
+attacker(sign(cat5(tagAck[],pk(skB[]),v1[],msgidH_3,sidA_3),skB[])).
+
+12. The message sign(cat5(tagAck[],pk(skB[]),v1[],msgidH_3,sidA_3),skB[]) that the attacker may have by 11 may be received at input {14}.
+So event NegotiatedByInitiator(pk(skA[]),pk(skB[]),v1[]) may be executed at {24}.
+event(NegotiatedByInitiator(pk(skA[]),pk(skB[]),v1[])).
+
+13. By 12, event(NegotiatedByInitiator(pk(skA[]),pk(skB[]),v1[])).
+The goal is reached, represented in the following fact:
+event(NegotiatedByInitiator(pk(skA[]),pk(skB[]),v1[])).
+
+
+A more detailed output of the traces is available with
+  set traceDisplay = long.
+
+out(c, ~M) with ~M = pk(skA) at {1}
+
+out(c, ~M_1) with ~M_1 = pk(skB) at {2}
+
+new skC: skey creating skC_1 at {3}
+
+out(c, ~M_2) with ~M_2 = skC_1 at {4}
+
+out(c, ~M_3) with ~M_3 = pk(skC_1) at {5}
+
+new msgidH: bitstring creating msgidH_4 at {9} in copy a
+
+new sidA: bitstring creating sidA_4 at {10} in copy a
+
+out(c, ~M_4) with ~M_4 = sign(cat5(tagHello,pk(skA),offerBoth,msgidH_4,sidA_4),skA) at {13} in copy a
+
+in(c, sign(cat5(tagHello,pk(~M_2),a_1,4-proj-cat5(getmess(~M_4)),5-proj-cat5(getmess(~M_4))),~M_2)) with sign(cat5(tagHello,pk(~M_2),a_1,4-proj-cat5(getmess(~M_4)),5-proj-cat5(getmess(~M_4))),~M_2) = sign(cat5(tagHello,pk(skC_1),a_1,msgidH_4,sidA_4),skC_1) at {58} in copy a_2
+
+event NegotiatedByResponder(pk(skC_1),pk(skB),v1) at {67} in copy a_2
+
+out(c, ~M_5) with ~M_5 = sign(cat5(tagAck,pk(skB),v1,msgidH_4,sidA_4),skB) at {68} in copy a_2
+
+in(c, ~M_5) with ~M_5 = sign(cat5(tagAck,pk(skB),v1,msgidH_4,sidA_4),skB) at {14} in copy a
+
+event NegotiatedByInitiator(pk(skA),pk(skB),v1) at {24} in copy a (goal)
+
+The event NegotiatedByInitiator(pk(skA),pk(skB),v1) is executed at {24} in copy a.
+A trace has been found.
+RESULT event(NegotiatedByInitiator(pkA,pkB_1,v)) ==> v = v2[] is false.
+
+--------------------------------------------------------------
+Verification summary:
+
+Query event(NegotiatedByInitiator(pkA,pkB_1,v)) ==> v = v2[] is false.
+
+--------------------------------------------------------------
+

@@ -45,16 +45,18 @@ impl From<CborError> for MeterError {
 
 /// CBOR decimal fraction (tag 4): value = mantissa × 10^exponent.
 ///
-/// Layer rule M-4 makes amounts non-negative (reviewer finding R4-01); the
-/// mantissa type and decoder enforce that in P3.
+/// Layer rule M-4: amounts are non-negative. The mantissa is a `u64`, so a
+/// negative amount is unrepresentable, and the decoder rejects a negative
+/// mantissa on the wire. In v1 a negative amount moved funds from payee to
+/// payer (reviewer finding R4-01).
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct Amount {
     pub exponent: i32,
-    pub mantissa: i64,
+    pub mantissa: u64,
 }
 
 impl Amount {
-    pub fn new(exponent: i32, mantissa: i64) -> Self {
+    pub fn new(exponent: i32, mantissa: u64) -> Self {
         Amount { exponent, mantissa }
     }
 
@@ -63,7 +65,7 @@ impl Amount {
             4,
             Box::new(Value::Array(vec![
                 Value::int(self.exponent as i64),
-                Value::int(self.mantissa),
+                Value::Uint(self.mantissa),
             ])),
         )
     }
@@ -80,18 +82,15 @@ impl Amount {
             .as_i128()
             .and_then(|x| i32::try_from(x).ok())
             .ok_or(MeterError::BadAmount)?;
-        let mantissa = m
-            .as_i128()
-            .and_then(|x| i64::try_from(x).ok())
-            .ok_or(MeterError::BadAmount)?;
+        // as_uint() is None for a negative integer: M-4 rejection.
+        let mantissa = m.as_uint().ok_or(MeterError::BadAmount)?;
         Ok(Amount { exponent, mantissa })
     }
 }
 
 impl fmt::Display for Amount {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let neg = self.mantissa < 0;
-        let digits = self.mantissa.unsigned_abs().to_string();
+        let digits = self.mantissa.to_string();
         let body = if self.exponent >= 0 {
             format!("{digits}{}", "0".repeat(self.exponent as usize))
         } else {
@@ -103,7 +102,7 @@ impl fmt::Display for Amount {
                 format!("0.{}{}", "0".repeat(frac - digits.len()), digits)
             }
         };
-        write!(f, "{}{}", if neg { "-" } else { "" }, body)
+        write!(f, "{body}")
     }
 }
 
@@ -162,40 +161,8 @@ pub const UNIT_TOKEN_OUT: u64 = 2;
 pub const UNIT_MS: u64 = 3;
 pub const UNIT_INVOCATION: u64 = 4;
 
-/// Cumulative usage since task start (layer §6.1 `Usage`; CheckpointCore key
-/// 6, ReceiptCore key 8).
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
-pub struct Usage {
-    pub tokens_in: u64,  // 1
-    pub tokens_out: u64, // 2
-    pub ttft_ms: u64,    // 3
-    pub wall_ms: u64,    // 4
-}
-
-impl Usage {
-    pub fn to_value(&self) -> Value {
-        Value::Map(vec![
-            (Value::Uint(1), Value::Uint(self.tokens_in)),
-            (Value::Uint(2), Value::Uint(self.tokens_out)),
-            (Value::Uint(3), Value::Uint(self.ttft_ms)),
-            (Value::Uint(4), Value::Uint(self.wall_ms)),
-        ])
-    }
-    pub fn from_value(v: &Value) -> Result<Usage, MeterError> {
-        let uint = |k: u64| {
-            v.map_get(k)
-                .ok_or(MeterError::MissingField(k))?
-                .as_uint()
-                .ok_or(MeterError::BadField(k))
-        };
-        Ok(Usage {
-            tokens_in: uint(1)?,
-            tokens_out: uint(2)?,
-            ttft_ms: uint(3)?,
-            wall_ms: uint(4)?,
-        })
-    }
-}
+/// Cumulative usage since task start (layer §6.1), shared with checkpoints.
+pub use map_core::Usage;
 
 /// Why a price could not be computed exactly.
 #[derive(Debug, PartialEq, Eq)]
@@ -220,15 +187,15 @@ fn rate(table: &[(u64, AssetAmount)], unit: u64) -> Result<&AssetAmount, Billing
         .ok_or(BillingError::MissingRate(unit))
 }
 
-/// Exact `counter × mantissa` in i128 (the final mantissa is range-checked).
-fn term(counter: u64, mantissa: i64) -> Result<i128, BillingError> {
-    (counter as i128)
-        .checked_mul(mantissa as i128)
+/// Exact `counter × mantissa` in u128 (the final mantissa is range-checked).
+fn term(counter: u64, mantissa: u64) -> Result<u128, BillingError> {
+    (counter as u128)
+        .checked_mul(mantissa as u128)
         .ok_or(BillingError::Overflow)
 }
 
-fn make(exponent: i32, asset: &Asset, total: i128) -> Result<AssetAmount, BillingError> {
-    let mantissa = i64::try_from(total).map_err(|_| BillingError::Overflow)?;
+fn make(exponent: i32, asset: &Asset, total: u128) -> Result<AssetAmount, BillingError> {
+    let mantissa = u64::try_from(total).map_err(|_| BillingError::Overflow)?;
     Ok(AssetAmount { asset: asset.clone(), amount: Amount::new(exponent, mantissa) })
 }
 
@@ -259,7 +226,7 @@ pub fn billed(model: u64, rate_table: &[(u64, AssetAmount)], usage: &Usage) -> R
         }
         3 => {
             let r = rate(rate_table, UNIT_INVOCATION)?;
-            make(r.amount.exponent, &r.asset, r.amount.mantissa as i128) // one invocation
+            make(r.amount.exponent, &r.asset, r.amount.mantissa as u128) // one invocation
         }
         other => Err(BillingError::UnsupportedModel(other)),
     }
@@ -273,7 +240,7 @@ mod tests {
     fn amount_display_and_roundtrip() {
         let cases = [
             (Amount::new(-2, 1995), "19.95"),
-            (Amount::new(-2, -5), "-0.05"),
+            (Amount::new(-2, 5), "0.05"),
             (Amount::new(0, 42), "42"),
             (Amount::new(3, 5), "5000"),
             (Amount::new(-4, 12), "0.0012"),
@@ -283,6 +250,13 @@ mod tests {
             assert_eq!(Amount::from_value(&a.to_value()).unwrap(), a);
         }
         assert!(Amount::from_value(&Value::Uint(5)).is_err());
+    }
+
+    /// M-4 / R4-01: a negative mantissa on the wire is rejected, never decoded.
+    #[test]
+    fn negative_amount_is_rejected() {
+        let neg = Value::Tag(4, Box::new(Value::Array(vec![Value::int(-2), Value::int(-5)])));
+        assert_eq!(Amount::from_value(&neg), Err(MeterError::BadAmount));
     }
 
     #[test]
@@ -298,10 +272,10 @@ mod tests {
         let u = Usage { tokens_in: 1, tokens_out: 2, ttft_ms: 3, wall_ms: 4 };
         assert_eq!(Usage::from_value(&u.to_value()).unwrap(), u);
         let partial = Value::Map(vec![(Value::Uint(1), Value::Uint(1))]);
-        assert_eq!(Usage::from_value(&partial), Err(MeterError::MissingField(2)));
+        assert_eq!(Usage::from_value(&partial), Err(2)); // first missing key
     }
 
-    fn micro(mantissa: i64) -> AssetAmount {
+    fn micro(mantissa: u64) -> AssetAmount {
         AssetAmount { asset: Asset::new("iso4217:USD").unwrap(), amount: Amount::new(-6, mantissa) }
     }
     /// 3000 µUSD/token-in, 5000 µUSD/token-out (the v1 TV-016 rate table).
@@ -345,7 +319,7 @@ mod tests {
 
     #[test]
     fn overflow_is_checked_not_wrapped() {
-        let huge = vec![(UNIT_MS, micro(i64::MAX))];
+        let huge = vec![(UNIT_MS, micro(u64::MAX))];
         let u = Usage { wall_ms: u64::MAX, ..Default::default() };
         assert_eq!(billed(2, &huge, &u), Err(BillingError::Overflow));
     }

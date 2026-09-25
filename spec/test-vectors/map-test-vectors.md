@@ -615,3 +615,36 @@ Discovery sharding for Key B (discovery §6, first byte of SHA-256(AgentID)):
 Transcript root over the single TV-008 output chunk (tasks §8.1), raw 32-byte
 Merkle root (the TranscriptBuilder value; wrapped as Multihash in TV-009):
   26a28c001fea45e5ab8733bfd81a09d07d5f130484ff32fdb9439b281edba375
+
+## TV-021 — CheckpointArtifact, dual-signed (layer §7.1)
+
+Transcript prefix (layer §5): three kind-0 leaves, seq 0..2, contents the
+UTF-8 strings "Hello, ", "accountable ", "MAP!". Transcript root (raw 32
+bytes; CheckpointCore key 5 carries it as Multihash 0x1220 || root):
+  58645bced4dda22d9f550048166da94e3f61bbb563cf589ddb6b14d795eab74b
+
+CheckpointCore: task = TV-002's TaskID, requester = Key A, provider = Key B,
+through-seq 2, usage {1: 10, 2: 3, 3: 120, 4: 900}, zone 2, timestamp
+1780000000900. Signing input for role r: enc(["MAPCheckpoint", r, core-bytes]);
+role 1 = Key A (requester countersignature), role 2 = Key B (provider).
+
+core bytes (hex, 174 bytes):
+  a8015820d06d15802fbb8ac7c5b07129175d7b461c8e74b69ca0ad7b7a84f890c0f05e25025822ed0165c883140cbc33dcf60c2fee834eb54fc90dcc2a9cb724472f0ff287a9bface1035822ed01c93c1b6a4ec188ddaf89164b788a66d375dca5169d05ba1b26b676204a00459d0402055822122058645bced4dda22d9f550048166da94e3f61bbb563cf589ddb6b14d795eab74b06a4010a0203031878041903840702081b0000019e70448b84
+
+artifact {1: core-bytes, 2: sig_req, 3: sig_prov} (hex, 312 bytes):
+  a30158aea8015820d06d15802fbb8ac7c5b07129175d7b461c8e74b69ca0ad7b7a84f890c0f05e25025822ed0165c883140cbc33dcf60c2fee834eb54fc90dcc2a9cb724472f0ff287a9bface1035822ed01c93c1b6a4ec188ddaf89164b788a66d375dca5169d05ba1b26b676204a00459d0402055822122058645bced4dda22d9f550048166da94e3f61bbb563cf589ddb6b14d795eab74b06a4010a0203031878041903840702081b0000019e70448b84025840f7679fc3844481073d9cfa345744eb48ba47825f2d127f80b86ef97215b78892388d5dc42a46c570dd832bfc2a3bb66ebd39123ef69487b3548bd93d14a02104035840cb13bb1f74d817050ab239c56ac326ab866a2654e4aeb894016cf11dad12bf8333616acd53b1e8c891397967537df78e4507ad6bc550d39aaca53d565f07bc05
+
+## Negative vectors (v2)
+
+### NV-013 — checkpoint with a corrupted requester countersignature → reject
+TV-021 with the first byte of sig_req flipped. The provider signature is
+valid; the artifact is not a valid resumption point (layer C-2 / R-1).
+artifact (hex, 312 bytes):
+  a30158aea8015820d06d15802fbb8ac7c5b07129175d7b461c8e74b69ca0ad7b7a84f890c0f05e25025822ed0165c883140cbc33dcf60c2fee834eb54fc90dcc2a9cb724472f0ff287a9bface1035822ed01c93c1b6a4ec188ddaf89164b788a66d375dca5169d05ba1b26b676204a00459d0402055822122058645bced4dda22d9f550048166da94e3f61bbb563cf589ddb6b14d795eab74b06a4010a0203031878041903840702081b0000019e70448b84025840f6679fc3844481073d9cfa345744eb48ba47825f2d127f80b86ef97215b78892388d5dc42a46c570dd832bfc2a3bb66ebd39123ef69487b3548bd93d14a02104035840cb13bb1f74d817050ab239c56ac326ab866a2654e4aeb894016cf11dad12bf8333616acd53b1e8c891397967537df78e4507ad6bc550d39aaca53d565f07bc05
+
+### NV-014 — dual-signed checkpoint whose root does not match the prefix → reject resume
+Both signatures are valid, but key 5 carries TV-021's root with its last byte
+flipped. Resuming from it against TV-021's transcript prefix MUST fail
+(layer §7.4 step 2: the successor recomputes the root and rejects).
+artifact (hex, 312 bytes):
+  a30158aea8015820d06d15802fbb8ac7c5b07129175d7b461c8e74b69ca0ad7b7a84f890c0f05e25025822ed0165c883140cbc33dcf60c2fee834eb54fc90dcc2a9cb724472f0ff287a9bface1035822ed01c93c1b6a4ec188ddaf89164b788a66d375dca5169d05ba1b26b676204a00459d0402055822122058645bced4dda22d9f550048166da94e3f61bbb563cf589ddb6b14d795eab74a06a4010a0203031878041903840702081b0000019e70448b84025840ad538736234463b5b58f707d3fc4a44ce1dd133cc92d6ac581df30e76f01b71f4de0ccc93832aca93ec66b84dc4fe399aa4003f527957a8fa8e626ba5105a30003584039f4c0b0e819345a142a609614997b90922414b0bcc2f63d48783fb9b472884b7675695d6ee268205e3a2e9e617ee285684611321ab25870881f83c544e22000

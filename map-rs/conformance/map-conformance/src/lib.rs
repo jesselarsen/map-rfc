@@ -11,11 +11,13 @@
 //! re-serializing before verification, that is a critical map-core bug (§11):
 //! stop and escalate, do not adapt the vector.
 
+pub mod checkpoint;
 pub mod extended;
 pub mod negative;
 pub mod positive;
 pub mod vectors;
 pub mod vectors2;
+pub mod vectors3;
 
 /// Programmatic result for a future CLI/CI (FR-7).
 #[derive(Debug, Default)]
@@ -63,6 +65,11 @@ pub fn cases() -> Vec<(&'static str, fn() -> Result<(), String>)> {
         ("NV-003 non-canonical", extended::case_nv003_non_canonical),
         ("NV-004 stale seq", extended::case_nv004_stale_seq),
         ("NV-005 swapped sigs", extended::case_nv005_swapped_sigs),
+        // v2 (layer §7): countersigned checkpoints and resumption.
+        ("TV-021 CheckpointArtifact produce", checkpoint::case_tv021_produce),
+        ("TV-021 CheckpointArtifact consume", checkpoint::case_tv021_consume),
+        ("NV-013 bad countersignature", checkpoint::case_nv013_bad_countersig),
+        ("NV-014 root mismatch on resume", checkpoint::case_nv014_root_mismatch),
     ]
 }
 
@@ -146,6 +153,10 @@ mod tests {
     case_test!(nv003_non_canonical, extended::case_nv003_non_canonical);
     case_test!(nv004_stale_seq, extended::case_nv004_stale_seq);
     case_test!(nv005_swapped_sigs, extended::case_nv005_swapped_sigs);
+    case_test!(tv021_produce, checkpoint::case_tv021_produce);
+    case_test!(tv021_consume, checkpoint::case_tv021_consume);
+    case_test!(nv013_bad_countersig, checkpoint::case_nv013_bad_countersig);
+    case_test!(nv014_root_mismatch, checkpoint::case_nv014_root_mismatch);
 
     #[test]
     fn run_all_is_green_and_complete() {
@@ -155,7 +166,7 @@ mod tests {
             "conformance failures: {:?}",
             report.failed
         );
-        assert_eq!(report.passed.len(), 24);
-        assert_eq!(report.total(), 24);
+        assert_eq!(report.passed.len(), 28);
+        assert_eq!(report.total(), 28);
     }
 }

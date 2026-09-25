@@ -1725,6 +1725,7 @@ name = "map-transcript"
 version = "0.1.0"
 dependencies = [
  "map-core",
+ "map-identity",
  "sha2",
 ]
 
