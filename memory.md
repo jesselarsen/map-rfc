@@ -336,6 +336,76 @@ commit). The gate is `pwsh interop/run-matrix.ps1`: **28/28** with
 - **Next: P6** (map-sim harness), then P7 experiments. D5/D7 are still
   open.
 
+**P6 status (2026-09-26): DONE.** Commits: 2185eac P6a (pre-registration,
+tag `prereg-v1`), 65aa368 P6b, b08df48 P6c, and the P6d commit.
+- **Pre-registration:** `eval/HYPOTHESES.md` was committed and tagged
+  BEFORE any simulator code. It changes only by appending Amendments.
+  A1-A3 so far:
+  - A1: E1 uses `--fast-crypto`, backed by the realcheck real = fast;
+  - A2: every E1 arm gets fallback ≤ 3;
+  - A3: B1 keeps decay and the cap.
+- **map-sim** (`map-rs/sim`):
+  - a deterministic DES; the CSV is byte-identical at any thread count;
+  - fast crypto equals real crypto, enforced by tests;
+  - scenarios f1, e1, e2, e3a, e3b, e3c, e3d, e4;
+  - `eval/run_all.ps1` runs everything, then `REPORT.md` and figs;
+  - `eval/analysis` is pinned (numpy 2.5.3, matplotlib 3.11.2).
+- **Real-crate changes:**
+  - map-trust `admissible()` extracted, and apply calls it;
+  - map-transcript `TranscriptBuilder::root()` is now O(log n) via a
+    frontier; it was O(n) per call, O(L²/c) per task.
+- **F1 = 2603.03753 re-implemented** from their v0.3.10 source (read, not
+  run). The published Fig. 5a is reproduced within ±0.05 at every point
+  (max |diff| 0.024, 60 seeds).
+  - **Finding:** their "trust" is a SELF-REPORTED descriptor hint, and
+    Risk-Aware is a memoryless canary. The plan's B2 (receipts + ledger)
+    was their prose, not their evaluation, so it is now two arms: B2 and
+    B2L.
+- **Previews** (NOT results; these are why the rules are pre-registered):
+  - F1-b: MAP+RA ≫ RA at 3600 s, no gain at 60 s (as predicted).
+  - F1-b: MAP-only collapses under whitewashing. Honest providers failing
+    50% of the time score below the unknown prior of 0.5. This is a
+    genuine losing regime and argues for §8.5 risk-pricing of unknowns.
+  - E1: Ours-L(W0) may FAIL H1 (share 0.074 vs B1 0.088, B2 0.114 under
+    farming). Ours-L+C ≈ 0.007. W1/W2 cut the share about 60% vs W0.
+- **D5 rule flaw: REPAIRED by Amendment A4 (2026-09-27, author's
+  request).**
+  - The original tie clause ("<2 pp honest success → simpler") was nearly
+    always true, since fallback keeps success ≈ 0.99. It also picked W0
+    in one synthetic case where W0's success was 5 pp LOWER.
+  - The repaired rule takes the lowest-share arm. A simpler arm replaces
+    it only if its share CI overlaps AND its success is ≤ 2 pp below the
+    best's.
+  - `analyze.py` applies A4 and also prints the original wording's pick.
+  - A4 discloses the 2-seed plumbing numbers that were seen before it was
+    written (W0 0.081, W1 0.031, W2 0.029). On those numbers the repaired
+    rule picks W2, which makes e1_main slow (hours).
+  - A synthetic test checked the rule's three branches.
+- **A5:** e3b's grind rate is now 60,901/s (bench, one core), plus
+  EXPLORATORY `e3b_multicore.toml` at 16×.
+- **Benches (this box, 1 core):**
+  - keygen+shard 16.5 µs (≈ 60.5k IDs/s; a 16-core attacker ≈ 970k/s);
+  - dual receipt 129 µs;
+  - checkpoint cycle 126 µs;
+  - transcript push+root 1.3 µs.
+- **Lessons:**
+  - Plants must change an observable. "dual = OR" changed no
+    admissibility decision in F1 and passed unnoticed.
+  - `/tmp` differs between Windows exes and msys python; use the
+    scratchpad.
+  - Backslash escapes do not survive the Bash-heredoc → Python-string
+    path intact: a doubled backslash-n meant to stay literal is written
+    to the target file as a real newline. Use the Edit tool (or
+    `chr(92)`) for any text containing backslashes.
+- **P7 plan:**
+  1. `pwsh eval/run_all.ps1` (full; D5 about 13 min, dominated by W2).
+  2. Read the D5 winner (A4 rule) from REPORT.md and record it as an
+     Amendment (A6).
+  3. Set `e1_main.toml` weights, re-run e1_main (4/8 arms use weights;
+     about 45 min if W1, hours if W2).
+  4. (done: A5)
+  5. Read REPORT.md and report every verdict, including failures.
+
 ## 1. What this project is
 
 A standards-track-style specification family ("MAP") for a decentralized,

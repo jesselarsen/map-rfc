@@ -1,0 +1,10 @@
+# E3a shard-flood poisoning (H3): attacker share with and without the D-6 filter.
+scenario = "e3a"
+seeds = 20
+[params]
+r = 3
+queries = 200
+[sweep]
+n = [1000, 10000]
+a = [0.01, 0.05, 0.1]
+filter = ["off", "on"]

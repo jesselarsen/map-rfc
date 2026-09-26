@@ -1,6 +1,7 @@
 # F1-a: replication of arXiv:2603.03753 Fig. 5(a) (eval/HYPOTHESES.md).
 # Parameters from agentic_p2p_sim v0.3.10 results/_tmp_cfg_fig5_a_*.json.
 scenario = "f1"
+name = "f1a"
 seeds = 60
 
 [params]

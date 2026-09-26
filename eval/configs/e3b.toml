@@ -1,0 +1,12 @@
+# E3b identity grinding into a target shard, fixed shard() vs epoch-salted
+# shard_e() (D-8). grind_rate_per_s = one core's keygen+shard rate measured
+# by the criterion bench (keygen_shard 16.42 us -> 60,901/s; Amendment A5).
+scenario = "e3b"
+seeds = 20
+[params]
+grind_rate_per_s = 60901.0
+samples = 20000
+[sweep]
+n = [1000.0, 10000.0, 100000.0]
+window_s = [3600.0, 86400.0, 604800.0]
+epoch_s = [0.0, 3600.0, 86400.0]

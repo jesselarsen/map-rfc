@@ -327,3 +327,38 @@ Appended after `prereg-v1`. The text above this section is unchanged.
 - That test caught one bug before any E1 output was examined: the
   per-issuer cap was applied before the issuer weight instead of after,
   as `TrustProjection` does. The fix came before the first E1 run.
+
+**A4 (2026-09-27, repair of the D5 decision rule; requested by the author).**
+- *Flaw:* the rule's tie clause ("… or differ by < 2 percentage points of
+  honest success, choose the simpler one") is satisfied almost always in
+  E1. Every arm has the same fallback (A2), so honest success sits near
+  0.99 for all three weightings. The clause therefore returns W0
+  regardless of attacker share, which defeats the rule's stated purpose
+  ("the arm with the lowest steady-state attacker share").
+- *What was seen before this amendment:* a 2-seed plumbing run
+  (`run_all.ps1 -Quick`, seeds 0–1, not a result). Its mean steady-state
+  attacker share over the seven attacks at α = 0.2 was W0 0.081, W1
+  0.031, W2 0.029; honest success was 0.993, 0.998, 0.998. The literal
+  rule picked W0. We disclose these numbers because the amendment was
+  written after seeing them.
+- *Repaired rule:* take the W arm with the lowest steady-state attacker
+  share (mean over the seven attacks at α = 0.2, 20 seeds, bootstrap CI).
+  Choose a simpler arm (W0 < W1 < W2) instead only if **both** hold:
+  - its share CI overlaps the best arm's share CI;
+  - its honest success is not more than 2 percentage points below the
+    best arm's.
+
+  Honest success thus becomes a guard against a harmful choice, not a
+  reason to prefer simplicity.
+- `analyze.py` applies the repaired rule and also prints the winner under
+  the original wording, so both are on record. The paper reports the
+  repaired rule as a post-hoc amendment.
+
+**A5 (2026-09-27, E3b grinding rate).**
+- As planned in the e3b config, `grind_rate_per_s` is set to this
+  machine's criterion measurement: `keygen_shard` at 16.42 µs per attempt
+  on one core, so 60 901 attempts/s. The reviewer measured 59 778.
+- *Exploratory addition, not a hypothesis:*
+  `configs/e3b_multicore.toml` repeats E3b at 16 × that rate, one
+  commodity 16-core machine. The pre-registered single-core figure
+  understates a realistic attacker; the paper reports both.

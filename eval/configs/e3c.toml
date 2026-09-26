@@ -1,0 +1,13 @@
+# E3c Kademlia lookups under colluding malicious routers: 1 path vs 3
+# disjoint paths (D-9), with churn.
+scenario = "e3c"
+seeds = 20
+[params]
+k = 20
+alpha = 3
+lookups = 200
+[sweep]
+n = [1000, 10000, 100000]
+churn = [0.0, 0.1, 0.3]
+f_malicious = [0.0, 0.1, 0.2, 0.3]
+paths = [1, 3]

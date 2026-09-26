@@ -1,5 +1,6 @@
 # F1-b: MAP evidence arms in 2603.03753's scenario (eval/HYPOTHESES.md).
 scenario = "f1"
+name = "f1b"
 seeds = 60
 
 [params]

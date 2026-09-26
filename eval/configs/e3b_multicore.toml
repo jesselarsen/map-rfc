@@ -1,0 +1,11 @@
+# EXPLORATORY (Amendment A5, not a hypothesis): E3b at 16 cores of grinding.
+scenario = "e3b"
+name = "e3b-multicore"
+seeds = 20
+[params]
+grind_rate_per_s = 974416.0
+samples = 20000
+[sweep]
+n = [1000.0, 10000.0, 100000.0]
+window_s = [3600.0, 86400.0, 604800.0]
+epoch_s = [0.0, 3600.0, 86400.0]

@@ -1,0 +1,11 @@
+# E3d volatile-plane staleness (H4): pull-on-demand vs descriptor-carried load.
+scenario = "e3d"
+seeds = 20
+[params]
+candidates = 10
+horizon_s = 3600.0
+query_rate = 1.0
+rtt_s = 0.1
+[sweep]
+rho = [0.5, 0.8]
+ttl_s = [10.0, 60.0, 600.0]

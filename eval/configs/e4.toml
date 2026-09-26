@@ -1,0 +1,9 @@
+# E4 metering on vouchers (H5-a asserted in code; H5-b from sig_ops x bench).
+scenario = "e4"
+seeds = 20
+[params]
+L = 1000
+prompt_tokens = 100
+[sweep]
+c = [1, 8, 32, 128]
+lambda_L = [0.0, 1.0]

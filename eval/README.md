@@ -1,0 +1,44 @@
+# eval/ — the pre-registered evaluation
+
+- [`HYPOTHESES.md`](HYPOTHESES.md) is the plan: F1 (replication of
+  arXiv:2603.03753 plus MAP arms in its scenario), E1 (trust under attack
+  and decision D5), E2 (checkpoint handoff), E3 (discovery), E4
+  (metering).
+  - It was committed and tagged `prereg-v1` before any simulator code
+    existed.
+  - Later changes appear only as dated entries under *Amendments*.
+- `configs/*.toml` holds one config per experiment. Each has a scenario,
+  a seed count, fixed `[params]` and a cartesian `[sweep]`.
+  - `smoke.toml` holds a few seconds of every scenario; its CSV hashes are
+    pinned in `smoke.golden`.
+- The simulator is `map-rs/sim` (crate `map-sim`): a deterministic
+  discrete-event engine over the real `map-*` crates.
+  - `cargo run -p map-sim --release -- <config.toml> --out DIR`
+    produces the same CSV bytes for the same config at any thread count.
+  - `--fast-crypto` skips Ed25519 signing and verification only.
+    `tests/golden.rs` and the E1 realcheck assert it changes no result.
+- `analysis/` (Python, pinned in `requirements.txt`):
+  - `analyze.py` applies every pre-registered decision rule to the CSVs
+    and writes `REPORT.md`;
+  - `make_figs.py` draws the figures;
+  - `stats.py` is the percentile bootstrap (10,000 resamples, seeds
+    resampled jointly for comparisons).
+
+## Reproduce
+
+```
+pwsh eval/run_all.ps1            # full run -> eval/results/<git-sha>/
+pwsh eval/run_all.ps1 -Quick     # 2 seeds per point: plumbing only, not a result
+```
+
+`run_all.ps1` does the following:
+1. builds `map-sim` and runs its release tests (golden hashes, fast = real,
+   E1 pool = `TrustProjection`);
+2. runs every config (E1 with `--fast-crypto`, per Amendment A1) and
+   re-checks the E1 realcheck;
+3. runs the Criterion benches (`map-rs/sim/benches/crypto.rs`) and copies
+   their estimates in;
+4. writes `REPORT.md` and `figs/`.
+
+`e1_main.toml` carries `weights = "D5_WINNER"` until the D5 decision has
+been made from `e1-d5.csv` and recorded as an Amendment.
