@@ -1,3 +1,5 @@
 # Shell scripts run under bash (WSL2 for the ProVerif models): keep LF endings
 # regardless of core.autocrlf, or bash fails on the CR characters.
 *.sh text eol=lf
+# Evaluation outputs are hashed byte-for-byte (env.json csv_sha256): never convert line endings.
+eval/results/** -text
