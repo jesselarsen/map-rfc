@@ -7,6 +7,7 @@ pub mod e2;
 pub mod e3;
 pub mod e4;
 pub mod kad;
+pub mod weights;
 pub mod f1;
 
 pub const ALL: &[Scenario] = &[

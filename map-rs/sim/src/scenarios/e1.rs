@@ -38,6 +38,7 @@
 use crate::config::Params;
 use crate::crypto::{receipt, CryptoMode, ReceiptSpec};
 use crate::rng::Rng;
+use crate::scenarios::weights;
 use map_core::Usage;
 use map_identity::Keypair;
 use map_trust::{admissible, Outcome, Verified};
@@ -254,30 +255,6 @@ impl Pool {
     }
 }
 
-/// Agreement between two issuers (W1): max(0, 1 − 2·MAD) over providers
-/// both hold ≥ 3 receipts for, requiring ≥ 3 such providers.
-fn agreement(x: &HashMap<u32, Cell>, y: &HashMap<u32, Cell>) -> f64 {
-    let (small, big) = if x.len() <= y.len() { (x, y) } else { (y, x) };
-    let (mut sum, mut k) = (0.0, 0u32);
-    for (p, cx) in small {
-        if cx.n < 3 {
-            continue;
-        }
-        if let Some(cy) = big.get(p) {
-            if cy.n >= 3 {
-                let rx = cx.a / (cx.a + cx.b);
-                let ry = cy.a / (cy.a + cy.b);
-                sum += (rx - ry).abs();
-                k += 1;
-            }
-        }
-    }
-    if k < 3 {
-        return 0.0;
-    }
-    (1.0 - 2.0 * sum / k as f64).max(0.0)
-}
-
 struct Provider {
     q: f64,
     adv: bool,
@@ -367,8 +344,8 @@ pub fn simulate(cfg: &Cfg, rng: &mut Rng, mode: CryptoMode, mut dump: Option<&mu
         if evidence_arm && matches!(cfg.arm, Arm::Ours | Arm::OursC | Arm::APrior | Arm::AUnilateral) {
             match cfg.weighting {
                 Weighting::W0 => {}
-                Weighting::W1 => recompute_w1(&pool, cfg.requesters, &mut wmap),
-                Weighting::W2 => recompute_w2(&pool, cfg.requesters, &mut wmap),
+                Weighting::W1 => wmap = weights::w1(&pool, cfg.requesters),
+                Weighting::W2 => wmap = weights::w2(&pool, cfg.requesters),
             }
         }
         gcache.clear();
@@ -567,93 +544,6 @@ fn issuer_weight(w: Weighting, o: u32, i: u32, wmap: &[HashMap<u32, f64>]) -> f6
     match w {
         Weighting::W0 => 0.0,
         Weighting::W1 | Weighting::W2 => wmap[o as usize].get(&i).copied().unwrap_or(0.0),
-    }
-}
-
-fn recompute_w1(pool: &Pool, requesters: usize, wmap: &mut [HashMap<u32, f64>]) {
-    let empty = HashMap::new();
-    for o in 0..requesters {
-        let mine = pool.cells.get(o).unwrap_or(&empty);
-        let mut m = HashMap::new();
-        if mine.values().filter(|c| c.n >= 3).count() >= 3 {
-            for (i, theirs) in pool.cells.iter().enumerate() {
-                if i == o {
-                    continue;
-                }
-                let a = agreement(mine, theirs);
-                if a > 0.0 {
-                    m.insert(i as u32, a);
-                }
-            }
-        }
-        wmap[o] = m;
-    }
-}
-
-/// W2: personalized PageRank (10 steps, restart 0.15 to the observer) over
-/// the row-normalized agreement graph among all issuers. Weight =
-/// min(1, t[i] / t[o]).
-fn recompute_w2(pool: &Pool, requesters: usize, wmap: &mut [HashMap<u32, f64>]) {
-    let n = pool.cells.len().max(requesters);
-    let empty = HashMap::new();
-    // Candidate pairs share a provider both hold >= 3 receipts for.
-    let mut by_p: HashMap<u32, Vec<u32>> = HashMap::new();
-    for i in 0..n {
-        for (p, c) in pool.cells.get(i).unwrap_or(&empty) {
-            if c.n >= 3 {
-                by_p.entry(*p).or_default().push(i as u32);
-            }
-        }
-    }
-    let mut pairs: HashMap<(u32, u32), ()> = HashMap::new();
-    let mut ps: Vec<&u32> = by_p.keys().collect();
-    ps.sort_unstable();
-    for p in ps {
-        let v = &by_p[p];
-        for x in 0..v.len() {
-            for y in x + 1..v.len() {
-                pairs.insert((v[x], v[y]), ());
-            }
-        }
-    }
-    let mut adj: Vec<Vec<(u32, f64)>> = vec![Vec::new(); n];
-    let mut keys: Vec<(u32, u32)> = pairs.into_keys().collect();
-    keys.sort_unstable();
-    for (x, y) in keys {
-        let a = agreement(pool.cells.get(x as usize).unwrap_or(&empty), pool.cells.get(y as usize).unwrap_or(&empty));
-        if a > 0.0 {
-            adj[x as usize].push((y, a));
-            adj[y as usize].push((x, a));
-        }
-    }
-    let row_sum: Vec<f64> = adj.iter().map(|e| e.iter().map(|(_, a)| a).sum()).collect();
-    for o in 0..requesters {
-        let mut t = vec![0.0; n];
-        t[o] = 1.0;
-        for _ in 0..10 {
-            let mut next = vec![0.0; n];
-            next[o] += 0.15;
-            for (i, ti) in t.iter().enumerate() {
-                if *ti == 0.0 || row_sum[i] == 0.0 {
-                    if *ti != 0.0 {
-                        next[o] += 0.85 * ti; // dangling mass returns to the observer
-                    }
-                    continue;
-                }
-                for (j, a) in &adj[i] {
-                    next[*j as usize] += 0.85 * ti * a / row_sum[i];
-                }
-            }
-            t = next;
-        }
-        let self_t = t[o];
-        let mut m = HashMap::new();
-        for (i, ti) in t.iter().enumerate() {
-            if i != o && *ti > 0.0 && self_t > 0.0 {
-                m.insert(i as u32, (ti / self_t).min(1.0));
-            }
-        }
-        wmap[o] = m;
     }
 }
 

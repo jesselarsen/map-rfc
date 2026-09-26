@@ -362,3 +362,24 @@ Appended after `prereg-v1`. The text above this section is unchanged.
   `configs/e3b_multicore.toml` repeats E3b at 16 × that rate, one
   commodity 16-core machine. The pre-registered single-core figure
   understates a realistic attacker; the paper reports both.
+
+**A6 (2026-09-27, the D5 decision).**
+- Run at commit 9a4a968: `eval/results/9a4a968/e1-d5.csv`, 20 seeds, α =
+  0.2, all seven attacks. Mean steady-state attacker share: W0 0.0796
+  [0.0793, 0.0800], W1 0.0312 [0.0310, 0.0313], W2 0.0290 [0.0288,
+  0.0292]. Honest success: 0.9929, 0.9975, 0.9979.
+- The repaired rule (A4) selects **W2**: the W1 and W2 share CIs do not
+  overlap. The original wording would have selected W0.
+- `configs/e1_main.toml` therefore uses `weights = "w2"`, and W2 becomes
+  the recommended default for `spec/layer.md` §8.4 (P8).
+- *Implementation note:* after this run, W1/W2 were re-implemented in
+  `map-sim/src/scenarios/weights.rs`, 3.2× faster.
+  - The old code summed agreement terms while iterating a
+    randomly-ordered `HashMap`. That is a latent nondeterminism, although
+    three repeated processes gave identical CSVs and an old-versus-new
+    W2 run matched byte-for-byte (SHA-256 `4a8d08…`).
+  - The new code accumulates in fixed order and equals the direct
+    definitions exactly (`tests/weights_equiv.rs`, validated by two
+    planted bugs).
+  - The full evaluation is re-run at the new commit; if D5 there differs
+    from the above, a further amendment records it.
