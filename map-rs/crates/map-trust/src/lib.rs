@@ -498,6 +498,34 @@ pub enum Skip {
     Cancelled,
 }
 
+/// The admissibility gates [`TrustProjection::apply`] enforces, in order:
+/// R-2 self-dealing, R-3 future dating (beyond `skew_ms`), R-4 (positive
+/// evidence needs both signatures; a requester-only receipt counts only as
+/// negative evidence), the cancelled rule, and T-3 (a zero or non-finite
+/// issuer weight). Exposed so a caller that keeps its own accumulators (the
+/// evaluation simulator) applies exactly the same rules; `apply` calls it.
+pub fn admissible(v: &Verified, now_ms: u64, skew_ms: u64, issuer_weight: f64) -> Result<(), Skip> {
+    let c = &v.core;
+    if c.requester == c.provider {
+        return Err(Skip::SelfDealing);
+    }
+    if c.ended_ms > now_ms.saturating_add(skew_ms) {
+        return Err(Skip::FutureDated);
+    }
+    let negative = matches!(c.outcome, Outcome::Failed | Outcome::Timeout | Outcome::Disputed);
+    let requester_only = v.requester_signed && !v.provider_signed;
+    if !(v.dual || (requester_only && negative)) {
+        return Err(Skip::NotAdmissible);
+    }
+    if c.outcome == Outcome::Cancelled {
+        return Err(Skip::Cancelled);
+    }
+    if !(issuer_weight.is_finite() && issuer_weight > 0.0) {
+        return Err(Skip::ZeroWeight);
+    }
+    Ok(())
+}
+
 /// Per-issuer (α, β) accumulations for one (provider, capability) cell.
 type Cell = HashMap<AgentId, (f64, f64)>;
 
@@ -521,24 +549,8 @@ impl TrustProjection {
     /// [`Receipt::verify`]. `issuer_weight` is the observer's weight for the
     /// receipt's requester (the issuer); see [`IssuerWeights`].
     pub fn apply(&mut self, v: &Verified, now_ms: u64, issuer_weight: f64) -> Result<(), Skip> {
+        admissible(v, now_ms, self.params.skew_ms, issuer_weight)?;
         let c = &v.core;
-        if c.requester == c.provider {
-            return Err(Skip::SelfDealing);
-        }
-        if c.ended_ms > now_ms.saturating_add(self.params.skew_ms) {
-            return Err(Skip::FutureDated);
-        }
-        let negative = matches!(c.outcome, Outcome::Failed | Outcome::Timeout | Outcome::Disputed);
-        let requester_only = v.requester_signed && !v.provider_signed;
-        if !(v.dual || (requester_only && negative)) {
-            return Err(Skip::NotAdmissible);
-        }
-        if c.outcome == Outcome::Cancelled {
-            return Err(Skip::Cancelled);
-        }
-        if !(issuer_weight.is_finite() && issuer_weight > 0.0) {
-            return Err(Skip::ZeroWeight);
-        }
         let days = now_ms.saturating_sub(c.ended_ms) as f64 / 86_400_000.0;
         let w = issuer_weight * self.params.daily_decay.powf(days);
         let entry = self

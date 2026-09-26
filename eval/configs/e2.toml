@@ -1,0 +1,13 @@
+# E2: checkpointed handoff (eval/HYPOTHESES.md). c = 0 means no checkpoints (c = ∞).
+scenario = "e2"
+seeds = 20
+
+[params]
+tasks_per_seed = 10
+
+[sweep]
+L = [100, 1000, 10000]
+lambda_L = [0.1, 1.0, 3.0]
+c = [1, 8, 32, 128, 0]
+f_dishonest = [0.0, 0.2]
+arm = ["restart", "countersigned", "provider_only"]

@@ -1,0 +1,29 @@
+# Smoke gate (plan P6): a few seconds of every scenario with real crypto.
+# `cargo run -p map-sim --release -- eval/configs/smoke.toml` must finish in
+# < 2 min, and the CSV hashes must equal eval/configs/smoke.golden
+# (map-rs/sim/tests/golden.rs).
+
+[[experiment]]
+scenario = "f1"
+name = "smoke-f1"
+seeds = 3
+[experiment.params]
+n = 100
+horizon_s = 600.0
+[experiment.sweep]
+alpha = [0.2]
+policy = ["noverify", "riskaware", "map", "map_ra"]
+whitewash_s = [0.0, 60.0]
+
+[[experiment]]
+scenario = "e2"
+name = "smoke-e2"
+seeds = 3
+[experiment.params]
+tasks_per_seed = 5
+L = 1000
+lambda_L = 1.0
+[experiment.sweep]
+c = [8, 0]
+f_dishonest = [0.2]
+arm = ["restart", "countersigned", "provider_only"]

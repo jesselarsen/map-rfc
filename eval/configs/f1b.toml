@@ -1,0 +1,22 @@
+# F1-b: MAP evidence arms in 2603.03753's scenario (eval/HYPOTHESES.md).
+scenario = "f1"
+seeds = 60
+
+[params]
+n = 100
+workflow_rate_per_s = 0.5
+ttl_s = 15.0
+shortlist_k = 25
+adv_exec_success_prob = 0.05
+gen_quality_threshold = 0.5
+l2_pass_prob_honest = 0.97
+l2_pass_prob_adversary = 0.08
+l2_random_extra = 30
+fallback_max_attempts = 3
+epsilon = 0.1
+
+[sweep]
+alpha = [0.0, 0.1, 0.2, 0.3, 0.4, 0.5]
+horizon_s = [60.0, 3600.0]
+policy = ["riskaware", "map", "map_ra"]
+whitewash_s = [0.0, 60.0]

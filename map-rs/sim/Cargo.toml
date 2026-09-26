@@ -1,0 +1,24 @@
+[package]
+name = "map-sim"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "MAP evaluation simulator (eval/HYPOTHESES.md): deterministic discrete-event engine over the real protocol crates"
+
+[dependencies]
+map-core = { path = "../crates/map-core" }
+map-identity = { path = "../crates/map-identity" }
+map-transcript = { path = "../crates/map-transcript" }
+map-trust = { path = "../crates/map-trust" }
+map-meter = { path = "../crates/map-meter" }
+map-discovery = { path = "../crates/map-discovery" }
+sha2.workspace = true
+hex.workspace = true
+rand = "0.8"
+rand_chacha = "0.3"
+serde = { version = "1", features = ["derive"] }
+toml = "0.8"
+
+[[bin]]
+name = "map-sim"
+path = "src/main.rs"

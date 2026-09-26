@@ -89,9 +89,15 @@ pub fn empty_transcript_root() -> [u8; 32] {
 
 /// Streaming-friendly builder shared by checkpoints, COMPLETE, receipts,
 /// and disputes — one commitment structure everywhere.
-#[derive(Default)]
+/// Incremental transcript commitment. Pairwise reduction with odd nodes
+/// promoted is the RFC 6962 tree shape, so the builder keeps only the
+/// frontier of perfect subtrees (at most log2 n of them) and computes the
+/// root in O(log n) rather than rebuilding the tree on every call.
+#[derive(Default, Clone)]
 pub struct TranscriptBuilder {
-    leaves: Vec<[u8; 32]>,
+    count: usize,
+    /// Perfect subtree roots, oldest (tallest) first, with their heights.
+    frontier: Vec<(u32, [u8; 32])>,
 }
 
 impl TranscriptBuilder {
@@ -102,32 +108,36 @@ impl TranscriptBuilder {
     /// Non-transcript kinds (log, usage) are accepted and ignored, so
     /// callers can feed every chunk through.
     pub fn push(&mut self, c: &Chunk) {
-        if c.kind.in_transcript() {
-            self.leaves.push(transcript_leaf(c));
+        if !c.kind.in_transcript() {
+            return;
         }
+        self.count += 1;
+        let mut node = (0u32, transcript_leaf(c));
+        // Merge equal-height subtrees, like a binary counter carry.
+        while let Some(&(h, left)) = self.frontier.last() {
+            if h != node.0 {
+                break;
+            }
+            self.frontier.pop();
+            node = (h + 1, parent(&left, &node.1));
+        }
+        self.frontier.push(node);
     }
 
     pub fn leaf_count(&self) -> usize {
-        self.leaves.len()
+        self.count
     }
 
+    /// Right fold over the frontier: root = parent(S1, parent(S2, ... Sk)).
     pub fn root(&self) -> [u8; 32] {
-        if self.leaves.is_empty() {
+        let mut it = self.frontier.iter().rev();
+        let Some(&(_, mut acc)) = it.next() else {
             return empty_transcript_root();
+        };
+        for (_, left) in it {
+            acc = parent(left, &acc);
         }
-        let mut level = self.leaves.clone();
-        while level.len() > 1 {
-            let mut next = Vec::with_capacity(level.len().div_ceil(2));
-            let mut it = level.chunks_exact(2);
-            for pair in &mut it {
-                next.push(parent(&pair[0], &pair[1]));
-            }
-            if let [odd] = it.remainder() {
-                next.push(*odd); // promoted unchanged
-            }
-            level = next;
-        }
-        level[0]
+        acc
     }
 }
 
@@ -228,6 +238,39 @@ mod tests {
             &transcript_leaf(&l2),
         );
         assert_eq!(t.root(), expect);
+    }
+
+    /// The frontier root equals the level-by-level definition (pairwise,
+    /// odd node promoted) for every size up to 300.
+    #[test]
+    fn frontier_root_matches_the_level_by_level_definition() {
+        fn reference(leaves: &[[u8; 32]]) -> [u8; 32] {
+            if leaves.is_empty() {
+                return empty_transcript_root();
+            }
+            let mut level = leaves.to_vec();
+            while level.len() > 1 {
+                let mut next = Vec::new();
+                let mut it = level.chunks_exact(2);
+                for pair in &mut it {
+                    next.push(parent(&pair[0], &pair[1]));
+                }
+                if let [odd] = it.remainder() {
+                    next.push(*odd);
+                }
+                level = next;
+            }
+            level[0]
+        }
+        let mut b = TranscriptBuilder::new();
+        let mut leaves = Vec::new();
+        assert_eq!(b.root(), reference(&leaves));
+        for i in 0..300u64 {
+            let c = chunk(i, ChunkKind::OutputText, &i.to_be_bytes());
+            leaves.push(transcript_leaf(&c));
+            b.push(&c);
+            assert_eq!(b.root(), reference(&leaves), "n = {}", i + 1);
+        }
     }
 
     #[test]
