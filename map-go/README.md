@@ -4,8 +4,9 @@ The second MAP implementation. Since the 2026-09 pivot (decision D4) it is
 a **full second implementation of the kept v2 layers**: identity, the COSE
 envelope and session layer, discovery (v1 + v2 descriptors), receipts and
 the observer-local trust projection, transcripts and countersigned
-checkpoints, metering and the voucher mapping, and (P5b/P5c) the A2A
-binding with a provider and a requester.
+checkpoints, metering and the voucher mapping, and the A2A binding with an
+HTTP provider and requester that interoperate with `map-rs` and with the
+unmodified A2A Python SDK (`interop/MATRIX.md`).
 
 ## Independence: what it does and does not claim
 
@@ -89,9 +90,10 @@ delegation) are not consumed; their bytes stay in the file and in tag
 | `meter` | non-negative Amount, Asset, exact Billed, voucher digests (RAIL-1/5), atomic units, M-6 ceiling |
 | `discovery` | cap index keys, sharding, ShardEpoch (D-8), v1 Descriptor, v2 DescriptorV2 |
 | `net`, `dht` | libp2p/QUIC MapNode and Kademlia router (discovery plane); shard-filtered lookups (finding A3) |
-| `a2a` | the A2A binding: RFC 8785 JCS, Agent Card JWS (EdDSA, §8.4.1 default removal, A2A-31 profile), v2 descriptor seal/open (D-4/D-5), TaskID (A2A-8), Part leaves (A2A-14), ProviderTask/RequesterTask flows |
+| `a2a` | the A2A binding: RFC 8785 JCS, Agent Card JWS (EdDSA, §8.4.1 default removal, A2A-31 profile), v2 descriptor seal/open (D-4/D-5), TaskID (A2A-8), Part leaves (A2A-14), ProviderTask/RequesterTask flows, net/http JSON-RPC provider (A2A-21 checkpoint pauses, A2A-28 plain clients) and requester (discover, run, resume) |
 | `conformance` | vector reader and the conformance tests |
 | `cmd/map-interop` | Go peer for the core interop matrix (`interop/run-matrix.ps1`) |
+| `cmd/map-a2a-provider`, `cmd/map-a2a-requester` | the A2A peers (net/http JSON-RPC, same flags and output as the Rust bins), used by the interop matrix's failover cells |
 
 ## Known divergence from map-rs
 

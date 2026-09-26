@@ -273,6 +273,69 @@ P4c commit). The P4 gate is `pwsh scripts/demo-a2a.ps1`, ALL PASS.
 - **Next: P5** (Go full second implementation, incl. the A2A requester and
   provider) ∥ **P6** (map-sim).
 
+**P5 status (2026-09-26): DONE** (e04d120 P5a, 3ab10b4 P5b, plus the P5c
+commit). The gate is `pwsh interop/run-matrix.ps1`: **28/28** with
+`MAP_A2A_SDK_PY` set.
+- **P5a (Go prune + v2 core):**
+  - Deleted from map-go: tasks runtime, pay, delegation, map-requester,
+    map-excuse, and the task/pay/delegated interop scenarios.
+  - New stdlib packages: `core` (TaskID, Usage), `transcript` checkpoints,
+    `receipt` v2 (optional signatures, keys 12/13), `trust` (R-2..R-4
+    inside Apply, IssuerWeights = 0 for unknown issuers, cap, rebuild,
+    Tolerance, evidence filter), `meter` (Amount, Billed, RAIL-1/5, M-6),
+    `discovery` DescriptorV2 and ShardEpoch.
+  - Go parity for A3 (dht shard filter) and A8 (O(1) replay expiry).
+  - **TV-023** pins the unilateral-receipt rule and rule order in both
+    implementations.
+- **P5b (Go A2A core):** jcs, card, descriptor, binding, flow, workload.
+  - **TV-024** (v2 descriptor envelope) and **TV-025** (TaskID + Part
+    leaves over non-canonical Parts).
+  - Rust conformance now runs 34 cases; the extractor lives in the repo at
+    `map-rs/conformance/map-conformance/extract_vectors3.py`.
+- **P5c (Go HTTP):**
+  - `a2a/server.go` and `client.go` on net/http, with an injectable
+    `Crash` hook for tests.
+  - `cmd/map-a2a-{provider,requester}` take the same flags and print the
+    same result format as the Rust bins.
+  - `interop/run-matrix.ps1` was rewritten: (a) vectors per
+    implementation; (b) 8 mixed failover cells (requester × A × B ∈
+    {rust, go}), 2 plain-client cells and 2 SDK cells; (c) 14 core cells.
+    MATRIX.md re-stamped.
+- **⚠ Independence caveat (paper must say this):** the v2 Go packages were
+  written WITH the Rust source open. They are a second implementation, not
+  an independent one (`map-go/README.md` says so). The cross-checks rest
+  on artifacts neither codebase produced:
+  - the Python-generated vectors (TV-021..025);
+  - a Python cbor2 oracle for the MPP-Tempo digest, pinned in both
+    implementations;
+  - the unmodified a2a-sdk.
+- **Harness validation, done for every new check.** Planted bugs were
+  caught:
+  - admitting a unilateral positive → TV-023, both implementations;
+  - a wrong checkpoint tag → TV-021/NV-014;
+  - forgetting to drop Part `metadata` → TV-025;
+  - uppercase hex digits in JCS control-character escapes → TV-025, both
+    implementations;
+  - a Go-only TaskID tag → exactly the 6 mixed A2A cells fail.
+- **Lessons:**
+  - TV-025 first used U+0001, whose escape has no hex letters, so the
+    uppercase plant passed. Choose adversarial inputs that exercise the
+    property.
+  - Restore planted files with cp or touch, never an mtime-preserving mv:
+    cargo reused the stale planted build.
+  - PowerShell variables are case-insensitive (`$pA` clobbered `$pa`).
+  - The Write tool NFC-normalizes: U+FB33 decomposed. Build such strings
+    from code points.
+- **Known divergence:** Go rejects unknown envelope protected-header keys;
+  Rust ignores them. This is harmless for v2 and documented.
+- **Not done:**
+  - no Go streaming (A2A-20);
+  - Go does not port map-mesh / map-net discovery beyond the existing
+    libp2p `net`/`dht` packages;
+  - DescriptorV2 is not yet used by mesh/net in either implementation.
+- **Next: P6** (map-sim harness), then P7 experiments. D5/D7 are still
+  open.
+
 ## 1. What this project is
 
 A standards-track-style specification family ("MAP") for a decentralized,
