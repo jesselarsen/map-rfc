@@ -1,0 +1,15 @@
+# E1 main grid (H1, ablations, losing regimes L1/L3/L4). `weights` MUST be
+# set to the D5 winner (eval/HYPOTHESES.md decision rule) after
+# configs/e1_d5.toml has been analyzed; P7 records the decision in
+# eval/HYPOTHESES.md Amendments before running this file.
+scenario = "e1"
+name = "e1-main"
+seeds = 20
+
+[params]
+weights = "D5_WINNER"
+
+[sweep]
+alpha = [0.0, 0.05, 0.1, 0.2, 0.3, 0.5]
+attack = ["farming", "camouflage", "collusion", "whitewash", "onoff", "slander", "combined"]
+arm = ["b0", "b1", "b2", "b2l", "ours", "ours_c", "a_prior", "a_unilateral"]

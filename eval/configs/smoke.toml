@@ -27,3 +27,18 @@ lambda_L = 1.0
 c = [8, 0]
 f_dishonest = [0.2]
 arm = ["restart", "countersigned", "provider_only"]
+
+[[experiment]]
+scenario = "e1"
+name = "smoke-e1"
+seeds = 2
+[experiment.params]
+providers = 40
+requesters = 30
+rounds = 10
+sybils_per_adv = 4
+alpha = 0.2
+[experiment.sweep]
+attack = ["combined", "camouflage"]
+arm = ["b1", "b2l", "ours", "ours_c", "a_prior"]
+weights = ["w0", "w1", "w2"]

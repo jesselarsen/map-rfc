@@ -20,6 +20,7 @@ fn platform() -> String {
 }
 
 #[test]
+#[cfg_attr(debug_assertions, ignore = "real Ed25519 is too slow unoptimized; run `cargo test --release -p map-sim`")]
 fn smoke_matches_golden_and_fast_equals_real() {
     let golden = std::fs::read_to_string(concat!(
         env!("CARGO_MANIFEST_DIR"),

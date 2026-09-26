@@ -1,0 +1,14 @@
+# Basis for Amendment 1 (E1 uses --fast-crypto): this config must produce
+# the same CSV in real mode (every receipt Ed25519-signed and verified)
+# and in fast mode. eval/run_all.ps1 runs both and compares the hashes.
+scenario = "e1"
+name = "e1-realcheck"
+seeds = 3
+
+[params]
+alpha = 0.2
+weights = "w0"
+
+[sweep]
+attack = ["farming", "combined"]
+arm = ["b0", "b1", "b2", "b2l", "ours", "ours_c", "a_prior", "a_unilateral"]

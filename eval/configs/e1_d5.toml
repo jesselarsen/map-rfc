@@ -1,0 +1,13 @@
+# E1 / decision D5 (eval/HYPOTHESES.md): the issuer-weighting arms at
+# alpha = 0.2 across all attacks. The D5 rule picks the default for E1.
+scenario = "e1"
+name = "e1-d5"
+seeds = 20
+
+[params]
+alpha = 0.2
+arm = "ours"
+
+[sweep]
+attack = ["farming", "camouflage", "collusion", "whitewash", "onoff", "slander", "combined"]
+weights = ["w0", "w1", "w2"]

@@ -2,6 +2,7 @@
 
 use crate::runner::Scenario;
 
+pub mod e1;
 pub mod e2;
 pub mod f1;
 
@@ -10,6 +11,11 @@ pub const ALL: &[Scenario] = &[
         name: "f1",
         metrics: f1::METRICS,
         run: f1::run,
+    },
+    Scenario {
+        name: "e1",
+        metrics: e1::METRICS,
+        run: e1::run,
     },
     Scenario {
         name: "e2",

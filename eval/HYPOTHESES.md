@@ -292,4 +292,38 @@ Built on E2's countersigned-resume runs, with per-token pricing (layer
 
 ## Amendments
 
-(none)
+Appended after `prereg-v1`. The text above this section is unchanged.
+
+**A1 (2026-09-26, E1 uses `--fast-crypto`).**
+- *Rule change:* §0 permits fast mode only above 10⁴ nodes. E1 has about
+  2 700 identities but signs about 1.2 M receipts per run under farming at
+  α = 0.5. The real-mode grid would take about 14 CPU-hours (measured: 48
+  realcheck jobs took 357 s).
+- *Evidence:* `configs/e1_realcheck.toml` covers all eight arms under
+  farming and combined attacks at α = 0.2. It produces the identical CSV in
+  real mode (every receipt Ed25519-signed and verified) and fast mode:
+  SHA-256 `61b82527…c063` both ways.
+- *Ongoing check:* `run_all.ps1` repeats this comparison on every run.
+
+**A2 (2026-09-26, clarification: fallback for every E1 arm).**
+- The text gave B2 "fallback (≤ 3 attempts)". So that the arms differ only
+  in ranking and filtering, every E1 arm uses the same fallback: up to 3
+  execution attempts per task in the arm's order.
+- Canary arms (B2, B2L, Ours-L+C) skip a candidate that fails the canary
+  without spending an attempt, as in 2603.03753.
+
+**A3 (2026-09-26, clarification: what B1 contains).**
+- B1 is "Ours-L without T-3 issuer weighting". It therefore keeps decay
+  (0.98/day) and the per-issuer cap (50 per cell).
+- A pure ERC-8004-style unweighted sum would be a *weaker* baseline. We
+  keep the stronger one, which makes H1 harder to satisfy.
+- B2 and B2L break ties with the self-reported hint. Ledger and MAP scores
+  treat an unknown provider as the Beta prior mean, 0.5.
+
+**Implementation note (no hypothesis change).**
+- E1 computes scores through a factorized evidence pool. That it equals a
+  rebuilt `map_trust::TrustProjection` over the same receipts is asserted
+  by `map-rs/sim/tests/e1_equiv.rs`.
+- That test caught one bug before any E1 output was examined: the
+  per-issuer cap was applied before the issuer weight instead of after,
+  as `TrustProjection` does. The fix came before the first E1 run.

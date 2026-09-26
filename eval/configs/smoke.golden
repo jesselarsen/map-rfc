@@ -1,3 +1,4 @@
 # <os-arch> <experiment> <csv sha256> (map-rs/sim/tests/golden.rs)
 windows-x86_64 smoke-f1 b48f7b9b75b4961f89d414cc89d7869a251a6a89ad385967adf29a366fadf146
 windows-x86_64 smoke-e2 8a8d205eb2444614574938e9f40f7af62b76b51c6fabc0d1b4beb79a8d994715
+windows-x86_64 smoke-e1 e5077cdcf00c86c3b0d24b19a84cd1cd0e1b4b4f803062c2c7dea780165b7d69

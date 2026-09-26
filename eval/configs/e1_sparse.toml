@@ -1,0 +1,13 @@
+# E1 losing regime L2 (sparse evidence): 0.1 tasks per requester per round.
+scenario = "e1"
+name = "e1-sparse"
+seeds = 20
+
+[params]
+alpha = 0.2
+tasks_per_round = 0.1
+weights = "w0"
+
+[sweep]
+attack = ["farming", "camouflage", "collusion", "whitewash", "onoff", "slander", "combined"]
+arm = ["b0", "ours"]
