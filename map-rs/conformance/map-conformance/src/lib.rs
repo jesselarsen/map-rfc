@@ -11,6 +11,7 @@
 //! re-serializing before verification, that is a critical map-core bug (§11):
 //! stop and escalate, do not adapt the vector.
 
+pub mod admissibility;
 pub mod card;
 pub mod checkpoint;
 pub mod extended;
@@ -73,6 +74,7 @@ pub fn cases() -> Vec<(&'static str, fn() -> Result<(), String>)> {
         ("NV-014 root mismatch on resume", checkpoint::case_nv014_root_mismatch),
         ("TV-022 Agent Card produce", card::case_tv022_produce),
         ("TV-022 Agent Card consume", card::case_tv022_consume),
+        ("TV-023 receipt admissibility", admissibility::case_tv023_admissibility),
     ]
 }
 
@@ -162,6 +164,7 @@ mod tests {
     case_test!(nv014_root_mismatch, checkpoint::case_nv014_root_mismatch);
     case_test!(tv022_produce, card::case_tv022_produce);
     case_test!(tv022_consume, card::case_tv022_consume);
+    case_test!(tv023_admissibility, admissibility::case_tv023_admissibility);
 
     #[test]
     fn run_all_is_green_and_complete() {
@@ -171,7 +174,7 @@ mod tests {
             "conformance failures: {:?}",
             report.failed
         );
-        assert_eq!(report.passed.len(), 30);
-        assert_eq!(report.total(), 30);
+        assert_eq!(report.passed.len(), 31);
+        assert_eq!(report.total(), 31);
     }
 }

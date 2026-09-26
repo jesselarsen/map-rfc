@@ -37,7 +37,6 @@ const (
 	coseAlgEdDSA = -8
 	hdrAlg       = 1
 	hdrKid       = 4
-	hdrChain     = 33 // delegation chain, identity §6
 	versionV1    = 0x0100
 )
 
@@ -58,13 +57,12 @@ type Body struct {
 }
 
 // Opened is a verified envelope. Payload preserves the received payload
-// bytes (I1); Chain holds raw delegation-cert envelopes leaf..root, or nil.
+// bytes (I1).
 type Opened struct {
 	KID       identity.AgentID
 	Protected []byte
 	Payload   []byte
 	Signature []byte
-	Chain     [][]byte
 	Body      Body
 }
 
@@ -137,26 +135,6 @@ func Seal(priv ed25519.PrivateKey, msgType uint64, msgID []byte, ts uint64, cont
 	return seal(priv, protected, buildBody(msgType, msgID, ts, content), externalAAD), nil
 }
 
-// SealDelegated is Seal with a delegation chain (raw cert-envelope byte
-// strings, leaf..root) in protected-header key 33 (identity §6). The chain
-// sits inside the signed protected header, so the leaf signature covers it.
-func SealDelegated(priv ed25519.PrivateKey, msgType uint64, msgID []byte, ts uint64, content cbor.Value, chain [][]byte, externalAAD []byte) ([]byte, error) {
-	kid, err := identity.FromPub(priv.Public().(ed25519.PublicKey))
-	if err != nil {
-		return nil, err
-	}
-	certs := make(cbor.Array, len(chain))
-	for i, c := range chain {
-		certs[i] = cbor.Bytes(c)
-	}
-	protected := cbor.Encode(cbor.Map{
-		{K: cbor.Uint(hdrAlg), V: cbor.Int(coseAlgEdDSA)},
-		{K: cbor.Uint(hdrKid), V: cbor.Bytes(kid[:])},
-		{K: cbor.Uint(hdrChain), V: certs},
-	})
-	return seal(priv, protected, buildBody(msgType, msgID, ts, content), externalAAD), nil
-}
-
 // SealBody seals a fully-specified Body (with any in-session keys) under the
 // given external AAD (the channel binding for in-session envelopes). The
 // session layer uses this; Seal is the minimal-body convenience wrapper.
@@ -168,25 +146,6 @@ func SealBody(priv ed25519.PrivateKey, b Body, externalAAD []byte) ([]byte, erro
 	protected := cbor.Encode(cbor.Map{
 		{K: cbor.Uint(hdrAlg), V: cbor.Int(coseAlgEdDSA)},
 		{K: cbor.Uint(hdrKid), V: cbor.Bytes(kid[:])},
-	})
-	return seal(priv, protected, buildFullBody(b), externalAAD), nil
-}
-
-// SealBodyDelegated is SealBody carrying a delegation chain (leaf..root) in
-// protected-header key 33 — used for a delegated HELLO handshake (identity §6).
-func SealBodyDelegated(priv ed25519.PrivateKey, b Body, chain [][]byte, externalAAD []byte) ([]byte, error) {
-	kid, err := identity.FromPub(priv.Public().(ed25519.PublicKey))
-	if err != nil {
-		return nil, err
-	}
-	certs := make(cbor.Array, len(chain))
-	for i, c := range chain {
-		certs[i] = cbor.Bytes(c)
-	}
-	protected := cbor.Encode(cbor.Map{
-		{K: cbor.Uint(hdrAlg), V: cbor.Int(coseAlgEdDSA)},
-		{K: cbor.Uint(hdrKid), V: cbor.Bytes(kid[:])},
-		{K: cbor.Uint(hdrChain), V: certs},
 	})
 	return seal(priv, protected, buildFullBody(b), externalAAD), nil
 }
@@ -225,7 +184,7 @@ func Open(env, externalAAD []byte) (*Opened, error) {
 		return nil, malformed("signature must be a 64-byte string")
 	}
 
-	kid, chain, err := parseProtected(protected)
+	kid, err := parseProtected(protected)
 	if err != nil {
 		return nil, err
 	}
@@ -240,65 +199,52 @@ func Open(env, externalAAD []byte) (*Opened, error) {
 	}
 	return &Opened{
 		KID: kid, Protected: protected, Payload: payload,
-		Signature: sig, Chain: chain, Body: body,
+		Signature: sig, Body: body,
 	}, nil
 }
 
-func parseProtected(protected []byte) (identity.AgentID, [][]byte, error) {
+func parseProtected(protected []byte) (identity.AgentID, error) {
 	var zero identity.AgentID
 	v, err := cbor.Decode(protected)
 	if err != nil {
-		return zero, nil, malformed("protected header: %v", err)
+		return zero, malformed("protected header: %v", err)
 	}
 	m, ok := v.(cbor.Map)
 	if !ok {
-		return zero, nil, malformed("protected header must be a map")
+		return zero, malformed("protected header must be a map")
 	}
 	var kid identity.AgentID
 	var haveAlg, haveKid bool
-	var chain [][]byte
 	for _, p := range m {
 		k, ok := p.K.(cbor.Uint)
 		if !ok {
-			return zero, nil, malformed("protected header: non-uint key")
+			return zero, malformed("protected header: non-uint key")
 		}
 		switch uint64(k) {
 		case hdrAlg:
 			alg, ok := p.V.(cbor.Int)
 			if !ok || alg != coseAlgEdDSA {
-				return zero, nil, malformed("alg must be EdDSA (-8)")
+				return zero, malformed("alg must be EdDSA (-8)")
 			}
 			haveAlg = true
 		case hdrKid:
 			b, ok := p.V.(cbor.Bytes)
 			if !ok {
-				return zero, nil, malformed("kid must be a byte string")
+				return zero, malformed("kid must be a byte string")
 			}
 			kid, err = identity.Parse(b)
 			if err != nil {
-				return zero, nil, malformed("kid: %v", err)
+				return zero, malformed("kid: %v", err)
 			}
 			haveKid = true
-		case hdrChain:
-			arr, ok := p.V.(cbor.Array)
-			if !ok || len(arr) == 0 {
-				return zero, nil, malformed("delegation chain must be a non-empty array")
-			}
-			for _, c := range arr {
-				cb, ok := c.(cbor.Bytes)
-				if !ok {
-					return zero, nil, malformed("delegation chain entries must be byte strings")
-				}
-				chain = append(chain, cb)
-			}
 		default:
-			return zero, nil, malformed("unknown protected header key %d", uint64(k))
+			return zero, malformed("unknown protected header key %d", uint64(k))
 		}
 	}
 	if !haveAlg || !haveKid {
-		return zero, nil, malformed("protected header missing alg or kid")
+		return zero, malformed("protected header missing alg or kid")
 	}
-	return kid, chain, nil
+	return kid, nil
 }
 
 func parseBody(payload []byte) (Body, error) {

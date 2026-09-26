@@ -140,3 +140,13 @@ func appendValue(b []byte, v Value) []byte {
 		panic(fmt.Sprintf("cbor: unsupported value %T", v))
 	}
 }
+
+// Get returns the value stored under unsigned-integer key k.
+func (m Map) Get(k uint64) (Value, bool) {
+	for _, p := range m {
+		if u, ok := p.K.(Uint); ok && uint64(u) == k {
+			return p.V, true
+		}
+	}
+	return nil, false
+}

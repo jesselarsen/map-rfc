@@ -1060,6 +1060,62 @@ signed card, canonical JSON bytes (hex, {len(tv022)} bytes):
   {tv022.hex()}
 """
 
+# =====================================================================
+# TV-023: receipt admissibility at a fixed evaluation time (layer R-2..R-4,
+# §8.2). Pins the trust projection's gates across implementations,
+# including the unilateral-receipt rule: a receipt signed by only one party
+# counts only if the requester signed it and the outcome is negative. Rules
+# apply in order R-2 (self-dealing), R-3 (future-dated), R-4 (not
+# admissible), then cancelled; several cases pin that order. Verdicts assume
+# the default skew bound (120 000 ms) and issuer weight 1.
+# =====================================================================
+TV023_NOW = 1790000000000
+TV023_SKEW = 120000
+
+def tv023_receipt(n, signers, outcome, ended, self_deal=False):
+    prov_aid, prov_key = (aid_a, ka) if self_deal else (aid_b, kb)
+    rcore = {1: hashlib.sha256(b"tv023-%02d" % n).digest(), 2: aid_a, 3: prov_aid, 4: CAP,
+             5: ended - 1000, 6: ended, 7: outcome, 8: {1: 10, 2: 20, 3: 30, 4: 1000}}
+    rcore_enc = enc(rcore)
+    r = {1: rcore_enc}
+    if "req" in signers:
+        r[2] = ka.sign(enc(["MAPReceipt", 1, rcore_enc])).signature
+    if "prov" in signers:
+        r[3] = prov_key.sign(enc(["MAPReceipt", 2, rcore_enc])).signature
+    return enc(r)
+
+_past = TV023_NOW - 60000
+tv023_cases = [
+    ("count",          "dual-signed, outcome 0 (ok)",                         ("req", "prov"), 0, _past, False),
+    ("not-admissible", "provider-only, outcome 0",                            ("prov",),       0, _past, False),
+    ("not-admissible", "requester-only, outcome 0 (unilateral positive)",     ("req",),        0, _past, False),
+    ("count",          "requester-only, outcome 1 (failed)",                  ("req",),        1, _past, False),
+    ("count",          "requester-only, outcome 2 (timeout)",                 ("req",),        2, _past, False),
+    ("count",          "requester-only, outcome 4 (disputed)",                ("req",),        4, _past, False),
+    ("not-admissible", "provider-only, outcome 1 (failed)",                   ("prov",),       1, _past, False),
+    ("cancelled",      "dual-signed, outcome 3 (cancelled)",                  ("req", "prov"), 3, _past, False),
+    ("not-admissible", "requester-only, outcome 3 (R-4 precedes cancelled)",  ("req",),        3, _past, False),
+    ("self-dealing",   "dual-signed, requester == provider (Key A)",          ("req", "prov"), 0, _past, True),
+    ("count",          "dual-signed, ended = now + skew (boundary)",          ("req", "prov"), 0, TV023_NOW + TV023_SKEW, False),
+    ("future-dated",   "dual-signed, ended = now + skew + 1",                 ("req", "prov"), 0, TV023_NOW + TV023_SKEW + 1, False),
+    ("self-dealing",   "self-dealing and future-dated (R-2 precedes R-3)",    ("req", "prov"), 0, TV023_NOW + TV023_SKEW + 1, True),
+]
+tv023 = [(v, d, tv023_receipt(i + 1, s, o, e, sd)) for i, (v, d, s, o, e, sd) in enumerate(tv023_cases)]
+
+v2 += f"""
+## TV-023 — receipt admissibility at a fixed evaluation time (layer R-2..R-4, §8.2)
+
+Thirteen receipts over the TV-002 core layout (requester = Key A, provider =
+Key B unless marked self-dealing, capability = TV-002's, started = ended -
+1000, metrics {{1: 10, 2: 20, 3: 30, 4: 1000}}, TaskID = SHA-256("tv023-NN")).
+Every present signature is valid. Evaluate each at now = {TV023_NOW} ms with
+the default skew bound {TV023_SKEW} ms and issuer weight 1. The verdict is
+what a trust projection's apply step MUST decide: `count`, or the rule that
+skips it (`self-dealing` R-2, `future-dated` R-3, `not-admissible` R-4,
+`cancelled` §8.2), with the rules applied in that order.
+
+""" + "".join(f"case {i + 1:02d} {v} -- {d}\n  {r.hex()}\n" for i, (v, d, r) in enumerate(tv023))
+
 out = prefix + new + negatives + derived + v2
 
 # v2 (accountability-layer rework, 2026-09-25): vectors whose message types v2
@@ -1095,6 +1151,7 @@ open("map-test-vectors.md", "w", encoding="utf-8").write(out)
 print("OK - vectors written and all signatures verified.")
 print("TV-021", len(tv021), "| NV-013", len(nv013), "| NV-014", len(nv014), "(v2 checkpoints)")
 print("TV-022", len(tv022), "(signed Agent Card)")
+print("TV-023", len(tv023), "receipts (admissibility)")
 print("TV-001", len(envelope), "| TV-002", len(receipt),
       "| new TVs 3..10 + 10b (bound quote) +", "6 negatives + derived constants")
 print("TV-010b", len(tv010b["envelope"]), "| NV-006", len(nv006))

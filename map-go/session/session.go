@@ -62,10 +62,9 @@ func (RandMsgIDs) NextMsgID() []byte {
 
 // SessionConfig is the per-peer session configuration.
 type SessionConfig struct {
-	Keypair         ed25519.PrivateKey
-	ExpectedPeer    identity.AgentID
-	Hello           Hello
-	DelegationChain [][]byte // optional; leaf..root cert-envelope bytes
+	Keypair      ed25519.PrivateKey
+	ExpectedPeer identity.AgentID
+	Hello        Hello
 }
 
 // SessionError carries the reason a session operation failed, including the
@@ -167,16 +166,6 @@ func (s *Session) emitHandshakeError(code uint16) {
 	}
 }
 
-// peerAccountable resolves the accountable identity from a handshake envelope:
-// the delegation-chain root if it carries key 33, else the leaf signer.
-func peerAccountable(env []byte, nowMs uint64) (identity.AgentID, error) {
-	_, root, err := envelope.OpenDelegated(env, nil, nowMs)
-	if err != nil {
-		return identity.AgentID{}, err
-	}
-	return root, nil
-}
-
 // Initiate drives the initiator side of the handshake to completion.
 func Initiate(cfg SessionConfig, transport Transport, clock Clock, ids MsgIDSource) (*Session, error) {
 	sessionID := ids.NextMsgID()
@@ -197,13 +186,7 @@ func Initiate(cfg SessionConfig, transport Transport, clock Clock, ids MsgIDSour
 		SessionID: sessionID,
 		Content:   cfg.Hello.ToValue(),
 	}
-	var helloEnv []byte
-	var err error
-	if len(cfg.DelegationChain) > 0 {
-		helloEnv, err = envelope.SealBodyDelegated(cfg.Keypair, helloBody, cfg.DelegationChain, nil)
-	} else {
-		helloEnv, err = envelope.SealBody(cfg.Keypair, helloBody, nil)
-	}
+	helloEnv, err := envelope.SealBody(cfg.Keypair, helloBody, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -229,10 +212,7 @@ func Initiate(cfg SessionConfig, transport Transport, clock Clock, ids MsgIDSour
 	if opened.KID != cfg.ExpectedPeer {
 		return nil, &SessionError{Kind: "peer_mismatch", Code: CodeBadSignature}
 	}
-	accountable, err := peerAccountable(ackEnv, clock.NowMs())
-	if err != nil {
-		return nil, &SessionError{Kind: "bad_delegation", Code: CodeBadDelegation}
-	}
+	accountable := opened.KID
 	// The responder MUST echo our session-id (reference-impl requirement).
 	if !bytesEqual(opened.Body.SessionID, sessionID) {
 		return nil, &SessionError{Kind: "malformed", Code: CodeMalformed}
@@ -278,11 +258,7 @@ func Respond(cfg SessionConfig, transport Transport, clock Clock, ids MsgIDSourc
 		pre.emitHandshakeError(CodeBadSignature)
 		return nil, &SessionError{Kind: "peer_mismatch", Code: CodeBadSignature}
 	}
-	accountable, err := peerAccountable(helloEnv, clock.NowMs())
-	if err != nil {
-		pre.emitHandshakeError(CodeBadDelegation)
-		return nil, &SessionError{Kind: "bad_delegation", Code: CodeBadDelegation}
-	}
+	accountable := opened.KID
 	inReplay := NewReplayCache()
 	if inReplay.Check(opened.KID, opened.Body.MsgID, opened.Body.Timestamp, clock.NowMs()) != Fresh {
 		pre.emitHandshakeError(CodeReplay)

@@ -29,16 +29,30 @@ type replayKey struct {
 
 // ReplayCache enforces per-(sender, msg-id) uniqueness within a timestamp
 // window (core §7.1).
+//
+// Expiry is amortized O(1): entries are also queued in arrival order, and
+// each Check pops only the expired head of the queue. The v1 cache scanned
+// the whole map on every check, which is quadratic under load (finding A8).
 type ReplayCache struct {
 	skewMs   uint64
 	windowMs uint64
 	seen     map[replayKey]uint64
+	order    []arrival // arrival order
+	head     int       // order[head:] is live
+}
+
+type arrival struct {
+	key replayKey
+	at  uint64
 }
 
 // NewReplayCache builds a cache with the default skew/window.
 func NewReplayCache() *ReplayCache {
 	return &ReplayCache{skewMs: DefaultSkewMs, windowMs: DefaultWindowMs, seen: map[replayKey]uint64{}}
 }
+
+// Len is the number of ids currently remembered.
+func (c *ReplayCache) Len() int { return len(c.seen) }
 
 // Check is check-and-record: a Fresh result records the id. `msgTsMs` is the
 // envelope timestamp; `nowMs` the local clock.
@@ -49,10 +63,16 @@ func (c *ReplayCache) Check(sender identity.AgentID, msgID []byte, msgTsMs, nowM
 		return OutOfWindow
 	}
 	cutoff := saturatingSub(nowMs, c.windowMs)
-	for k, arrived := range c.seen {
-		if arrived < cutoff {
-			delete(c.seen, k)
+	for c.head < len(c.order) && c.order[c.head].at < cutoff {
+		a := c.order[c.head]
+		if c.seen[a.key] == a.at {
+			delete(c.seen, a.key)
 		}
+		c.head++
+	}
+	if c.head > 1024 && c.head*2 > len(c.order) {
+		c.order = append(c.order[:0:0], c.order[c.head:]...) // amortized compaction
+		c.head = 0
 	}
 	var key replayKey
 	key.sender = sender
@@ -61,6 +81,7 @@ func (c *ReplayCache) Check(sender identity.AgentID, msgID []byte, msgTsMs, nowM
 		return Replayed
 	}
 	c.seen[key] = nowMs
+	c.order = append(c.order, arrival{key, nowMs})
 	return Fresh
 }
 

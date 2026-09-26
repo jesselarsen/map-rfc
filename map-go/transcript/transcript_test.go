@@ -1,8 +1,21 @@
-package tasks
+package transcript
 
 import (
+	"encoding/hex"
 	"testing"
 )
+
+func hex32(b [32]byte) string { return hex.EncodeToString(b[:]) }
+
+func mustDecode(s string) [32]byte {
+	b, err := hex.DecodeString(s)
+	if err != nil || len(b) != 32 {
+		panic("bad hex")
+	}
+	var out [32]byte
+	copy(out[:], b)
+	return out
+}
 
 // crossImplRoots are transcript roots computed by an INDEPENDENT reference
 // (the spec rule in draft-map-tasks-01 §8.1, reproduced as a separate Python

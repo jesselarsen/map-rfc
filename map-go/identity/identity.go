@@ -6,6 +6,7 @@ import (
 	"crypto/ed25519"
 	"errors"
 	"fmt"
+	"strings"
 )
 
 // AgentID is a multicodec-prefixed public key (identity §3.1).
@@ -91,4 +92,44 @@ func base58Encode(b []byte) string {
 		out = append(out, digits[i])
 	}
 	return string(out)
+}
+
+// ParseMultibase parses the multibase form produced by Multibase ('z' +
+// base58btc of the AgentID bytes).
+func ParseMultibase(s string) (AgentID, error) {
+	if len(s) < 2 || s[0] != 'z' {
+		return AgentID{}, fmt.Errorf("identity: not a base58btc multibase string")
+	}
+	b, err := base58Decode(s[1:])
+	if err != nil {
+		return AgentID{}, err
+	}
+	return Parse(b)
+}
+
+// base58Decode inverts base58Encode.
+func base58Decode(s string) ([]byte, error) {
+	const alphabet = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
+	zeros := 0
+	for zeros < len(s) && s[zeros] == '1' {
+		zeros++
+	}
+	num := []byte{} // big-endian base-256 accumulator
+	for i := zeros; i < len(s); i++ {
+		d := strings.IndexByte(alphabet, s[i])
+		if d < 0 {
+			return nil, fmt.Errorf("identity: invalid base58 character %q", s[i])
+		}
+		carry := d
+		for j := len(num) - 1; j >= 0; j-- {
+			carry += int(num[j]) * 58
+			num[j] = byte(carry)
+			carry >>= 8
+		}
+		for carry > 0 {
+			num = append([]byte{byte(carry)}, num...)
+			carry >>= 8
+		}
+	}
+	return append(make([]byte, zeros), num...), nil
 }

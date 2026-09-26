@@ -42,3 +42,15 @@ func ShardedCapKey(cap string, shard uint8) []byte {
 func DescriptorFresher(receivedSeq, cachedSeq uint64) bool {
 	return receivedSeq > cachedSeq
 }
+
+// ShardEpoch is layer D-8 (experimental, finding A4): an epoch-salted shard,
+// the first byte of SHA-256(epochSalt || AgentID). Rotating the salt
+// reassigns every agent's shard at once, so an identity ground for a
+// favourable shard under one salt is worthless under the next. Not wired
+// into publication or lookup; evaluation E3 measures it.
+func ShardEpoch(a identity.AgentID, epochSalt []byte) uint8 {
+	h := sha256.New()
+	h.Write(epochSalt)
+	h.Write(a[:])
+	return h.Sum(nil)[0]
+}

@@ -58,11 +58,25 @@ func (r *Router) Fetch(ctx context.Context, cid []byte) (*discovery.Descriptor, 
 // FindProviders returns agents that may provide cap, sampling the shard chosen
 // by the querying agent (discovery §6). The returned ids are the DHT's closest
 // peers to K'(cap, shard); the caller verifies by fetching a descriptor.
+// Ids that do not belong to the queried shard are dropped: an attacker who
+// floods one shard key with identities from other shards gains nothing
+// (finding A3; Rust MapNode::find_providers applies the same filter).
 func (r *Router) FindProviders(ctx context.Context, cap string, shard uint8) ([]identity.AgentID, error) {
 	key := hex.EncodeToString(discovery.ShardedCapKey(cap, shard))
 	ids, err := r.node.FindProviders(ctx, key)
 	if err != nil {
 		return nil, fmt.Errorf("dht: find: %w", err)
 	}
-	return ids, nil
+	return InShard(ids, shard), nil
+}
+
+// InShard keeps the ids whose shard is shard.
+func InShard(ids []identity.AgentID, shard uint8) []identity.AgentID {
+	out := ids[:0:0]
+	for _, id := range ids {
+		if discovery.Shard(id) == shard {
+			out = append(out, id)
+		}
+	}
+	return out
 }

@@ -3,9 +3,11 @@ package session
 import (
 	"crypto/ed25519"
 	"crypto/sha256"
+	"encoding/binary"
 	"net"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/jesselarsen/map-rfc/map-go/cbor"
 	"github.com/jesselarsen/map-rfc/map-go/envelope"
@@ -345,23 +347,32 @@ func delegationCert(issuer, subject ed25519.PrivateKey, capURI string) []byte {
 	return env
 }
 
-func TestDelegatedHandshake(t *testing.T) {
-	rik := keyFromLabel("MAP-TEST-VECTOR-KEY-A")   // root
-	dk := keyFromLabel("MAP-TEST-VECTOR-KEY-A-DK") // delegated leaf (initiator)
-	kb := keyFromLabel("MAP-TEST-VECTOR-KEY-B")    // responder
-	cert := delegationCert(rik, dk, "map:cap:inference/text-generation")
-
-	initCfg := SessionConfig{
-		Keypair:         dk,
-		ExpectedPeer:    aidOf(kb),
-		Hello:           stdHello(),
-		DelegationChain: [][]byte{cert},
+// A8 regression: expiry is amortized O(1). 200k fresh ids spread over a
+// window-sized span must stay fast and keep only the in-window ids.
+func TestReplayCacheExpiryIsLinear(t *testing.T) {
+	c := NewReplayCache()
+	var sender identity.AgentID
+	start := time.Now()
+	const n = 200_000
+	for i := 0; i < n; i++ {
+		now := uint64(1_790_000_000_000 + i*10) // 10 ms apart: 2 000 s total
+		id := make([]byte, 16)
+		binary.BigEndian.PutUint64(id, uint64(i))
+		if c.Check(sender, id, now, now) != Fresh {
+			t.Fatalf("id %d not fresh", i)
+		}
 	}
-	// Responder authenticated the LEAF (DK) at the transport; envelope kid == DK.
-	respCfg := cfgFor(kb, aidOf(dk), stdHello())
-
-	_, resp := establishDuplex(t, initCfg, respCfg)
-	if resp.AccountablePeer() != aidOf(rik) {
-		t.Errorf("accountable peer should resolve to RIK (Key A) root")
+	if el := time.Since(start); el > 5*time.Second {
+		t.Fatalf("200k checks took %v; expiry is not amortized O(1)", el)
+	}
+	if want := DefaultWindowMs/10 + 1; c.Len() > int(want) {
+		t.Fatalf("cache holds %d ids, want at most %d in-window", c.Len(), want)
+	}
+	// An id seen inside the window is still a replay.
+	last := uint64(1_790_000_000_000 + (n-1)*10)
+	id := make([]byte, 16)
+	binary.BigEndian.PutUint64(id, uint64(n-1))
+	if c.Check(sender, id, last, last) != Replayed {
+		t.Fatal("in-window replay not detected")
 	}
 }

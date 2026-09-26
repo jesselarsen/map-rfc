@@ -8,3 +8,6 @@ description = "MAP metering bound to evidence: decimal Amount (tag 4), Asset, Us
 [dependencies]
 map-core = { path = "../map-core" }
 sha2.workspace = true
+
+[dev-dependencies]
+hex.workspace = true

@@ -131,6 +131,8 @@ mod tests {
         let a = digest_mpp_tempo(&[1, 2, 3], &Amount::new(-6, 5200), "ref-1", "tempo");
         assert_eq!(a, digest_mpp_tempo(&[1, 2, 3], &Amount::new(-6, 5200), "ref-1", "tempo"));
         assert_ne!(a, digest_mpp_tempo(&[1, 2, 3], &Amount::new(-6, 5201), "ref-1", "tempo"));
+        // Independent oracle: Python cbor2 canonical encoding + hashlib.
+        assert_eq!(hex::encode(&a), "1220510f0bc555517e0242c4ccbfd4648445f3d6835221fa404cea50b11c1261ac7d");
         assert_eq!(a.len(), 34);
         assert_eq!(&a[..2], &[0x12, 0x20]);
         assert_eq!(digest_rail_bytes(b"tx").len(), 34);
