@@ -9,6 +9,7 @@ import (
 	"regexp"
 	"testing"
 
+	"github.com/jesselarsen/map-rfc/map-go/a2a"
 	"github.com/jesselarsen/map-rfc/map-go/core"
 	"github.com/jesselarsen/map-rfc/map-go/identity"
 	"github.com/jesselarsen/map-rfc/map-go/receipt"
@@ -201,5 +202,134 @@ func TestTV023Admissibility(t *testing.T) {
 		if got := verdict(trust.New(trust.DefaultParams()).Apply(v, tv023NowMs, 1)); got != c.verdict {
 			t.Errorf("case %02d: got %s, want %s", i+1, got, c.verdict)
 		}
+	}
+}
+
+// tv022Params are the card inputs the generator states for TV-022.
+func tv022Params() a2a.CardParams {
+	return a2a.CardParams{
+		Name: "MAP test vector provider", Description: "TV-022 Agent Card", Version: "1.0.0",
+		JSONRPCURL:              "https://provider.example.org/a2a",
+		Skills:                  []a2a.Skill{{ID: "generate", Name: "Generate", Description: "Text generation", Tags: []string{"text"}}},
+		SupportedZones:          []uint8{2, 3},
+		CheckpointIntervalParts: 8,
+		AcceptedVoucherRails:    []string{"pay:mpp-tempo"},
+	}
+}
+
+func lastBlob(t *testing.T, id string) []byte {
+	t.Helper()
+	b, err := loadVF(t).Envelope(id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return b
+}
+
+// TV-022 produce: the Go-signed card's canonical bytes equal the vector.
+func TestTV022Produce(t *testing.T) {
+	signed, _, err := a2a.SignCard(a2a.BuildCard(mustAID(t, aid(KeyB)), tv022Params()), KeyB)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := a2a.Canonicalize(signed)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if d := firstDiff(got, lastBlob(t, "TV-022")); d != -1 {
+		t.Fatalf("TV-022: first diff at %d", d)
+	}
+}
+
+// TV-022 consume: the Python-signed card verifies and is canonical.
+func TestTV022Consume(t *testing.T) {
+	b := lastBlob(t, "TV-022")
+	card, err := a2a.ParseJSON(b)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := a2a.VerifyCard(card, mustAID(t, aid(KeyB))); err != nil {
+		t.Fatalf("TV-022 verify: %v", err)
+	}
+	if c, _ := a2a.Canonicalize(card); !bytes.Equal(c, b) {
+		t.Fatal("TV-022 is not canonical")
+	}
+}
+
+const tv024TTL = 3_600_000
+
+func tv024Spec() a2a.DescriptorSpec {
+	return a2a.DescriptorSpec{
+		Seq: 1, Endpoints: []string{"https://provider.example.org/a2a"},
+		Capabilities: []string{Cap}, Zones: []uint8{2, 3},
+	}
+}
+
+// TV-024 produce: sealing TV-022's card reproduces the envelope.
+func TestTV024Produce(t *testing.T) {
+	var id [16]byte
+	for i := range id {
+		id[i] = 0x24
+	}
+	env, _, err := a2a.SealDescriptor(KeyB, a2a.BuildCard(mustAID(t, aid(KeyB)), tv022Params()), tv024Spec(), id, TS, tv024TTL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if d := firstDiff(env, lastBlob(t, "TV-024")); d != -1 {
+		t.Fatalf("TV-024: first diff at %d", d)
+	}
+}
+
+// TV-024 consume: opens inside its window, refused once expired.
+func TestTV024Consume(t *testing.T) {
+	env := lastBlob(t, "TV-024")
+	d, card, err := a2a.OpenDescriptor(env, TS+1000)
+	if err != nil {
+		t.Fatalf("TV-024 open: %v", err)
+	}
+	if d.Agent != mustAID(t, aid(KeyB)) || d.Seq != 1 || len(d.Zones) != 2 {
+		t.Fatal("TV-024 fields differ")
+	}
+	if c, _ := a2a.Canonicalize(card); !bytes.Equal(c, lastBlob(t, "TV-022")) {
+		t.Fatal("TV-024 embeds a card other than TV-022")
+	}
+	if _, _, err := a2a.OpenDescriptor(env, TS+tv024TTL+1); err == nil {
+		t.Fatal("TV-024 accepted after expiry")
+	}
+}
+
+// TV-025: A2A TaskID (A2A-8) and the Part -> leaf rule (A2A-12..14) over
+// non-canonical Part JSON with a metadata member the rule must drop.
+func TestTV025TaskIDAndPartLeaves(t *testing.T) {
+	blobs := loadVF(t).Sections["TV-025"]
+	if len(blobs) != 8 {
+		t.Fatalf("TV-025: want 8 blobs, got %d", len(blobs))
+	}
+	var nonce [16]byte
+	for i := range nonce {
+		nonce[i] = 7
+	}
+	task := a2a.TaskIDFor(nonce, mustAID(t, aid(KeyB)), "task-1")
+	if !bytes.Equal(task[:], blobs[0]) {
+		t.Fatal("TV-025 TaskID differs")
+	}
+	b := transcript.NewTranscript()
+	for i := 0; i < 3; i++ {
+		part, err := a2a.ParseJSON(blobs[2+2*i])
+		if err != nil {
+			t.Fatalf("part %d: %v", i, err)
+		}
+		leaf, err := a2a.PartLeafContent(part)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if d := firstDiff(leaf, blobs[3+2*i]); d != -1 {
+			t.Fatalf("part %d leaf: first diff at %d (%s)", i, d, leaf)
+		}
+		c, _ := a2a.PartChunk(uint64(i), part)
+		b.Push(c)
+	}
+	if root := b.Root(); !bytes.Equal(root[:], blobs[1]) {
+		t.Fatal("TV-025 root differs")
 	}
 }

@@ -1116,6 +1116,83 @@ skips it (`self-dealing` R-2, `future-dated` R-3, `not-admissible` R-4,
 
 """ + "".join(f"case {i + 1:02d} {v} -- {d}\n  {r.hex()}\n" for i, (v, d, r) in enumerate(tv023))
 
+# =====================================================================
+# TV-024: a v2 AgentDescriptor envelope (layer §11.2, msg-type 0x0110)
+# embedding TV-022's signed Agent Card. Signed by Key B. Body key 5 carries
+# the REQUIRED ttl (D-5); DescriptorCore key 12 repeats it as validity.
+# =====================================================================
+TV024_TTL = 3600000
+tv024_sig_entry = jcs_ascii(signed_card["signatures"][0])
+tv024_content = {1: aid_b, 2: 1, 3: ["https://provider.example.org/a2a"], 4: [{1: CAP}],
+                 5: [2, 3], 6: tv022, 7: tv024_sig_entry, 12: TV024_TTL}
+tv024_protected = enc({1: -8, 4: aid_b})
+tv024_payload = enc({0: 0x0100, 1: 0x0110, 2: msgid(0x24), 3: TS, 5: TV024_TTL, 10: tv024_content})
+tv024_ss = enc(["Signature1", tv024_protected, b"", tv024_payload])
+tv024_sig = kb.sign(tv024_ss).signature
+kb.verify_key.verify(tv024_ss, tv024_sig)
+tv024 = enc(cbor2.CBORTag(18, [tv024_protected, {}, tv024_payload, tv024_sig]))
+
+v2 += f"""
+## TV-024 — v2 AgentDescriptor embedding TV-022's Agent Card (layer §11.2, D-4/D-5)
+
+COSE_Sign1 envelope signed by Key B, msg-type 0x0110 (DESCRIPTOR_V2),
+msg-id 24 x16, timestamp {TS}, body key 5 (ttl) = {TV024_TTL}. DescriptorCore:
+1 = Key B's AgentID, 2 seq = 1, 3 endpoints = ["https://provider.example.org/a2a"],
+4 = [{{1: "{CAP}"}}], 5 zones = [2, 3], 6 = TV-022's signed card (canonical
+JSON bytes), 7 = the card's signature entry (canonical JSON bytes), 12 =
+{TV024_TTL}. A verifier at a time within [{TS}, {TS + TV024_TTL}] accepts it: the
+envelope signer is the subject, and the embedded card's JWS verifies under
+the same key (D-4).
+
+card signature entry, canonical JSON bytes (hex, {len(tv024_sig_entry)} bytes):
+  {tv024_sig_entry.hex()}
+
+envelope (hex, {len(tv024)} bytes):
+  {tv024.hex()}
+"""
+
+# =====================================================================
+# TV-025: A2A binding TaskID (A2A-8) and Part -> transcript leaf rule
+# (A2A-12..14). Part inputs are given as the hex of their UTF-8 JSON text
+# (non-canonical: whitespace, member order, and a `metadata` member that the
+# leaf rule MUST drop), so escapes survive any tooling. JCS here is Python's
+# json.dumps(sort_keys, compact, ensure_ascii=False): identical to RFC 8785
+# for these documents (BMP-only keys, integers only; asserted below).
+# =====================================================================
+tv025_nonce = bytes([7]) * 16
+tv025_a2a_id = "task-1"
+tv025_task = hashlib.sha256(enc(["MAPTaskID", tv025_nonce, aid_b, tv025_a2a_id.encode()])).digest()
+BS = chr(92)  # a backslash; spelled out so JSON escapes survive editing
+tv025_inputs = [
+    '{ "text": "h' + chr(0xe9) + 'llo BSQq BSQ", "mediaType": "text/plain", "metadata": {"map/v2": {"checkpoint": "ignored"}} }',
+    '{"data": {"z": [true, null, 0, -12, 3000000], "a": "tabBSt line' + chr(0x2028) + 'sep BSu001b"}}',
+    '{"url": "https://example.org/y", "mediaType": "image/png", "filename": "a.png"}',
+]
+tv025_inputs = [s.replace("BSQ", BS + chr(34)).replace("BS", BS) for s in tv025_inputs]
+def tv025_leaf(src):
+    obj = json.loads(src)
+    obj.pop("metadata", None)
+    out = json.dumps(obj, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+    assert all(ord(c) < 0x10000 for k in obj for c in k)
+    return out.encode()
+tv025_leaves = [tv025_leaf(s) for s in tv025_inputs]
+tv025_hashes = [tleaf(i, 0, c) for i, c in enumerate(tv025_leaves)]
+tv025_root = tparent(tparent(tv025_hashes[0], tv025_hashes[1]), tv025_hashes[2])
+
+v2 += f"""
+## TV-025 — A2A TaskID and Part leaves (binding A2A-8, A2A-12..14)
+
+TaskID = SHA-256(enc(["MAPTaskID", nonce, provider AgentID, a2a-task-id
+UTF-8])) with nonce = 07 x16, provider = Key B, a2a-task-id = "{tv025_a2a_id}":
+  {tv025_task.hex()}
+
+Three delivered Parts, seq 0..2, kind 0. For each: the Part as received
+(UTF-8 JSON text), then its leaf content (RFC 8785 JCS of the Part without
+`metadata`). Root over the three leaves (layer §5):
+  {tv025_root.hex()}
+
+""" + "".join(f"part {i} input (hex):\n  {s.encode().hex()}\npart {i} leaf content (hex):\n  {l.hex()}\n" for i, (s, l) in enumerate(zip(tv025_inputs, tv025_leaves)))
+
 out = prefix + new + negatives + derived + v2
 
 # v2 (accountability-layer rework, 2026-09-25): vectors whose message types v2
@@ -1152,6 +1229,8 @@ print("OK - vectors written and all signatures verified.")
 print("TV-021", len(tv021), "| NV-013", len(nv013), "| NV-014", len(nv014), "(v2 checkpoints)")
 print("TV-022", len(tv022), "(signed Agent Card)")
 print("TV-023", len(tv023), "receipts (admissibility)")
+print("TV-024", len(tv024), "(v2 descriptor envelope)")
+print("TV-025 root", tv025_root.hex()[:16], "(A2A TaskID + Part leaves)")
 print("TV-001", len(envelope), "| TV-002", len(receipt),
       "| new TVs 3..10 + 10b (bound quote) +", "6 negatives + derived constants")
 print("TV-010b", len(tv010b["envelope"]), "| NV-006", len(nv006))

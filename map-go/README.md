@@ -20,7 +20,7 @@ binding with a provider and a requester.
   reference**. They are a second implementation, not an independent one.
   Their cross-checks against Rust therefore rest on artifacts neither
   codebase produced: the Python generator's frozen vectors
-  (`spec/test-vectors/gen_vectors.py`: TV-021..TV-023, NV-013/014), an
+  (`spec/test-vectors/gen_vectors.py`: TV-021..TV-025, NV-013/014), an
   independent `cbor2` oracle for the MPP-Tempo digest, and the unmodified
   A2A Python SDK. Every such check was validated by planting a bug and
   confirming the test fails.
@@ -49,18 +49,23 @@ go test ./cbor -fuzz FuzzDecode -fuzztime 60s   # optional: decoder fuzz
 `conformance` reads `../spec/test-vectors/map-test-vectors.md` at test
 time and:
 
-- **produces** TV-001..TV-005, NV-001..NV-005 and TV-021 (the dual-signed
-  CheckpointArtifact: root, core and artifact) byte-for-byte from the
-  seeds;
+- **produces** TV-001..TV-005, NV-001..NV-005, TV-021 (the dual-signed
+  CheckpointArtifact: root, core and artifact), TV-022 (the signed A2A
+  Agent Card) and TV-024 (the v2 descriptor envelope embedding it)
+  byte-for-byte from the seeds;
 - **consumes** TV-001/003/004/005 (open + strict verify), TV-002 (dual
-  signed receipt) and TV-021 (a valid resumption point that resumes at
-  seq 3);
+  signed receipt), TV-021 (a valid resumption point that resumes at
+  seq 3), TV-022 (the Python-signed card verifies) and TV-024 (the
+  descriptor opens in its window, not after expiry);
 - **rejects** NV-001→2000, NV-002→1000, NV-003→1000, NV-005→2000,
   NV-013 (corrupted countersignature → not a resumption point), NV-014
   (root mismatch on resume); NV-004 opens and loses on seq LWW;
 - checks **TV-023**: each of 13 receipts reaches its pinned admissibility
   verdict (R-2 self-dealing, R-3 future-dated, R-4 unilateral receipts,
   cancelled), including the rule order;
+- checks **TV-025**: the A2A TaskID derivation and the Part → leaf rule
+  over non-canonical Parts (non-ASCII, escapes, U+2028, a control
+  character with hex letters, a `metadata` member to drop);
 - checks the **derived constants** (TH, CB, shard, K/K′, transcript root)
   and the AgentID multibase/did:key strings.
 
@@ -84,6 +89,7 @@ delegation) are not consumed; their bytes stay in the file and in tag
 | `meter` | non-negative Amount, Asset, exact Billed, voucher digests (RAIL-1/5), atomic units, M-6 ceiling |
 | `discovery` | cap index keys, sharding, ShardEpoch (D-8), v1 Descriptor, v2 DescriptorV2 |
 | `net`, `dht` | libp2p/QUIC MapNode and Kademlia router (discovery plane); shard-filtered lookups (finding A3) |
+| `a2a` | the A2A binding: RFC 8785 JCS, Agent Card JWS (EdDSA, §8.4.1 default removal, A2A-31 profile), v2 descriptor seal/open (D-4/D-5), TaskID (A2A-8), Part leaves (A2A-14), ProviderTask/RequesterTask flows |
 | `conformance` | vector reader and the conformance tests |
 | `cmd/map-interop` | Go peer for the core interop matrix (`interop/run-matrix.ps1`) |
 

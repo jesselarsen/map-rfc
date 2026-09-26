@@ -26,6 +26,11 @@ nv14 = hexes(section("### NV-014"))
 assert len(nv13) == 1 and len(nv14) == 1
 tv22 = hexes(section("## TV-022"))
 assert len(tv22) == 1, tv22
+tv24 = hexes(section("## TV-024"))
+assert len(tv24) == 2, tv24  # signature entry, envelope
+tv25 = hexes(section("## TV-025"))
+assert len(tv25) == 8, tv25  # task id, root, then (input, leaf) x 3
+tv25_parts = "".join(f'    ("{tv25[2 + 2 * i]}", "{tv25[3 + 2 * i]}"),\n' for i in range(3))
 tv23 = re.findall(r"^case (\d\d) (\S+) -- .*\n\s+([0-9a-f]+)\s*$", section("## TV-023"), re.M)
 assert len(tv23) == 13 and [int(n) for n, _, _ in tv23] == list(range(1, 14)), tv23
 tv23_rs = "".join(f'    ("{v}", "{h}"),\n' for _, v, h in tv23)
@@ -47,6 +52,14 @@ pub const NV013_HEX: &str = "{nv13[0]}";
 pub const NV014_HEX: &str = "{nv14[0]}";
 /// TV-022: signed A2A Agent Card (canonical JSON bytes), Key B, alg EdDSA.
 pub const TV022_CARD_HEX: &str = "{tv22[0]}";
+/// TV-024: v2 AgentDescriptor envelope embedding TV-022 (Key B, seq 1, ttl 1 h).
+pub const TV024_ENV_HEX: &str = "{tv24[1]}";
+/// TV-025: A2A TaskID (nonce 07x16, Key B, "task-1") and transcript root.
+pub const TV025_TASK_ID_HEX: &str = "{tv25[0]}";
+pub const TV025_ROOT_HEX: &str = "{tv25[1]}";
+/// TV-025: (Part input UTF-8 JSON hex, leaf content hex), seq 0..2.
+pub const TV025_PARTS: &[(&str, &str)] = &[
+{tv25_parts}];
 /// TV-023 evaluation time (ms) and skew bound (ms).
 pub const TV023_NOW_MS: u64 = 1_790_000_000_000;
 pub const TV023_SKEW_MS: u64 = 120_000;

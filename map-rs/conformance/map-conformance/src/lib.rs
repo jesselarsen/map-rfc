@@ -12,6 +12,7 @@
 //! stop and escalate, do not adapt the vector.
 
 pub mod admissibility;
+pub mod binding;
 pub mod card;
 pub mod checkpoint;
 pub mod extended;
@@ -75,6 +76,9 @@ pub fn cases() -> Vec<(&'static str, fn() -> Result<(), String>)> {
         ("TV-022 Agent Card produce", card::case_tv022_produce),
         ("TV-022 Agent Card consume", card::case_tv022_consume),
         ("TV-023 receipt admissibility", admissibility::case_tv023_admissibility),
+        ("TV-024 v2 descriptor produce", card::case_tv024_produce),
+        ("TV-024 v2 descriptor consume", card::case_tv024_consume),
+        ("TV-025 A2A TaskID and Part leaves", binding::case_tv025_binding),
     ]
 }
 
@@ -165,6 +169,9 @@ mod tests {
     case_test!(tv022_produce, card::case_tv022_produce);
     case_test!(tv022_consume, card::case_tv022_consume);
     case_test!(tv023_admissibility, admissibility::case_tv023_admissibility);
+    case_test!(tv024_produce, card::case_tv024_produce);
+    case_test!(tv024_consume, card::case_tv024_consume);
+    case_test!(tv025_binding, binding::case_tv025_binding);
 
     #[test]
     fn run_all_is_green_and_complete() {
@@ -174,7 +181,7 @@ mod tests {
             "conformance failures: {:?}",
             report.failed
         );
-        assert_eq!(report.passed.len(), 31);
-        assert_eq!(report.total(), 31);
+        assert_eq!(report.passed.len(), 34);
+        assert_eq!(report.total(), 34);
     }
 }
