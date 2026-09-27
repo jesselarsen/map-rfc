@@ -157,7 +157,8 @@ adversarial providers.
   \includegraphics[width=\textwidth]{figs/e1_attacker_share}
   \caption{E1: steady-state attacker share of honest requesters' tasks
   versus adversarial fraction $\alpha$ (20 seeds, 95\% CIs). The dashed
-  line is random selection. Ours-L uses the pre-registered weighting, W2.}
+  line is random selection. Ours-L uses the pre-registered weighting, W2;
+  Table~\ref{tab:w1h1} gives the recommended W1.}
   \label{fig:e1}
 \end{figure*}
 
@@ -325,6 +326,51 @@ The price is small. Outside on-off and camouflage, W2 is ahead by at most
 0.003 at $\alpha\le0.3$ and by at most 0.007 at $\alpha{=}0.5$. Under
 on-off it is ahead by 0.003 to 0.040. H1 and the other E1
 verdicts stay as pre-registered, computed with W2.
+
+\paragraph{H1 for the recommended weighting (exploratory).}
+Every E1 headline above uses W2, which the specification no longer
+recommends. Table~\ref{tab:w1h1} applies the H1 criterion to W1 instead.
+W1's cells come from a separate run with independent random streams, so
+each ratio's CI resamples the two arms independently. W2 is recomputed
+the same way. That reproduces its pre-registered counts exactly: 18 of
+28 points, and 27 of 28 against B2 alone.
+\begin{itemize}
+\item \textbf{Overall.} With W1, H1 holds at 17 of 28 points, and
+  against the canary alone at all 28.
+\item \textbf{Where W1 differs from W2.} It passes camouflage against B2
+  at $\alpha{=}0.3$, with a ratio of 0.44 where W2 had 0.69. It fails
+  collusion at $\alpha{=}0.3$, with a ratio of 0.49 whose upper bound is
+  0.51. Both calls turn on margins of about 0.01.
+\item \textbf{Against the global ledger under on-off} W1 is further
+  behind than W2: a ratio of 1.85--1.94, against about 1.4.
+\item \textbf{The slander result holds for W1:} 0.027 at $\alpha{=}0.2$
+  and 0.084 at $\alpha{=}0.5$, against B1's 0.406 and 0.952.
+\end{itemize}
+
+\begin{table}[t]
+\caption{Exploratory: the H1 criterion (Ours-L at most half of both B1
+and B2, upper CI $\le$ 0.5) for W2 and W1, per attack, over the
+pre-registered $\alpha\in\{0.05,0.1,0.2,0.3\}$. The arms are resampled
+independently. The ratio columns give W1's range of point estimates over
+$\alpha$. All cells are in \texttt{W1-H1.md}.}
+\label{tab:w1h1}
+\small
+\begin{tabular}{@{}lrrrr@{}}
+\toprule
+Attack & W2 holds & W1 holds & W1/B1 & W1/B2 \\
+\midrule
+farming & 4/4 & 4/4 & 0.28--0.31 & 0.20--0.26 \\
+camouflage & 2/4 & 2/4 & 0.40--0.53 & 0.28--0.44 \\
+collusion & 4/4 & 3/4 & 0.45--0.49 & 0.20--0.26 \\
+whitewash & 0/4 & 0/4 & 1.05--1.08 & 0.19--0.25 \\
+on-off & 0/4 & 0/4 & 1.85--1.94 & 0.34--0.41 \\
+slander & 4/4 & 4/4 & 0.05--0.24 & 0.20--0.26 \\
+combined & 4/4 & 4/4 & 0.03--0.05 & 0.19--0.26 \\
+\midrule
+total & 18/28 & 17/28 & & \\
+\bottomrule
+\end{tabular}
+\end{table}
 
 \paragraph{Sybil count (exploratory, A10).}
 E1 fixes 20 Sybil requesters per adversarial provider. Identities are

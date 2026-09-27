@@ -26,6 +26,27 @@ Findings are registered in `paper/REVIEW-redteam-1.md` (RT-xx) and
 `paper/REVIEW-redteam-2.md` (R2-xx), against the paper draft at `c67ad76`.
 Rulings below follow `REVIEW-PROCESS.md` Stage 2.
 
+RULED 2026-09-27 (review finding RT-02, roles 1/3 — PC, Methodology) — every
+E1 headline number was for W2, which the specification no longer recommends,
+and W1's results were not shown. — RULING: **ACCEPT**. A new
+`eval/analysis/w1_h1.py` (exploratory; reads `e1-minimax.csv` and
+`e1-main.csv` only) writes `eval/results/5bc7702/W1-H1.md`, and
+`run_all.ps1` runs it. W1's cells come from a separate run, so ratio CIs
+resample the arms independently. W2, recomputed the same way, reproduces its
+pre-registered counts exactly (18/28; 27/28 against B2 alone). Results:
+- W1: H1 holds at 17/28 and against B2 alone at 28/28;
+- it passes camouflage against B2 at α = 0.3 (0.44 against W2's 0.69);
+- it fails collusion at α = 0.3 by a margin of 0.01 (upper bound 0.51);
+- it is further behind B1 under on-off (1.85–1.94 against about 1.4);
+- the slander result holds (0.027 / 0.084 against B1's 0.406 / 0.952).
+The paper gains an evaluation paragraph and Table `tab:w1h1`, the Fig. 3
+caption points to it, and the conclusion gives W1's counts. The abstract's
+figures hold for both weightings: "18 of 28" is labelled as the
+pre-registered weighting, and slander rounds to 0.08 for both. Editorial;
+no wire change. — Implemented in `eval/analysis/w1_h1.py`,
+`eval/results/5bc7702/W1-H1.md`, `eval/run_all.ps1`, the provenance notes,
+`paper/sections/{evaluation,conclusion}.tex` and `paper/main.tex`.
+
 RULED 2026-09-27 (review finding RT-01, roles 2/3 — Protocol red team,
 Methodology; widened in register 2) — "<1% overhead" counted CPU signing
 only. The binding's fallback path (A2A-21), which every provider must

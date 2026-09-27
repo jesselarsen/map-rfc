@@ -1,7 +1,7 @@
 # One-command evaluation (eval/HYPOTHESES.md). Results go to
 # eval/results/<git-sha>/: one CSV + env.json per experiment, bench/,
 # REPORT.md (every hypothesis verdict), MINIMAX.md (Amendment A9), B2L.md
-# (exploratory), PREREG-EXTRA.md (pre-registered items outside REPORT.md), SYBIL-SWEEP.md (A10), DISCOVERY-FLOOD.md (A11)
+# (exploratory), PREREG-EXTRA.md (pre-registered items outside REPORT.md), SYBIL-SWEEP.md (A10), DISCOVERY-FLOOD.md (A11), W1-H1.md
 # and figs/.
 #
 # Usage:  pwsh eval/run_all.ps1 [-Quick] [-Out DIR] [-SkipBench]
@@ -90,9 +90,9 @@ Write-Host "`n== analysis =="
 Push-Location (Join-Path $eval "analysis")
 & $py analyze.py $Out
 & $py make_figs.py $Out
-# minimax.py (A9), b2l.py, prereg_extra.py, sybil_sweep.py (A10) and discovery_flood.py (A11) require 20 seeds per cell.
+# minimax.py (A9), b2l.py, prereg_extra.py, sybil_sweep.py (A10), discovery_flood.py (A11) and w1_h1.py require 20 seeds per cell.
 if ($Quick) {
-  Write-Host "  -Quick: skipping minimax.py, b2l.py, prereg_extra.py, sybil_sweep.py and discovery_flood.py (they require 20 seeds per cell)"
+  Write-Host "  -Quick: skipping minimax.py, b2l.py, prereg_extra.py, sybil_sweep.py, discovery_flood.py and w1_h1.py (they require 20 seeds per cell)"
 } elseif (Test-Path (Join-Path $Out "e1-main.csv")) {
   & $py minimax.py $Out | Out-Null
   if ($LASTEXITCODE -ne 0) { Pop-Location; Write-Error "minimax.py failed" }
@@ -104,6 +104,8 @@ if ($Quick) {
   if ($LASTEXITCODE -ne 0) { Pop-Location; Write-Error "sybil_sweep.py failed" }
   & $py discovery_flood.py $Out | Out-Null
   if ($LASTEXITCODE -ne 0) { Pop-Location; Write-Error "discovery_flood.py failed" }
+  & $py w1_h1.py $Out | Out-Null
+  if ($LASTEXITCODE -ne 0) { Pop-Location; Write-Error "w1_h1.py failed" }
 }
 Pop-Location
 Write-Host "`nReport: $(Join-Path $Out 'REPORT.md')"
