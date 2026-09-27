@@ -87,7 +87,7 @@ These come from the pre-registered evaluation (`eval/HYPOTHESES.md`, tag
 |---|---|---|---|
 | Default issuer weighting: W1, direct agreement. W2 is NOT RECOMMENDED where Sybils can outnumber honest requesters | additive (recommended policy) | layer §8.4 (was "Deferred") | The pre-registered minimax re-test (A9) over α 0.05–0.5 × 7 attacks gives worst-case attacker share W0 0.348, **W1 0.200**, W2 0.550 (W2 collapses under camouflage at α = 0.5). The earlier α = 0.2-only D5 had picked W2 by 0.2 points (0.0290 vs 0.0312) |
 | Trust parameter table: decay 0.98/day, prior 1/1, future-skew 120 s, per-issuer cap 50 | additive (recommended policy) | layer §8.2 | E1 values, fixed before the runs and not tuned |
-| C-6: default checkpoint interval c = 8 leaves | additive (SHOULD) | layer §7.5; binding-a2a `checkpointIntervalParts` | E2 / H2: at c = 8, resume wastes 0.0042× what restart wastes. E4 / H5: 0.086% time overhead; exposure ≤ price(c) |
+| C-6: default checkpoint interval c = 8 leaves | additive (SHOULD) | layer §7.5; binding-a2a `checkpointIntervalParts` | E2 / H2: at c = 8, resume wastes 0.0042× what restart wastes. E4 / H5: 0.079% time overhead; exposure ≤ price(c) |
 | D-8 epoch-salted shard: from "experimental mitigation" to NOT RECOMMENDED as a mitigation; A4 becomes a stated limitation | normative downgrade (no wire change) | layer §11.5, §12.3; binding-libp2p DHT-13 | E3b: attacker holds 1.000 of the target shard in every configuration; the 1-core grind outpaces any epoch |
 | D-9 disjoint-path lookups: from "experimental" to SHOULD, d = 3 | normative strengthening (no wire change) | layer §11.6; binding-libp2p DHT-12 | E3c: at N = 10⁵, f = 0.3, lookup success 0.755 → 0.930 |
 

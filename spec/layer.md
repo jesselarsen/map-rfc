@@ -722,9 +722,9 @@ evaluation E2/E4 (`eval/HYPOTHESES.md`):
   15.7 Parts at c = 32, 64.8 at c = 128.
 - *Cost.* A checkpoint costs two signatures and about 310 bytes (TV-021
   is 312). At
-  c = 8, MAP signing and verification add 0.086% to a task that
+  c = 8, MAP signing and verification add 0.079% to a task that
   generates one token per 20 ms (criterion benchmark of the reference
-  implementation). At c = 1 they add 0.69%.
+  implementation). At c = 1 they add 0.63%.
 - *Exposure.* Under voucher-per-checkpoint metering, a provider's
   unpaid exposure is at most price(c Parts). This is H5, asserted in
   every run. So c also sets the credit a provider extends.

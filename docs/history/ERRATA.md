@@ -20,6 +20,27 @@ Format: `RESOLVED <ruling-date> (was PENDING-ARCHITECT <date> <package>) —
 
 ---
 
+## Paper red-team review, 2026-09-27
+
+Findings are registered in `paper/REVIEW-redteam-1.md` (RT-xx) and
+`paper/REVIEW-redteam-2.md` (R2-xx), against the paper draft at `c67ad76`.
+Rulings below follow `REVIEW-PROCESS.md` Stage 2.
+
+RULED 2026-09-27 (review finding R2-07, role 4 — Claims auditor) — the paper
+and the spec quoted MAP's signing overhead as 0.086% of task time at c = 8 and
+0.69% at c = 1, and the paper quoted a transcript append as 1.4 µs. These
+figures come from the superseded evaluation run `9a4a968`. The declared source
+run `5bc7702` gives 0.0794% and 0.6306% (REPORT.md, H5) and 1.33 µs
+(`bench/transcript_push_root`), so `paper/README.md`'s provenance statement
+was false for these three numbers. — RULING: **ACCEPT-EDITORIAL**. The numbers
+change and the conclusions do not: the stale values were higher, and H5's
+"< 1% at c ≥ 8" holds either way. Editorial; no wire change. — Implemented in
+`paper/sections/evaluation.tex` (0.079%, 0.63%),
+`paper/sections/implementation.tex` (1.3 µs), `spec/layer.md` §7.5 C-6
+rationale, and the C-6 row of `spec/CHANGELOG.md`.
+
+---
+
 ## External review, 2026-09-18 — Track 0 rulings
 
 Eight role-based external reviews (`map-spec/REVIEW-PROMPTS.md`) were run
