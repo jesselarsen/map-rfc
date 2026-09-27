@@ -1627,6 +1627,21 @@ disclosed whole or not at all. Consumers of a disclosed receipt MUST
 verify it independently (§4.3) — a disclosed evidence set is untrusted
 transport, exactly like a DHT record.
 
+*Evidence availability (informative, evaluation A13).* This layer defines
+no dissemination of receipts, and second-hand evidence is only as good as
+the share of honest receipts an observer actually sees. In the evaluation
+(α = 0.2), each observer saw a fraction v of other honest requesters'
+receipts and every Sybil receipt:
+- Under farming and slander, W1 kept its advantage over W0 down to
+  v = 0.05.
+- Under camouflage, W1 fell behind W0 at v ≤ 0.2.
+- A global ledger (every issuer weight 1) became worse than random at
+  v ≤ 0.2.
+
+Wider disclosure improves W1, but it also reveals more of the delegation
+graph, as the paragraph below describes. Deployments that expect
+camouflage and limited disclosure should prefer W0 (§8.4).
+
 Zones (§10) bound what data a task's payload MAY be exposed to, but the
 dual-signed zone label is itself metadata: it reveals that a
 (requester, provider) pair transacted at a given sensitivity level. A

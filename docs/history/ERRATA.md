@@ -26,6 +26,36 @@ Findings are registered in `paper/REVIEW-redteam-1.md` (RT-xx) and
 `paper/REVIEW-redteam-2.md` (R2-xx), against the paper draft at `c67ad76`.
 Rulings below follow `REVIEW-PROCESS.md` Stage 2.
 
+RULED 2026-09-27 (review finding RT-03, roles 2/3 — Protocol red team,
+Methodology) — E1 assumed one public receipt pool and called it "the worst
+case". That is the worst case for flooding but the best case for evidence
+availability: W1 and B1 beat W0 only by reading other honest requesters'
+receipts, and the design specifies no dissemination. — RULING: **ACCEPT**.
+Amendment A13 (exploratory) was pushed as `43918bd` before any run of its
+code. It adds an E1 `visibility` option, off by default and unchanged on
+the default path: the golden hashes pass and e1_camo_explore's committed
+hash is reproduced. Each observer sees each other honest requester's
+receipts with probability v, and Sybil receipts stay fully visible.
+Results at α = 0.2:
+- W1 keeps its advantage over W0 under farming and slander at every v
+  down to 0.05 (0.044 against 0.072);
+- under camouflage W1 loses to self-only at v ≤ 0.2 (0.103, 0.146);
+- the global ledger is worse than random at v ≤ 0.2 under every attack
+  (farming 0.678 at v = 0.05);
+- W1 with the canary stays at or below 0.014 everywhere.
+Changes:
+- paper: E1's World paragraph states the assumption correctly; a "Partial
+  visibility" paragraph and Table `tab:vis`; the Limitations "Simulation"
+  paragraph; the Appendix A13 entry;
+- spec §14.2: an informative evidence-availability note (prefer W0 when
+  camouflage and limited disclosure are expected), recorded in CHANGELOG.
+Editorial; no wire change. — Implemented in `map-rs/sim/src/scenarios/e1.rs`,
+`eval/configs/e1_visibility.toml`, `eval/analysis/visibility.py`,
+`eval/results/5bc7702/{e1-visibility.csv, VISIBILITY.md}`,
+`eval/run_all.ps1`, `eval/HYPOTHESES.md`, `spec/layer.md` §14.2,
+`spec/CHANGELOG.md`, and
+`paper/sections/{evaluation,limitations,appendix}.tex`.
+
 RULED 2026-09-27 (review finding RT-04, role 2 — Protocol red team) — the
 strongest attack on W1 was never run: camouflaging Sybils that report
 truthfully on most providers and lie about a few targets. E1's "combined"

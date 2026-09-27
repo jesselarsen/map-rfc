@@ -712,3 +712,28 @@ before any run of the code it describes).**
   - B1 should worsen under slander as v falls, because the Sybils' share
     of the visible evidence grows.
 - *Script:* `analysis/visibility.py` writes `results/5bc7702/VISIBILITY.md`.
+
+**A13 result (2026-09-27).** `e1-visibility` built from `43918bd` (the
+commit that carries A13): 1,440 jobs, CSV SHA-256 `03a51a52…`.
+`analysis/visibility.py` writes `results/5bc7702/VISIBILITY.md`. At v = 1 the
+grid reproduces E1 (W1 farming 0.027, camouflage 0.041; B1 slander 0.402).
+
+Steady-state attacker share at v = 1 / 0.5 / 0.2 / 0.05 (W0 is 0.072
+throughout):
+- W1 farming: 0.027 / 0.029 / 0.033 / 0.044;
+- W1 camouflage: 0.041 / 0.063 / 0.103 / 0.146;
+- W1 slander: 0.027 / 0.029 / 0.034 / 0.044;
+- B1 farming: 0.097 / 0.143 / 0.290 / 0.678;
+- B1 slander: 0.402 / 0.647 / 0.714 / 0.714;
+- Ours-L+C with W1: at most 0.014 everywhere.
+
+Readings by the rules above:
+- W1 keeps its advantage under farming and slander at every v;
+- under camouflage it keeps it at v ≥ 0.5 and loses to self-only at
+  v ≤ 0.2.
+
+Against the expectation:
+- W1 did not converge to W0 under farming and slander. It stayed clearly
+  better even at 5% visibility.
+- The camouflage expectation held.
+- B1 worsened under every attack, not only slander.

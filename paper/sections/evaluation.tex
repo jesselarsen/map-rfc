@@ -11,7 +11,7 @@ We did this because one author, working with a single AI model family
 (Acknowledgments), produced \sys{}, the baselines and the simulator.
 That is the main threat to validity~\cite{nosek2018prereg}.
 After the tag, the plan changed only through dated, appended amendments
-(A1--A12, Appendix~\ref{app:amendments}), and we report every hypothesis
+(A1--A13, Appendix~\ref{app:amendments}), and we report every hypothesis
 whatever its outcome. Two amendments changed a decision and are disclosed
 where they apply:
 \begin{itemize}
@@ -129,7 +129,10 @@ Honest providers succeed with $q\sim U[0.80,0.98]$. A fraction $\alpha$
 of providers is adversarial, with $q{=}0.2$. Adversarial providers refuse
 to countersign their failures. In the Sybil attacks (farming, camouflage,
 slander, combined), each one also controls 20 Sybil requesters.
-Every receipt goes to one public pool, the worst case. Discovery is
+Every receipt goes to one public pool that every observer reads. That is
+the worst case for flooding, but the best case for evidence
+availability, since \sys{} specifies no dissemination (A13, below, relaxes
+it). Discovery is
 honest: shortlists are drawn from the real providers only
 (\S\ref{sec:eval-discovery} drops this assumption). The metric is the
 steady-state (rounds 31--60) share of honest requesters' tasks that go to
@@ -363,6 +366,49 @@ B1 global ledger & 93\% & 91\% \\
 Ours-L, W0 & none & none \\
 Ours-L, W1 & none & 68\% \\
 Ours-L, W2 & none & 88\% \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\paragraph{Partial visibility (exploratory, A13).}
+Receipts are disclosed at the holder's discretion, so an observer will
+not see every honest receipt. Amendment A13, pushed before its run, lets
+each observer see each other honest requester's receipts with probability
+$v$, fixed per pair. The adversary's Sybil receipts stay fully visible
+(Table~\ref{tab:vis}; $\alpha{=}0.2$).
+\begin{itemize}
+\item \textbf{Farming and slander.} W1 keeps its advantage over
+  self-only weighting even at $v{=}0.05$ (0.044 against 0.072). It needs
+  little honest evidence to separate its own experience from the Sybils'.
+\item \textbf{Camouflage.} W1 falls behind self-only weighting at
+  $v\le0.2$ (0.103 at 0.2 and 0.146 at 0.05). The Sybils' bought
+  agreement stays fully visible while honest agreement fades.
+\item \textbf{The global ledger} collapses as visibility falls. It is
+  worse than random at $v\le0.2$ under every attack, reaching 0.678 under
+  farming at $v{=}0.05$. The public pool flattered B1 most of all.
+\item \textbf{W1 with the canary} stays at or below 0.014 everywhere.
+\end{itemize}
+How far receipts travel, and at what privacy cost, is therefore a
+deployment decision that decides whether W1 or W0 is the safer default
+under camouflage.
+
+\begin{table}[t]
+\caption{Exploratory (A13): steady-state attacker share at $\alpha{=}0.2$
+when each observer sees a fraction $v$ of other honest requesters'
+receipts and all Sybil receipts (20 seeds; every 95\% CI is within
+$\pm$0.01 of the mean). W0 does not depend on $v$. Random selection gives
+0.2. All cells are in \texttt{VISIBILITY.md}.}
+\label{tab:vis}
+\small
+\begin{tabular}{@{}rrrrrrr@{}}
+\toprule
+ & & \multicolumn{3}{c}{W1} & \multicolumn{2}{c}{B1} \\
+$v$ & W0 & farm. & camo. & sland. & farm. & sland. \\
+\midrule
+1 & 0.072 & 0.027 & 0.041 & 0.027 & 0.097 & 0.402 \\
+0.5 & 0.072 & 0.029 & 0.063 & 0.029 & 0.143 & 0.647 \\
+0.2 & 0.072 & 0.033 & 0.103 & 0.034 & 0.290 & 0.714 \\
+0.05 & 0.072 & 0.044 & 0.146 & 0.044 & 0.678 & 0.714 \\
 \bottomrule
 \end{tabular}
 \end{table}
