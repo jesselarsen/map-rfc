@@ -709,6 +709,33 @@ overbilling to at most one checkpoint interval of usage: exactly the gap
 between the last point the requester actually acknowledged and the
 point of failure.
 
+**C-6 (default interval).** Absent a negotiated value, a provider SHOULD
+propose a checkpoint every **c = 8** transcript leaves, and at the
+terminal state. The interval is local policy. The default comes from
+evaluation E2/E4 (`eval/HYPOTHESES.md`):
+
+- *Waste.* At λL = 1 expected failure per task and L = 10³ Parts,
+  countersigned resume at c = 8 wastes 3.2 Parts per task. That is
+  0.42% of the waste of restarting from scratch (ratio 0.0042 [0.0036,
+  0.0050], hypothesis H2). With no intermediate checkpoints (c = ∞) it
+  wastes 591.6. Waste grows roughly linearly in c:
+  15.7 Parts at c = 32, 64.8 at c = 128.
+- *Cost.* A checkpoint costs two signatures and about 310 bytes (TV-021
+  is 312). At
+  c = 8, MAP signing and verification add 0.086% to a task that
+  generates one token per 20 ms (criterion benchmark of the reference
+  implementation). At c = 1 they add 0.69%.
+- *Exposure.* Under voucher-per-checkpoint metering, a provider's
+  unpaid exposure is at most price(c Parts). This is H5, asserted in
+  every run. So c also sets the credit a provider extends.
+
+Price a signature at κ ∈ {0.01, 0.1} Parts of work. The c that minimizes
+waste + κ·signatures then lies between 8 and 32 in most E2 settings.
+The exceptions are c = 128 when failures are rare on long tasks, and
+c = 1 when κ = 0.01 and failures are frequent on short tasks. c = 8 is
+the conservative end of that range. Deployments with expensive
+signatures, or with long and reliable tasks, MAY raise it.
+
 ### 7.6 Engine-state / KV-cache shortcut
 
 **Deferred:** v1 tasks-01 §8.4 defined an opaque engine-state blob
@@ -780,6 +807,26 @@ High-value routing decisions SHOULD gate on `confidence(s, c) ≥ floor`,
 never on `score` alone — a score of 1.0 from a single receipt and a
 score of 0.97 from five hundred are not the same claim.
 
+**Parameter defaults.** Evaluation E1 used the values below, and they are
+the RECOMMENDED starting point. They were fixed before the runs and never
+tuned, so the evaluation shows they are sufficient, not that they are
+optimal.
+
+| Parameter | Default | Meaning |
+|---|---|---|
+| decay λ | 0.98 per day | Applied to `ended` (T-1), never to ingestion time |
+| prior α₀, β₀ | 1, 1 | |
+| future-skew tolerance | 120 s | R-3: a receipt whose `ended` is more than this beyond the evaluation time is inadmissible |
+| per-issuer cap | 50 | T-3: the most weighted, decayed evidence (α + β) that one issuer contributes to one (subject, capability) projection. Any excess is scaled down proportionally, after issuer weighting |
+| issuer weighting | W1 | §8.4 |
+
+Under 0.98/day decay, an issuer's steady-state mass in a cell is its
+receipt rate / (1 − 0.98). The cap of 50 therefore binds only when one
+issuer sustains more than about one receipt per day against one subject.
+The cap works as a rolling window, and that is how the reference
+implementation realizes T-3's rolling-window SHOULD. In `map-trust`,
+`ProjParams::recommended()` returns this table.
+
 ### 8.3 Issuer weighting
 
 **T-3.** `issuer_weight(r)` in §8.2 (or any equivalent term in an
@@ -807,16 +854,89 @@ ring is internally dense and externally weightless, by construction of
 T-3 rather than by hoping a decay curve or a rate limit catches it in
 time.
 
-### 8.4 Deferred: default weighting function
+### 8.4 Recommended default weighting function (W1)
 
-**Deferred:** this document leaves the concrete function that turns "an
-evidence relationship exists" into a weight in `(0, 1]` for a specific
-issuer unspecified beyond the two endpoints fixed by T-3 (self = 1,
-unrelated = 0). Candidates — transitive trust along the observer's own
-receipt graph, capped-hop propagation, an EigenTrust-style global
-iteration kept off the routing critical path — are compared empirically
-in a later revision (decision D5 in `memory.md`); this document commits
-only to the properties that any such function MUST satisfy.
+T-3 fixes the two endpoints: self = 1, unrelated = 0. The RECOMMENDED
+function for every other issuer is **W1, direct agreement**. It is local
+policy, like the rest of §8.2, and any function that satisfies T-3
+conforms. Observer `o` computes it from the same admissible receipts
+that feed its projection:
+
+```
+rate_i(p) = α_ip / (α_ip + β_ip) over issuer i's receipts about subject p,
+            defined only where i holds ≥ 3 such receipts
+a(o, i)   = max(0, 1 − 2·MAD(o, i))    ; agreement
+            MAD = mean |rate_o(p) − rate_i(p)| over the subjects p that
+            o and i both have rates for; a(o, i) = 0 if there are fewer
+            than 3 such subjects
+w_o(i)    = a(o, i)
+```
+
+In words, an issuer earns weight only by agreeing with the observer's
+own first-hand experience of the same subjects. Under T-3 this counts
+as an evidence relationship, because every term is computed from
+receipts the observer itself issued or verified.
+- A Sybil ring that only agrees with itself shares no rated subjects
+  with the observer, so it gets weight 0.
+- An observer with fewer than 3 rated subjects gives every other issuer
+  weight 0, so W1 reduces to W0.
+- Honest agreement can be bought: Sybils can run truthful tasks to earn
+  weight (the camouflage attack below). W1 bounds what that buys to
+  direct agreement with the observer. No weight is passed on to others.
+
+Recompute the weights off the routing critical path, at most once per
+decay period (the evaluation used once per simulated day).
+`map-rs/sim/src/scenarios/weights.rs` is the reference implementation.
+
+**Alternatives.**
+- **W0 (self only)** is the minimal conformant choice. It has no
+  agreement computation and admits no second-hand evidence at all.
+- **W2 (personalized agreement propagation)** runs 10 power-iteration
+  steps, restart 0.15, over the row-normalized agreement graph among
+  all issuers, with `w_o(i) = min(1, t[i] / t[o])`. It is slightly
+  better than W1 in most settings, but it is NOT RECOMMENDED where
+  Sybil identities can outnumber honest requesters (see below).
+
+**Evidence.** All figures are steady-state attacker task share, over 20
+seeds with 95% CIs, across the seven E1 attacks (farming, farming with
+camouflage, collusion ring, whitewashing, on-off, slander, combined).
+
+1. *Pre-registered decision D5, α = 0.2 only* (Amendments A4/A6 of
+   `eval/HYPOTHESES.md`). Mean over attacks: W0 0.0796, W1 0.0312,
+   W2 0.0290. W2 won D5 by 0.2 points.
+2. *Pre-registered minimax re-test, α ∈ {0.05, 0.1, 0.2, 0.3, 0.5} ×
+   seven attacks* (Amendment A9, `eval/results/5bc7702/MINIMAX.md`).
+   Each arm's worst cell:
+
+   | Weighting | Worst cell | Attacker share [95% CI] | Honest success |
+   |---|---|---|---|
+   | W0 | α = 0.5, on-off | 0.348 [0.346, 0.350] | 0.960 |
+   | **W1** | **α = 0.5, camouflage** | **0.200 [0.196, 0.204]** | **0.978** |
+   | W2 | α = 0.5, camouflage | 0.550 [0.543, 0.557] | 0.867 |
+
+   The minimax rule selects W1. Elsewhere W2 does slightly better. Under
+   on-off, where pooled evidence catches the off phase sooner, it leads
+   by 0.003 at α = 0.05 up to 0.040 at α = 0.5. In the other attacks at
+   α ≤ 0.3 it leads by at most 0.003. Its failure is the camouflage case:
+   - At α = 0.5 each adversarial provider runs 20 Sybil requesters, so
+     2,000 Sybils face 500 honest requesters.
+   - Their truthful reports about honest providers earn them agreement
+     edges, and propagation concentrates mass in the Sybil cluster.
+   - W2 then does worse than random selection (0.500).
+
+   Under W1 the same Sybils gain weight only through direct agreement
+   with each observer, so the collapse does not happen.
+
+Two regimes limit every weighting:
+- *Sparse evidence.* With 0.1 tasks per requester per round, W0 beat
+  random selection by only 0.9–2.3 points (L2).
+- *Cold start.* Local trust needs history. In rounds 1–5, Ours-L without
+  a canary had a higher attacker share than the canary baseline, at
+  every α and attack (L1).
+
+A per-task canary in front of the projection, as in the evaluation's
+Ours-L+C arm, kept the attacker share at or below 0.15 in every cell.
+The two are complementary.
 
 ### 8.5 Graduated bootstrap (informative)
 
@@ -1219,37 +1339,78 @@ candidates by a `StatusReport` (or any other querier-side utility) is
 querier policy; this document defines the fields, never a scoring
 function.
 
-### 11.5 Anti-grinding (experimental)
+### 11.5 Node-ID grinding (evaluated; not mitigated at this layer)
 
-Reviewer finding A4 (node-ID grinding — an attacker cheaply computes
-~60k candidate AgentIDs/second until one lands in a favorable shard)
-motivates an optional hook, not a normative mechanism, pending
-evaluation:
+Reviewer finding A4 is node-ID grinding: an attacker cheaply generates
+about 60,000 candidate AgentIDs per second until enough of them land in a
+chosen shard. An earlier draft proposed an epoch-salted shard as a hook,
+pending evaluation:
 
-**D-8.**
+**D-8 (NOT RECOMMENDED as a mitigation).**
 
 ```
 shard_e(agent) = first byte of SHA-256(epoch_salt || AgentID bytes)
 ```
 
-An `epoch_salt`, rotated on a schedule a mesh chooses, changes every
-agent's shard assignment simultaneously each epoch, so a grinding attack
-computed against one epoch's salt is worthless in the next. This is
-**OPTIONAL and marked experimental**: it is not evaluated in this
-version, and a deployment MAY run the fixed §11.3 `shard()` function
-indefinitely.
+Evaluation E3b measured it and found no benefit. The attacker's grind
+rate was this machine's measured keygen-plus-shard rate, 60,901 attempts
+per second on one core. With it, the attacker held a share of the
+target shard of 1.000 [1.000, 1.000] in every configuration:
+
+- n ∈ {10³, 10⁴, 10⁵} providers
+- attack windows of 1 hour, 1 day and 1 week
+- a fixed `shard()`, or salts rotated every hour or every day
+
+The cause is structural, not a matter of tuning. One core adds about
+60,901 / 256 ≈ 238 identities per second to any chosen shard, while a
+shard of a 10⁵-provider mesh holds about 390 honest providers. The
+attacker therefore holds a majority of a fresh shard within about
+2 seconds of each rotation. No practical epoch is that short.
+
+Grinding is only a targeted form of the underlying problem: an
+AgentID costs nothing. An attacker who wants every shard can simply mint
+AgentIDs uniformly, and no shard function changes that. This layer
+therefore makes no discovery-level Sybil-resistance claim.
+
+- A querier MUST NOT treat D-8 as a defence against A4.
+- An implementation MAY still support `shard_e` for other purposes, such
+  as periodically rebalancing shard load. A querier MUST NOT assume a
+  mesh uses it unless the mesh says so.
+
+What bounds the damage of shard capture is the trust layer, not
+discovery. Every captured-shard record is a verified descriptor (D-6,
+§4.3) of an identity with no evidence history. T-3 and §8.5 route such
+an identity only on exploration, and receipts then separate it from
+honest providers (E1). Capture can hide honest providers, an
+availability loss, and it can waste exploration budget. It cannot forge
+another agent's descriptor or its evidence. Admission cost for
+identities (stake, proof of work, attested hardware) is out of scope.
 
 ### 11.6 Anti-eclipse and record integrity
 
 <!-- adapted from v1 discovery-01 §8 -->
 
-**D-9 (experimental).** Queriers SHOULD use disjoint-path Kademlia
-lookups (at least three disjoint paths, S/Kademlia-style) when fetching
-descriptors or capability records. The libp2p discovery binding
-(`spec/binding-libp2p-discovery.md`) states the lookup procedure. This
-is not yet implemented or evaluated: evaluation E3 measures it and its
-absence, and the requirement level is revisited after that. DHT routing tables SHOULD enforce IP-prefix
-diversity per bucket. Because descriptor integrity is end-to-end — the
+**D-9.** Queriers SHOULD use disjoint-path Kademlia lookups (d = 3
+disjoint paths, S/Kademlia-style) when fetching descriptors or
+capability records. The libp2p discovery binding
+(`spec/binding-libp2p-discovery.md`) states the lookup procedure.
+Evaluation E3c simulated Kademlia with k = 20, α = 3, and a fraction f
+of malicious routers that answer only with each other. The results
+replicate the known S/Kademlia result:
+
+- *Benefit.* Three disjoint paths matter at scale. At N = 10⁵ with no
+  churn, lookup success rose from 0.893 to 0.985 at f = 0.2, and from
+  0.755 to 0.930 at f = 0.3.
+- *Small meshes.* At N ≤ 10⁴ a single path already succeeds ≥ 0.96 of
+  the time at f ≤ 0.3, and d = 3 raises that to ≥ 0.997.
+- *Cost.* d = 3 costs 1.3–1.7× the messages of one path, and fewer
+  sequential hops, because the paths run in parallel.
+
+The reference `map-net` does not implement D-9 yet
+(`binding-libp2p-discovery.md` DHT-12). DHT routing tables SHOULD
+enforce IP-prefix diversity per bucket. This is not evaluated.
+
+Because descriptor integrity is end-to-end — the
 `descriptor-cid` is a content address, and every record carries a
 signature verified per §4.3 — the DHT itself is untrusted storage: an
 eclipse attack against a victim's routing table can *hide* providers
@@ -1347,8 +1508,8 @@ mitigation.
 | Finding | Description | Disposition |
 |---|---|---|
 | A1 | Receipt farming: a Sybil ring of dual-signers drove a projection to score 0.998 at confidence 501 in ~150 ms; self-dealt and future-dated receipts outranked honest ones; rebuild ignored the dual-signature gate | Addressed in spec (implementation in P3): T-3 zero-default issuer weighting (Sybil ring); R-2 (self-dealing); R-3 (future dating); R-4 + T-2 (positive evidence needs dual signatures, applied identically by rebuild) |
-| A3 | Shard flooding — records published or accepted outside their correct shard | Addressed in spec (implementation in P3): D-6, normative on the querier side (discard wrong-shard records) |
-| A4 | Node-ID grinding — ~60k candidate AgentIDs/second to land a favorable shard | Mitigated, experimental: D-8 epoch-salted `shard_e` hook (§11.5), not evaluated in this version |
+| A3 | Shard flooding — records published or accepted outside their correct shard | Addressed: D-6, normative on the querier side (discard wrong-shard records). Evaluated (E3a, H3 holds): with the filter the attacker's candidate share equals its fair share, against 0.46–0.91 without it |
+| A4 | Node-ID grinding — ~60k candidate AgentIDs/second to land a favorable shard | **Not mitigated at this layer**, stated as a limitation (§11.5). E3b showed that the D-8 epoch salt gives no protection, because identities cost nothing. Captured shards carry zero-evidence identities, which the trust layer (T-3, §8.5) prices as untrusted |
 | A7 | Zones unenforceable — v1 defined the label but no enforcement messages | Re-scoped: zones are now attributable, dual-signed labels with a refusal rule (Z-1); this document is explicit that they are accountability, not confidentiality (§10.3) |
 | A8 | Rate limits / replay-cache cost / TTL not checked | Rate limiting and replay caching are delegated to the transport bindings; descriptor TTL is normative and checked on ingest in this layer (D-5) |
 | R4-01 | Negative payment amounts moved funds backwards | Addressed in spec: M-4, `Amount` mantissa is `uint`, unrepresentable as negative |
@@ -1372,6 +1533,11 @@ mitigation.
 | Discovery | No A2A Agent Card carriage | Added: descriptor carries the A2A Agent Card's JCS bytes + JWS (§11.2) |
 | Zones | Label defined, no enforcement messages (finding A7) | Re-scoped as attributable dual-signed labels with a refusal rule (§10) |
 | Trust | Beta-prior default weight (0.5) for unknown issuers | Zero-default for unknown issuers (T-3), closing the A1 Sybil-ring exploit |
+| Trust | No weighting function for known issuers; no per-issuer cap | W1 direct agreement is the recommended default (§8.4, chosen by a pre-registered minimax re-test); per-issuer cap 50 (§8.2), both from evaluation E1 |
+| Checkpoint cadence | Unspecified | RECOMMENDED c = 8 transcript leaves (C-6), from evaluation E2/E4 |
+| Amounts | Signed `int` mantissa (finding R4-01: negative payments) | `uint` mantissa (M-4) |
+| Anti-grinding | Epoch-salted shard proposed as a mitigation | Evaluated (E3b) and found ineffective; D-8 is NOT RECOMMENDED as a mitigation, and A4 is a stated limitation (§11.5) |
+| Anti-eclipse | Disjoint-path lookups RECOMMENDED, unevaluated | D-9 SHOULD, supported by evaluation E3c; not yet in `map-net` |
 | Name | "Manolito Agent Protocol," MP2P/file-sharing heritage | MAP retained as the acronym, re-expanded to **Mutual Attestation Protocol**; all MP2P framing dropped |
 | Publication track | IETF Independent Submission (`map-v1-ietf:map-spec/SUBMISSION.md`) | Dropped; published as a versioned, self-hosted specification plus an arXiv systems paper |
 

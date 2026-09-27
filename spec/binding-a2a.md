@@ -57,7 +57,7 @@ lines 424-432: fields `uri` string, `description` string, `required` bool,
         "params": {
           "agentId": "z6MkPLACEHOLDERAgentIdBase58btc",
           "supportedZones": ["1", "2", "3"],
-          "checkpointIntervalParts": "32",
+          "checkpointIntervalParts": "8",
           "acceptedVoucherRails": ["pay:x402", "pay:mpp-tempo"]
         }
       }
@@ -83,7 +83,7 @@ and discovery binding*):
 |---|---|---|
 | `agentId` | string | This agent's AgentID, multibase `z...` form (layer spec, *Identity*) |
 | `supportedZones` | array of tstr (decimal uint) | Zone labels this provider will accept tasks under (layer spec, *Zones and data sensitivity*) |
-| `checkpointIntervalParts` | tstr (decimal uint) | Default number of transcript leaves (§4) between checkpoint proposals; a session-local policy default, overridable per-task (§3) |
+| `checkpointIntervalParts` | tstr (decimal uint) | Default number of transcript leaves (§4) between checkpoint proposals. A session-local policy default, overridable per task (§3). RECOMMENDED value 8 (layer C-6) |
 | `acceptedVoucherRails` | array of tstr | Rail URIs (mapping-payment-rails.md §1) this provider can bind metering evidence to |
 
 A2A-3a: `params` MUST NOT contain JSON numbers; unsigned integers are

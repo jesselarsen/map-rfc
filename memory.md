@@ -71,7 +71,7 @@ path or roadmap.
 **Still open:**
 | # | Decision | Blocks |
 |---|---|---|
-| D5 | Default issuer weighting: own dual-signed history, unknown issuers = 0 (recommended) | P3/E1 |
+| D5 | Default issuer weighting — **DECIDED 2026-09-27:** unknown issuers = 0 (T-3). The pre-registered D5 picked W2 (α = 0.2); after A8 the author ordered a pre-registered minimax re-test (A9), which selected **W1 (direct agreement)** as the §8.4 default | P3/E1 |
 | D6 | TaskID under A2A: `SHA-256(enc(["MAPTaskID", requesterNonce(16B), providerAgentID, a2aTaskId]))` (binding A2A-8) — **DECIDED 2026-09-25** | P4 |
 | D7 | arXiv cs.CR primary, cross-listed cs.MA/cs.NI; needs an endorser | P9 |
 
@@ -405,6 +405,68 @@ tag `prereg-v1`), 65aa368 P6b, b08df48 P6c, and the P6d commit.
      about 45 min if W1, hours if W2).
   4. (done: A5)
   5. Read REPORT.md and report every verdict, including failures.
+
+**P7 status (2026-09-27): DONE.**
+- Commits:
+  - b80ccf6 P7a: D5 = W2 (A6);
+  - 9a15e99: `-text` for eval/results;
+  - 5bc7702 P7b: cache-blocked W2, bit-identical, A7;
+  - f29a8a2 P7c: results at 5bc7702, plus exploratory A8;
+  - a21095d: A9 pre-registered (pushed BEFORE its run).
+- **Verdicts** (`eval/results/5bc7702/REPORT.md`). Every CSV except
+  e1-main is byte-identical to run 1.
+
+  | Result | Verdict |
+  |---|---|
+  | F1-a | HOLDS 12/12 |
+  | F1-b P1 | PARTIAL 5/6 |
+  | F1-b P2, P3 | HOLD |
+  | D5 | W2 |
+  | H1 | PARTIAL 18/28 |
+  | L1 cold start | occurs 35/35 |
+  | L3 on-off | occurs 5/5 |
+  | L2 | did not occur |
+  | L4 | did not occur at α = 0.2 |
+  | H2–H5 | HOLD |
+
+  - H1 holds against B2 except at α = 0.3 under camouflage.
+  - H1 fails against B1 under whitewash (≈1.04, both arms at the
+    ε-exploration floor) and on-off (≈1.4).
+  - It also fails under camouflage at α ≥ 0.2.
+  - B1 collapses under slander and combined attacks (0.95), while Ours-L
+    stays at ≈0.08. Ours-L+C is ≤ 0.15 everywhere.
+- **A8 (exploratory):** W2 collapses under camouflage when Sybils
+  outnumber honest requesters: 0.551 at α = 0.5, against random 0.500.
+- **A9 (author's decision):** a pre-registered minimax re-test over α ×
+  attacks gives worst cases W0 0.348, **W1 0.200**, W2 0.550. So the §8.4
+  default is **W1**; D5 and H1 stay reported as run (with W2).
+- **Lessons:**
+  - A background shell dies with the Claude session. For hours-long runs,
+    use a detached, hidden pwsh plus `SetThreadExecutionState`, launched
+    from a clean worktree.
+  - A single-α decision rule can hide a collapse at another α. Check the
+    worst case.
+  - The power iteration was memory-bound. Cache-blocking across observers
+    kept it bit-identical and made it about 5–9× faster.
+
+**P8 status (2026-09-27): DONE.**
+- **Spec defaults:**
+  - layer C-6: checkpoint interval c = 8;
+  - §8.2: parameter table plus `ProjParams::recommended()` (cap 50).
+    `default()` stays uncapped because F1 and the golden hashes use it;
+  - §8.4: W1 default, with the A9 evidence; W2 is NOT RECOMMENDED where
+    Sybils can outnumber honest requesters.
+- **Discovery:**
+  - §11.5 D-8: NOT RECOMMENDED. A4 is a stated limitation, because
+    identities are free and a 1-core grind fills a shard in about 2 s.
+  - §11.6 D-9: SHOULD, d = 3 (E3c). It is not in map-net yet.
+- **Other:** §12.3/§13 rows; `spec/CHANGELOG.md` (v1 draft → layer map,
+  vectors, P8 defaults); binding DHT-12/13; `checkpointIntervalParts` 8;
+  provider bins default `--checkpoint-every 8`.
+- **No wire change:** gen_vectors regenerates byte-identically.
+- **Next: P9 (paper). D7 (arXiv category and endorser) is still open.**
+  - The paper must report H1 as PARTIAL, L1/L3, the W2 camouflage
+    collapse, the A9 deviation, and A4 as unmitigated.
 
 ## 1. What this project is
 

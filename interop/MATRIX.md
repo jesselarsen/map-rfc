@@ -103,7 +103,7 @@ test-harness transport only: raw TCP does not authenticate the static keys.
 ## Peer contracts
 
 - **A2A (part b):** `map-a2a-provider --listen H:P --seed N [--parts 24]
-  [--checkpoint-every 4] [--zones 1,2] [--fail-after-parts N]` and
+  [--checkpoint-every 8] [--zones 1,2] [--fail-after-parts N]` and
   `map-a2a-requester --providers URL,URL [--seed N] [--zone Z] [--prompt S]
   [--plain]`. Both implementations take the same flags. The requester's
   last stdout line is `MAP-DEMO-RESULT {json}`. Rust bins:

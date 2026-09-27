@@ -457,3 +457,14 @@ is chosen by a minimax rule over the whole E1 grid.
 - *Script:* `analysis/minimax.py`, committed with this amendment.
 - The winner becomes the layer §8.4 recommended default. D5 (A6) stays
   reported as run.
+
+**A9 result (2026-09-27).** `e1-minimax` at the 5bc7702 binary: 1,400 jobs,
+CSV SHA-256 `4dd3aeb4…`. `analysis/minimax.py` gives these worst cells:
+- W0: 0.348 [0.346, 0.350] (α = 0.5, on-off);
+- W1: 0.200 [0.196, 0.204] (α = 0.5, camouflage);
+- W2: 0.550 [0.543, 0.557] (α = 0.5, camouflage).
+
+The CIs do not overlap, so **W1 wins** with no tie and becomes the layer
+§8.4 recommended default. Full table: `results/5bc7702/MINIMAX.md`. H1 and
+the other E1 verdicts stay as pre-registered, computed with the D5 winner
+(W2).

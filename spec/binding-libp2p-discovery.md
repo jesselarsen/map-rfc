@@ -139,23 +139,23 @@ cached, and never surfaced as a discovery result (discovery §2's validation
 rule, restated here as a binding-level MUST since it is this binding's
 `GetRecord` path that returns the raw, unverified bytes).
 
-## 8. Anti-eclipse (experimental)
+## 8. Anti-eclipse and anti-grinding
 
-DHT-12: Disjoint-path Kademlia lookups (≥3 disjoint paths) for identity and
-descriptor fetches remain RECOMMENDED, carried over from discovery §8
-unchanged, and remain EXPERIMENTAL in the sense that this binding does not
-mandate a specific libp2p Kademlia configuration to achieve path
-disjointness — `map-net`'s current `kad::Behaviour<MemoryStore>` uses the
-library's default query logic, which does not currently expose disjoint-path
-control. Achieving DHT-12 in the reference implementation is future work,
-not yet done; this binding states the requirement so conformance testing
-can measure against it once implemented, per the layer spec's evaluation
-methodology.
+DHT-12: Identity and descriptor fetches SHOULD use disjoint-path Kademlia
+lookups (d = 3 disjoint paths). This is layer D-9. Evaluation E3c
+supports it: at N = 10⁵ with 30% malicious routers, lookup success rises
+from 0.755 to 0.930, for 1.3–1.7× the messages. This binding does not
+mandate a particular libp2p Kademlia configuration for achieving
+disjointness. `map-net`'s current `kad::Behaviour<MemoryStore>` uses the
+library's default query logic, which exposes no disjoint-path control, so
+the reference implementation does not meet DHT-12 yet. That is known
+future work.
 
-DHT-13: The optional epoch-salted shard variant (`shard_e = SHA-256(epoch_salt
-|| AgentID)[0]`, layer spec / discovery §6 note) is likewise EXPERIMENTAL
-under this binding: it is not implemented in `map-net` today and MUST NOT be
-assumed present by a conformant querier unless separately negotiated.
+DHT-13: The epoch-salted shard variant (`shard_e = SHA-256(epoch_salt ||
+AgentID)[0]`, layer D-8) is NOT RECOMMENDED as a defence against
+node-ID grinding. Evaluation E3b found that it gives no protection
+(layer §11.5). `map-net` does not implement it. A conformant querier MUST
+NOT assume a mesh uses it unless the mesh negotiates it separately.
 
 ## 9. Channel-binding caveat
 

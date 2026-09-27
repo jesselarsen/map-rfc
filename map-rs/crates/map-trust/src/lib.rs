@@ -468,17 +468,32 @@ pub struct ProjParams {
     /// T-3 per-issuer cap: the most total (weighted, decayed) evidence one
     /// issuer may contribute to one (provider, capability) cell. Applied at
     /// read time, so the result is independent of ingestion order. `None`
-    /// leaves it uncapped; the default is chosen by evaluation E1.
+    /// leaves it uncapped; [`ProjParams::recommended`] sets 50.
     pub issuer_cap: Option<f64>,
 }
 
 impl Default for ProjParams {
+    /// Uncapped. Kept as it was so existing results (F1, the golden smoke
+    /// hashes) stay reproducible; new deployments should start from
+    /// [`ProjParams::recommended`].
     fn default() -> Self {
         ProjParams {
             daily_decay: 0.98,
             prior: 1.0,
             skew_ms: 120_000,
             issuer_cap: None,
+        }
+    }
+}
+
+impl ProjParams {
+    /// The layer §8.2 parameter table: decay 0.98/day, prior 1/1, 120 s
+    /// future skew, per-issuer cap 50. These are the values evaluation E1
+    /// ran with (fixed before the runs, not tuned).
+    pub fn recommended() -> Self {
+        ProjParams {
+            issuer_cap: Some(50.0),
+            ..ProjParams::default()
         }
     }
 }

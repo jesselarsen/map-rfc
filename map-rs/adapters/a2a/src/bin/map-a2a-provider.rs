@@ -2,7 +2,7 @@
 //!
 //! ```text
 //! map-a2a-provider --listen 127.0.0.1:8701 --seed 2 [--parts 24]
-//!     [--checkpoint-every 4] [--zones 1,2] [--fail-after-parts N]
+//!     [--checkpoint-every 8] [--zones 1,2] [--fail-after-parts N]
 //! ```
 //!
 //! The workload is the deterministic generator in `map_a2a::workload`, so a
@@ -24,7 +24,7 @@ fn main() {
     let listen = arg(&args, "--listen").unwrap_or_else(|| "127.0.0.1:8701".into());
     let seed: u8 = arg(&args, "--seed").and_then(|s| s.parse().ok()).unwrap_or(2);
     let parts: usize = arg(&args, "--parts").and_then(|s| s.parse().ok()).unwrap_or(24);
-    let every: u64 = arg(&args, "--checkpoint-every").and_then(|s| s.parse().ok()).unwrap_or(4);
+    let every: u64 = arg(&args, "--checkpoint-every").and_then(|s| s.parse().ok()).unwrap_or(8); // layer C-6
     let zones: Vec<u8> = arg(&args, "--zones")
         .unwrap_or_else(|| "1,2".into())
         .split(',')
