@@ -674,6 +674,15 @@ initiates resumption, provider-agnostically:
    task MUST carry core key 13 (`resumed-from`) equal to the Multihash
    digest of the `CheckpointArtifact` bytes it resumed from.
 
+*Scope (informative).* The transcript holds only the content a provider
+delivered. Resuming from it is complete only for tasks whose state is
+their delivered output, such as streamed generation. It does not carry a
+provider's hidden state (tool results, scratchpads, working files). A
+successor cannot observe external side effects its predecessor caused
+(payments, writes, messages), so it may repeat them. This layer does not
+make such effects idempotent. Tasks that have them need application-level
+checkpoints or idempotency keys, outside this layer.
+
 ```
 Provider A                    Requester                    Provider B
     |  ... executing, checkpointing (C-1/C-2) ...  |             |

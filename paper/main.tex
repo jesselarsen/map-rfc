@@ -30,18 +30,16 @@
 When one AI agent delegates work to another, three questions follow: did
 the work happen as claimed, whom to trust next time, and can another
 worker take over after a failure without the delegator paying twice or
-trusting the failed worker's word? A2A carries the task but leaves these
-questions open. We present \sys{}, a thin accountability layer over A2A,
+trusting the failed worker's word? A2A carries the task but leaves these open. We present \sys{}, a thin accountability layer over A2A,
 a Kademlia discovery index and existing payment rails. Only a receipt
 signed by \emph{both} parties counts as positive evidence. Each observer
 computes trust locally from receipts it can verify, weighting other
 issuers by how well they agree with its own experience. The requester
-countersigns transcript checkpoints, so a task can resume on another
+countersigns transcript checkpoints, so a streamed task can resume on another
 provider and a failed provider can bill only for acknowledged work. Rust
-and Go implementations interoperate with each other and with an
-unmodified A2A SDK client.
+and Go implementations interoperate with each other and an unmodified A2A SDK client.
 We evaluate \sys{} against pre-registered hypotheses, after replicating a
-recent agent P2P simulation to within 0.024. The main trust hypothesis is
+recent agent P2P simulation within 0.024. The main trust hypothesis is
 only partially supported, holding in 18 of 28 settings. It predicted that
 local trust, with our pre-registered weighting, at least halves the
 attacker share of both a global ledger and a canary-only baseline, over
@@ -50,7 +48,7 @@ A global ledger collapses under slander (0.95 attacker share at
 $\alpha{=}0.5$); local trust does not (0.08). In an exploratory
 comparison, \sys{} with a canary beats the replicated work's
 canary-plus-ledger design in 25 of 35 settings and ties in 10.
-Countersigned resumption wastes 0.42\% of the work restarting does.
+Countersigned resumption regenerates 0.42\% of the work restarting does.
 \sys{} loses during cold start; to a global ledger under on-off,
 whitewashing and camouflage; without a canary, to the canary-plus-ledger
 design under whitewashing and slander; and, with our pre-registered

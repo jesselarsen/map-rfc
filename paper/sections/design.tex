@@ -161,6 +161,16 @@ Its own receipt carries \texttt{resumed-from}, the digest of that
 checkpoint. The providers need not know each other, and continuation need
 not be deterministic across them: the seam is visible in the transcript.
 
+\paragraph{Scope of resumption.}
+The transcript holds only the Parts a provider delivered. Resuming from
+it is complete only for tasks whose state \emph{is} their output, such as
+streamed generation. A provider's hidden state is not in the transcript,
+including tool results, scratchpads and working files. A successor also
+cannot see external side effects its predecessor caused, such as a
+payment or a write, so it may repeat them. \sys{} does not make such
+effects idempotent. Tasks that have them need application-level
+checkpoints or idempotency keys, which are outside this layer.
+
 \paragraph{Billing bound.}
 \textbf{C-5}: a failed provider is owed only the usage in its last
 countersigned checkpoint. It is never owed a figure it claimed

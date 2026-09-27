@@ -52,9 +52,10 @@ Kademlia index carries discovery records, and MPP or x402 moves money.
   projection is a pure function of the receipt store.
 \item \textbf{Countersigned checkpoints} (\S\ref{sec:checkpoints}). The
   requester countersigns a Merkle root over the transcript and the
-  cumulative usage. Any provider can resume from that point after
-  verifying the replayed prefix, and a failed provider can bill only up to
-  the last acknowledged checkpoint.
+  cumulative usage. For tasks whose state is their output stream, any
+  provider can resume from that point after verifying the replayed
+  prefix. A failed provider can bill only up to the last acknowledged
+  checkpoint.
 \item \textbf{Evidence-bound metering} (\S\ref{sec:metering}). Checkpoints
   and receipts carry a digest of the rail voucher that pays for the usage
   they record, without \sys{} defining a payment method.

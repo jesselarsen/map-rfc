@@ -92,3 +92,9 @@ These come from the pre-registered evaluation (`eval/HYPOTHESES.md`, tag
 | D-9 disjoint-path lookups: from "experimental" to SHOULD, d = 3 | normative strengthening (no wire change) | layer §11.6; binding-libp2p DHT-12 | E3c: at N = 10⁵, f = 0.3, lookup success 0.755 → 0.930 |
 
 No wire format changed in P8, so all vector bytes are unchanged.
+### Paper red-team review (2026-09-27)
+
+| Change | Class | Where | Evidence |
+|---|---|---|---|
+| C-6 rationale overhead figures corrected to run 5bc7702 (0.079% at c = 8, 0.63% at c = 1) | editorial | layer §7.5 | R2-07; `eval/results/5bc7702/REPORT.md` H5 |
+| Resumption scope stated: complete only for tasks whose state is their delivered output; hidden state and external side effects are not carried, and this layer does not make side effects idempotent | editorial (informative) | layer §7.4 | R2-08 |

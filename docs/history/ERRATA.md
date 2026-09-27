@@ -26,6 +26,28 @@ Findings are registered in `paper/REVIEW-redteam-1.md` (RT-xx) and
 `paper/REVIEW-redteam-2.md` (R2-xx), against the paper draft at `c67ad76`.
 Rulings below follow `REVIEW-PROCESS.md` Stage 2.
 
+RULED 2026-09-27 (review finding R2-08, roles 1/2/3 — PC, Protocol red team,
+Methodology) — resuming from the output prefix assumes that all task state is
+in the delivered Parts. It does not carry hidden provider state (tool results,
+scratchpads, working files), and a successor may repeat external side effects
+it cannot see. E2's "0.42%" counts only regenerated Parts, not the
+successor's cost to ingest the prefix. — RULING: **ACCEPT-EDITORIAL** +
+**DOCUMENT**. Changes:
+- design: a "Scope of resumption" paragraph (output-state tasks only; no
+  hidden state; side effects may repeat; MAP does not provide idempotency);
+- E2: "What the waste metric counts". The expected prefix replayed is λL²/2,
+  about 500 Parts at the H2 point against 3.2 regenerated. H2 holds while
+  the ingest-to-generate cost ratio ρ < 1.5. The engine-state fast path is
+  deferred (layer §7.6);
+- the intro, abstract ("regenerates", "a streamed task") and conclusion are
+  scoped the same way; the abstract stays at 1,901 characters;
+- Limitations gains a "Resumption scope" bullet;
+- spec layer §7.4 gains an informative *Scope* paragraph, and
+  `spec/CHANGELOG.md` records it with the R2-07 correction.
+Editorial; no wire change. — Implemented in
+`paper/main.tex`, `paper/sections/{design,evaluation,intro,conclusion,limitations}.tex`,
+`spec/layer.md` §7.4 and `spec/CHANGELOG.md`.
+
 RULED 2026-09-27 (review finding R2-06, roles 3/4 — Methodology, Claims
 auditor) — the paper omitted items the pre-registration committed to reporting,
 while saying it reports everything. These were checkpoint byte overhead ("the

@@ -55,6 +55,10 @@ worst cell was the new information.
   the layer, and receipts are pseudonymous personal data whose disclosure
   is the holder's choice.
 \item \textbf{Zones} provide accountability, not confidentiality.
+\item \textbf{Resumption scope.} Resuming from the output prefix does not
+  recover a provider's hidden state or its external side effects, which
+  a successor may repeat (\S\ref{sec:checkpoints}). E2 counts
+  regenerated Parts, not the cost of ingesting the prefix.
 \item \textbf{Disjoint-path lookups} are specified and simulated, but not
   yet implemented in our libp2p node.
 \end{itemize}

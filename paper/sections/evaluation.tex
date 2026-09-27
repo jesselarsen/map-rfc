@@ -372,6 +372,22 @@ resuming from the failed provider's own claim of progress (provider-only).
   50\%, requesters are overbilled 53.0\ci{40.8}{66.0} Parts per task,
   and there are 0.45 transcript-integrity failures per task.
 \end{itemize}
+\paragraph{What the waste metric counts.}
+E2's waste counts regenerated Parts. It does not count the successor's
+cost to fetch, verify and ingest the replayed prefix. Verifying is cheap:
+recomputing the root costs about $1.3\,\mu$s per Part. Ingesting is not
+free. Failures arrive at rate $\lambda$ per Part of progress, and
+resumption loses no progress, so the expected prefix replayed per task is
+$\lambda L^2/2$. That is about 500 Parts at the H2 operating point,
+against 3.2 regenerated. If ingesting a Part costs a fraction $\rho$ of
+generating one, resumption costs about $3.2+500\rho$ Parts against
+restart's 768.6. H2's conclusion therefore survives for any $\rho$ below
+about 1.5. For language models, prefill is usually much cheaper per token
+than decoding. The 0.42\% figure, however, compares regeneration only.
+The specification defers an engine-state fast path that would let a
+compatible successor skip ingestion. Resumption is always by transcript
+replay.
+
 Figure~\ref{fig:e2} shows the trade-off in $c$: waste grows roughly
 linearly in $c$, while signatures shrink as $1/c$. Pricing a signature at
 $\kappa\in\{0.01,0.1\}$ Parts of work, most settings are optimized
