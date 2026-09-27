@@ -216,41 +216,67 @@ pub fn w2_reference(pool: &Pool, requesters: usize) -> Vec<HashMap<u32, f64>> {
         .collect()
 }
 
-/// All observers at once, transposed (row i holds node i's mass for every
-/// observer), so each edge updates one contiguous row. Each accumulator
-/// sees the same operations in the same order as `w2_reference`.
+/// Observers per cache block in `w2`. One block's slice of `t` and of
+/// `next` is n × 32 × 8 bytes each (≈ 0.6 MB at n = 2500), small enough to
+/// stay in cache while every edge is visited.
+const W2_BLOCK: usize = 32;
+
+/// All observers at once, stored block-major: within a block of
+/// `W2_BLOCK` observers, node i's mass for those observers is one
+/// contiguous row, so each edge updates a short, cache-resident row.
+/// Blocking only reorders work *across* accumulators. Each accumulator
+/// (node j, observer o) still receives the restart term first and then its
+/// contributions in ascending source order, exactly as in `w2_reference`,
+/// so the result is bit-identical (`tests/weights_equiv.rs`).
 pub fn w2(pool: &Pool, requesters: usize) -> Vec<HashMap<u32, f64>> {
     let n = pool.cells.len().max(requesters);
     let r = requesters;
     let q = qualify(pool, n);
     let (adj, dangling) = graph(&q, n, true);
+    // Block [b0, b1) occupies [n·b0, n·b1); within it, node i and observer
+    // o = b0 + k sit at i·(b1 − b0) + k. Observer o's own node is node o.
+    let blocks: Vec<(usize, usize)> = (0..r).step_by(W2_BLOCK).map(|b| (b, (b + W2_BLOCK).min(r))).collect();
     let mut t = vec![0.0f64; n * r];
-    for o in 0..r {
-        t[o * r + o] = 1.0;
+    for &(b0, b1) in &blocks {
+        let w = b1 - b0;
+        for k in 0..w {
+            t[n * b0 + (b0 + k) * w + k] = 1.0;
+        }
     }
     let mut next = vec![0.0f64; n * r];
     for _ in 0..10 {
         next.iter_mut().for_each(|x| *x = 0.0);
-        for o in 0..r {
-            next[o * r + o] += 0.15;
-        }
-        for i in 0..n {
-            let src = i * r;
-            if dangling[i] {
-                for o in 0..r {
-                    next[o * r + o] += 0.85 * t[src + o];
-                }
-            } else {
-                for (j, w) in &adj[i] {
-                    let dst = *j as usize * r;
-                    let (s, d) = (&t[src..src + r], &mut next[dst..dst + r]);
-                    for o in 0..r {
-                        d[o] += s[o] * w;
+        for &(b0, b1) in &blocks {
+            let w = b1 - b0;
+            let (tb, nb) = (&t[n * b0..n * b1], &mut next[n * b0..n * b1]);
+            for k in 0..w {
+                nb[(b0 + k) * w + k] += 0.15;
+            }
+            for i in 0..n {
+                let s = &tb[i * w..i * w + w];
+                if dangling[i] {
+                    // dangling mass returns to each observer's own node
+                    for k in 0..w {
+                        nb[(b0 + k) * w + k] += 0.85 * s[k];
+                    }
+                } else {
+                    for (j, wt) in &adj[i] {
+                        let d = &mut nb[*j as usize * w..*j as usize * w + w];
+                        for k in 0..w {
+                            d[k] += s[k] * wt;
+                        }
                     }
                 }
             }
         }
         std::mem::swap(&mut t, &mut next);
     }
-    (0..r).map(|o| extract(|i| t[i * r + o], o, n)).collect()
+    let mut out = Vec::with_capacity(r);
+    for &(b0, b1) in &blocks {
+        let w = b1 - b0;
+        for k in 0..w {
+            out.push(extract(|i| t[n * b0 + i * w + k], b0 + k, n));
+        }
+    }
+    out
 }

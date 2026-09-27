@@ -383,3 +383,25 @@ Appended after `prereg-v1`. The text above this section is unchanged.
     planted bugs).
   - The full evaluation is re-run at the new commit; if D5 there differs
     from the above, a further amendment records it.
+
+**A7 (2026-09-27, implementation only; no rule, config or hypothesis
+changes).**
+- The full re-run at 9a15e99 was interrupted during `e1_main` when the
+  host session exited. Its CSVs up to that point (f1a, f1b, e2, e1-d5,
+  e1-sparse) had the same SHA-256 as run 1 (9a4a968). `e1_main` had
+  produced nothing.
+- The run had used 135k CPU-seconds without finishing `e1_main`. The
+  cause was W2's power iteration, which is memory-bound: each edge
+  streamed two 4 KB rows (500 observers × 8 B).
+- `w2` now processes observers in cache blocks of 32. Blocking only
+  reorders work across accumulators. Each accumulator still receives
+  the restart term first, then its contributions in ascending source
+  order, so the result is bit-identical:
+  - `tests/weights_equiv.rs` passes;
+  - a planted restart-index bug makes it fail;
+  - the α = 0.2 / combined / W2 probe CSV is byte-identical to the old
+    binary's (SHA-256 `4a8d08…`).
+  - One job at α = 0.2 went from 366 s to 41 s; the worst cell, α = 0.5
+    combined, takes 245 s.
+- The full evaluation is re-run at the commit that carries this
+  amendment.
