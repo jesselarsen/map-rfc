@@ -41,6 +41,9 @@
     from `e1-targeted-slander.csv` (scenario `e1t`);
   - `visibility.py` (Amendment A13) writes `VISIBILITY.md` from
     `e1-visibility.csv`;
+  - `e3c_live.py` (Amendment A14) writes `E3C-LIVE.md`: E3c under the
+    corrected colluder model, next to the original run. `make_figs.py`
+    draws the E3c figure from `e3c-live.csv` when it exists;
   - `stats.py` is the percentile bootstrap (10,000 resamples, seeds
     resampled jointly for comparisons).
 
@@ -60,7 +63,8 @@ pwsh eval/run_all.ps1 -Quick     # 2 seeds per point: plumbing only, not a resul
    their estimates in;
 4. writes `REPORT.md`, `figs/`, `PREREG-EXTRA.md`, `MINIMAX.md` (the
    Amendment A9 rule), `B2L.md` (exploratory), `SYBIL-SWEEP.md` (A10) and
-   `DISCOVERY-FLOOD.md` (A11), `W1-H1.md`, `TARGETED-SLANDER.md` (A12) and `VISIBILITY.md` (A13).
+   `DISCOVERY-FLOOD.md` (A11), `W1-H1.md`, `TARGETED-SLANDER.md` (A12), `VISIBILITY.md` (A13) and `E3C-LIVE.md`
+   (A14).
    All but the first two need 20 seeds per cell, so `-Quick` skips them.
 
 `e1_main.toml` carries `weights = "D5_WINNER"` until the D5 decision has

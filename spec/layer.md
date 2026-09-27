@@ -1455,8 +1455,11 @@ replicate the known S/Kademlia result:
 - *Benefit.* Three disjoint paths matter at scale. At N = 10⁵ with no
   churn, lookup success rose from 0.893 to 0.985 at f = 0.2, and from
   0.755 to 0.930 at f = 0.3.
-- *Small meshes.* At N ≤ 10⁴ a single path already succeeds ≥ 0.96 of
-  the time at f ≤ 0.3, and d = 3 raises that to ≥ 0.997.
+- *Small meshes.* At N ≤ 10⁴ with no churn, a single path already
+  succeeds ≥ 0.96 of the time at f ≤ 0.3, and d = 3 raises that to
+  ≥ 0.997. With 30% churn, under the corrected colluder model
+  (evaluation A14), a single path drops to 0.88–0.95 at f = 0.3, and
+  d = 3 keeps it ≥ 0.989.
 - *Cost.* d = 3 costs 1.3–1.7× the messages of one path, and fewer
   sequential hops, because the paths run in parallel.
 

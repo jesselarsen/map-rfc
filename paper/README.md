@@ -35,7 +35,9 @@ It was validated against planted errors. It does not replace compiling.
   - `W1-H1.md`, by `w1_h1.py`: the H1 criterion for W1 (exploratory);
   - `TARGETED-SLANDER.md`, by `targeted_slander.py` (Amendment A12,
     exploratory);
-  - `VISIBILITY.md`, by `visibility.py` (Amendment A13, exploratory).
+  - `VISIBILITY.md`, by `visibility.py` (Amendment A13, exploratory);
+  - `E3C-LIVE.md`, by `e3c_live.py`: E3c under the corrected colluder
+    model (Amendment A14). Fig. 5 is drawn from it.
 - **Implementation numbers** come from the tree at the commit that adds
   this directory: line counts via `git ls-files`, and test counts from
   `cargo test` (167) and `go test -v` (78).

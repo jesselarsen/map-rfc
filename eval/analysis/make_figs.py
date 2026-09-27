@@ -136,7 +136,10 @@ def fig_e2(d):
 
 
 def fig_e3(d):
-    c = need(d, "e3c")
+    # Amendment A14: draw from the corrected colluder model when it exists.
+    c = need(d, "e3c-live")
+    if c is None:
+        c = need(d, "e3c")
     if c is not None:
         fs = [0.0, 0.1, 0.2, 0.3]
         fig, ax = plt.subplots(figsize=(4, 3))

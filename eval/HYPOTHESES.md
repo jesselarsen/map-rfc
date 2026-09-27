@@ -768,3 +768,14 @@ before the corrected run).**
     as the artefact.
 - *Script:* `analysis/e3c_live.py` writes `results/5bc7702/E3C-LIVE.md`, the
   original and corrected 1-path and 3-path success side by side.
+
+**A14 result (2026-09-27).** `e3c-live` built from `ea215ef` (the commit that
+carries A14): 1,440 jobs, CSV SHA-256 `cdf6fd61…`.
+`analysis/e3c_live.py` writes `results/5bc7702/E3C-LIVE.md`.
+- With churn 0 every cell equals the original run.
+- At N = 10⁵, f = 0.3, single-path success at 0% / 10% / 30% churn is
+  0.755 / 0.750 / 0.705 (original 0.755 / 0.906 / 0.988). Three disjoint
+  paths give 0.930 / 0.924 / 0.921 (original 0.930 / 0.975 / 0.996).
+- Churn now lowers success, as a live-only adversary predicts, and d = 3
+  still helps at every churn level.
+- Messages at N = 10⁵ are 1.4–1.7× one path.

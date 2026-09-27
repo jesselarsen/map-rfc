@@ -11,7 +11,7 @@ We did this because one author, working with a single AI model family
 (Acknowledgments), produced \sys{}, the baselines and the simulator.
 That is the main threat to validity~\cite{nosek2018prereg}.
 After the tag, the plan changed only through dated, appended amendments
-(A1--A13, Appendix~\ref{app:amendments}), and we report every hypothesis
+(A1--A14, Appendix~\ref{app:amendments}), and we report every hypothesis
 whatever its outcome. Two amendments changed a decision and are disclosed
 where they apply:
 \begin{itemize}
@@ -685,8 +685,15 @@ Flood & Disc. & $k{=}0$ & $k{=}3$ & $k{=}0$ & $k{=}3$ & new, $k{=}3$ \\
 In a simulated Kademlia (20-entry buckets, 3 parallel queries) with a
 fraction $f$ of malicious routers, three disjoint lookup paths raise
 lookup success at $N{=}10^5$ with $f{=}0.3$ from 0.755 to 0.930 without
-churn, and from 0.906 to 0.975 with 10\% churn (Figure~\ref{fig:e3c}).
-They cost 1.3--1.7$\times$ the messages. This
+churn, and from 0.750 to 0.924 with 10\% churn (Figure~\ref{fig:e3c}).
+They cost 1.4--1.7$\times$ the messages at that size.
+
+These churn figures use a corrected model (A14). As first run, colluding
+routers also advertised offline colluders. Churn then turned part of
+their poisoned answers into dead ends, so success appeared to \emph{rise}
+with churn: 0.906 at 10\% and 0.988 at 30\%. With colluders advertising
+only live colluders, churn lowers success slightly, as it should (0.705
+at 30\%). This
 replicates the S/Kademlia result~\cite{baumgart2007skademlia}, and D-9
 became a SHOULD.
 
@@ -710,7 +717,8 @@ any TTL above 0.63\,s. Pulling buys fresher status with messages.
   \centering
   \includegraphics[width=0.85\columnwidth]{figs/e3c_lookup}
   \caption{E3c: Kademlia lookup success versus malicious-router fraction
-  (10\% churn), with one path and with three disjoint paths.}
+  (10\% churn), with one path and with three disjoint paths. Corrected
+  colluder model: colluders advertise only live colluders (A14).}
   \label{fig:e3c}
 \end{figure}
 

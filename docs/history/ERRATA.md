@@ -26,6 +26,33 @@ Findings are registered in `paper/REVIEW-redteam-1.md` (RT-xx) and
 `paper/REVIEW-redteam-2.md` (R2-xx), against the paper draft at `c67ad76`.
 Rulings below follow `REVIEW-PROCESS.md` Stage 2.
 
+RULED 2026-09-27 (review finding R2-12, role 3 — Methodology) — in E3c,
+single-path lookup success under attack *rose* with churn (N = 10⁵,
+f = 0.3: 0.755 at 0%, 0.906 at 10%, 0.988 at 30%), and the paper quoted the
+10%-churn figure as ordinary. — RULING: **ACCEPT**. Cause, from `kad.rs`:
+the colluders' shared answer list included offline colluders, so churn
+turned part of the adversary's poisoned answers into timed-out dead ends. A
+coordinating adversary would advertise only live colluders. Amendment A14
+(post hoc, disclosed) was pushed as `ea215ef` before the corrected run. It
+adds `colluders_live_only` (default 0, so the committed `e3c.csv` hash and
+the golden test still reproduce). The corrected run gives:
+- single path: 0.755 / 0.750 / 0.705;
+- three paths: 0.930 / 0.924 / 0.921;
+- churn now lowers success, as it should.
+Changes:
+- paper: the E3c paragraph quotes the corrected 10% figures (0.750 → 0.924)
+  and explains the artefact; Fig. 5 is regenerated from `e3c-live.csv`,
+  with a caption note (`make_figs.py` prefers it);
+- spec §11.6: the small-mesh bullet is qualified to no churn and adds the
+  corrected churn figures. The no-churn benefit quoted in the spec, the
+  CHANGELOG and binding-libp2p DHT-12 is unchanged.
+Editorial; no wire change. — Implemented in `map-rs/sim/src/scenarios/kad.rs`,
+`eval/configs/e3c_live.toml`, `eval/analysis/{e3c_live,make_figs}.py`,
+`eval/results/5bc7702/{e3c-live.csv, E3C-LIVE.md, figs/e3c_lookup.*}`,
+`eval/run_all.ps1`, `eval/HYPOTHESES.md`, `spec/layer.md` §11.6,
+`spec/CHANGELOG.md`, `paper/figs/e3c_lookup.*`, and
+`paper/sections/{evaluation,appendix}.tex`.
+
 RULED 2026-09-27 (review finding RT-24, role 1 — PC, novelty) — the Signet
 comparison is the crux of novelty for dual signatures, but the paper gave
 it one sentence and did not say what MAP adds over BilateralReceipt. —
