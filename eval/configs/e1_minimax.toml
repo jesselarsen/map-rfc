@@ -1,0 +1,13 @@
+# Amendment A9: W0 and W1 on the full E1 grid for the minimax rule that
+# picks the layer §8.4 default. W2's cells come from e1-main.csv (arm ours).
+scenario = "e1"
+name = "e1-minimax"
+seeds = 20
+
+[params]
+arm = "ours"
+
+[sweep]
+alpha = [0.05, 0.1, 0.2, 0.3, 0.5]
+attack = ["farming", "camouflage", "collusion", "whitewash", "onoff", "slander", "combined"]
+weights = ["w0", "w1"]

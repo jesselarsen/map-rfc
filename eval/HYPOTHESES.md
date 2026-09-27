@@ -427,3 +427,33 @@ changes).**
 - This does not change D5 as pre-registered: W2 won at α = 0.2 under the
   A4 rule. Whether the spec's recommended default follows D5 or this
   exploratory result is a P8 decision, recorded separately.
+
+**A9 (2026-09-27, pre-registered before the run it describes; the
+author's decision after A8).** The P8 recommended default for layer §8.4
+is chosen by a minimax rule over the whole E1 grid.
+- *Disclosure:* this rule is written after two sets of results:
+  - W2 on every E1 cell (`e1_main`, arm `ours`);
+  - W0, W1 and W2 on two camouflage cells (A8).
+
+  The new information it waits for is W0 and W1 on the remaining cells.
+- *Data:*
+  - **W2:** `results/5bc7702/e1-main.csv`, rows with `arm = ours`, whose
+    weighting is W2 (A6).
+  - **W0 and W1:** a new run, `configs/e1_minimax.toml`: arm `ours`,
+    20 seeds, binary at 5bc7702, output
+    `results/5bc7702/e1-minimax.csv`.
+  - **Cells:** α ∈ {0.05, 0.1, 0.2, 0.3, 0.5} × the seven attacks (35
+    cells). α = 0 has no attacker and is excluded.
+- *Rule:*
+  1. For each arm and cell, take the mean steady-state attacker share
+     over seeds, with a 95% percentile bootstrap CI (`stats.mean_ci`).
+  2. `worst(arm)` is the cell with that arm's highest mean.
+  3. The winner is the arm with the lowest worst-case mean.
+  4. If the winner's CI at its worst cell overlaps another arm's CI at
+     that arm's worst cell, those arms are tied. The simplest of the tied
+     arms wins, in the order W0 < W1 < W2.
+- *Reported with it:* the full 35-cell table per arm, and honest success
+  at each arm's worst cell.
+- *Script:* `analysis/minimax.py`, committed with this amendment.
+- The winner becomes the layer §8.4 recommended default. D5 (A6) stays
+  reported as run.
