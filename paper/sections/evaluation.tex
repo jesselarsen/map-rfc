@@ -145,7 +145,7 @@ adversarial providers.
 \item \textbf{Ours-L}: \sys{}.
 \item \textbf{Ours-L+C}: \sys{} with the canary in front.
 \item \textbf{Ablations:} unknown issuers weighted 0.5
-  (\emph{A-prior}); unilateral positive receipts admitted
+  (\emph{A-prior}); requester-only positive receipts admitted
   (\emph{A-unilateral}).
 \end{itemize}
 
@@ -183,12 +183,72 @@ In the other direction, the global ledger \emph{collapses} under slander:
   that disagree with the observer weigh nothing.
 \item Under combined attacks B1 reaches 0.713 at $\alpha{=}0.2$.
 \end{itemize}
-The ablations confirm both admissibility rules. With unknown issuers
-weighted 0.5 (the v1 design), farming wins 0.715 of tasks at
-$\alpha{=}0.2$; with weight 0 it wins 0.025. The canary composes with
-\sys{}: Ours-L+C keeps the attacker share at or below 0.15 in every cell,
-and at or below 0.004 in every cell with $\alpha\le0.3$ except
-camouflage.
+\paragraph{Ablations.}
+A-prior confirms T-3. With unknown issuers weighted 0.5 (the v1 design),
+farming wins 0.715 of tasks at $\alpha{=}0.2$; with weight 0 it wins
+0.025.
+
+A-unilateral does \emph{not} test R-4, and we do not claim it does. In
+E1 no agent emits a receipt that R-4 would stop from counting as
+positive evidence:
+\begin{itemize}
+\item honest successes are dual-signed;
+\item farming is dual-signed too, because the attacker holds both keys;
+\item the only single-signed receipts are negative ones.
+\end{itemize}
+The arm therefore admits a receipt type that never occurs, and its
+attacker share differs from Ours-L's by at most 0.0023 in any cell. That
+difference is noise between independent random streams. What E1 measures
+is issuer weighting (T-3). R-4's protection against a lone provider
+minting its own praise (G1) is argued in \S\ref{sec:security}, not
+measured.
+
+\paragraph{The canary and Wang et al.'s full design.}
+The canary composes with \sys{}: Ours-L+C keeps the attacker share at or
+below 0.15 in every cell, and at or below 0.004 in every cell with
+$\alpha\le0.3$ except camouflage.
+
+B2L, the canary plus a provider-signed ledger, is the design Wang et al.'s
+prose describes, and Figure~\ref{fig:e1} plots it. H1 did not
+pre-register a comparison with it, so the one below is exploratory
+(Table~\ref{tab:b2l}). The arms do not share random streams, so each is
+resampled independently.
+\begin{itemize}
+\item \textbf{Ours-L+C against B2L.} Across all 35 cells, Ours-L+C is
+  lower in 25 and never higher. It is lower in every cell under farming,
+  camouflage, collusion, on-off and combined attacks, and the CIs overlap
+  in the other ten (whitewashing and slander).
+\item \textbf{Ours-L alone against B2L.} Without a canary, Ours-L is
+  higher than B2L under whitewashing and slander at every $\alpha$, and
+  under on-off at four of five. B2L's canary catches fresh identities,
+  and its ledger admits only provider-signed receipts, so Sybil
+  complaints never reach it.
+\item \textbf{Where B2L is weak.} B2L's ledger is open to farming: at
+  $\alpha{=}0.2$ it gives adversaries 0.123 of tasks, against 0.025 for
+  Ours-L and 0.002 for Ours-L+C.
+\end{itemize}
+
+\begin{table}[t]
+\caption{Exploratory: B2L (canary + provider-signed ledger) against
+\sys{}, steady-state attacker share at $\alpha{=}0.2$, W2 weighting
+(20 seeds; every 95\% CI is within $\pm$0.004 of the mean). All 35 cells
+are in \texttt{B2L.md}.}
+\label{tab:b2l}
+\small
+\begin{tabular}{@{}lrrr@{}}
+\toprule
+Attack & B2L & Ours-L & Ours-L+C \\
+\midrule
+farming & 0.123 & 0.025 & 0.002 \\
+camouflage & 0.124 & 0.045 & 0.008 \\
+collusion & 0.124 & 0.025 & 0.002 \\
+whitewash & 0.002 & 0.025 & 0.002 \\
+on-off & 0.018 & 0.033 & 0.002 \\
+slander & 0.002 & 0.025 & 0.002 \\
+combined & 0.124 & 0.026 & 0.002 \\
+\bottomrule
+\end{tabular}
+\end{table}
 
 \paragraph{Losing regimes.}
 All four predicted losing regimes were tested:

@@ -22,8 +22,10 @@ It was validated against planted errors. It does not replace compiling.
 
 ## Provenance of every number
 
-- **Evaluation numbers** come from `eval/results/5bc7702/REPORT.md` and
-  `MINIMAX.md`, which are generated from the committed per-seed CSVs.
+- **Evaluation numbers** come from `eval/results/5bc7702/REPORT.md`,
+  `MINIMAX.md` and `B2L.md`. All three are generated from the committed
+  per-seed CSVs, by `analyze.py`, `minimax.py` and `b2l.py` respectively.
+  `B2L.md` is exploratory.
 - **Implementation numbers** come from the tree at the commit that adds
   this directory: line counts via `git ls-files`, and test counts from
   `cargo test` (167) and `go test -v` (78).

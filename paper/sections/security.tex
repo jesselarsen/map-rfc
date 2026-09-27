@@ -62,8 +62,9 @@ Before this work, an external review demonstrated exploits against the
 first version of the code. Here is how each was resolved:
 \begin{itemize}
 \item \textbf{Receipt farming.} A Sybil ring reached a score of 0.998 in
-  about 150\,ms of receipt generation. Fixed by R-2 to R-4, T-2 and T-3,
-  and measured in E1.
+  about 150\,ms of receipt generation. Fixed by R-2 to R-4, T-2 and T-3.
+  E1 measures T-3's part. R-4's part is the G1 argument above, because
+  no E1 agent emits a receipt that R-4 rejects.
 \item \textbf{Shard flooding.} Fixed by D-6; measured in E3a.
 \item \textbf{Negative amounts.} Made unencodable.
 \item \textbf{Unsigned checkpoint usage.} Fixed by the new checkpoint

@@ -21,6 +21,11 @@
   - `analyze.py` applies every pre-registered decision rule to the CSVs
     and writes `REPORT.md`;
   - `make_figs.py` draws the figures;
+  - `minimax.py` (Amendment A9) writes `MINIMAX.md`;
+  - `b2l.py` writes `B2L.md`, which is EXPLORATORY: B2L against Ours-L
+    and Ours-L+C, and the A-unilateral ablation. It uses `e1-main.csv`
+    only and bootstraps the arms independently, because they do not
+    share random streams;
   - `stats.py` is the percentile bootstrap (10,000 resamples, seeds
     resampled jointly for comparisons).
 

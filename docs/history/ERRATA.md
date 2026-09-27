@@ -26,6 +26,38 @@ Findings are registered in `paper/REVIEW-redteam-1.md` (RT-xx) and
 `paper/REVIEW-redteam-2.md` (R2-xx), against the paper draft at `c67ad76`.
 Rulings below follow `REVIEW-PROCESS.md` Stage 2.
 
+RULED 2026-09-27 (review finding R2-02, roles 1/3/4 — PC, Methodology, Claims
+auditor) — E1 ran B2L, the canary plus provider-signed ledger that Wang et al.'s
+prose describes, and Fig. 3 plotted it, but the text never reported it. B2L
+beats Ours-L under whitewashing and slander at every α. — RULING: **ACCEPT**,
+reported as exploratory because H1 did not pre-register it. The new script
+`eval/analysis/b2l.py` reads only `e1-main.csv`, bootstraps the arms
+independently (they do not share random streams, RT-12) and writes
+`eval/results/5bc7702/B2L.md`. Before use, the numpy 2.4.6 environment was
+checked to reproduce the committed MINIMAX.md byte for byte. Result, over 35
+cells: Ours-L+C is lower than B2L in 25 and overlaps it in 10 (whitewashing and
+slander); it is never higher. Ours-L alone is higher than B2L under
+whitewashing and slander at every α, and under on-off at 4 of 5. Editorial; no
+wire change. — Implemented in `paper/sections/evaluation.tex` (new paragraph
+and Table `tab:b2l`), `eval/analysis/b2l.py`, `eval/results/5bc7702/B2L.md`,
+and the provenance notes in `paper/README.md`, `paper/main.tex` and
+`eval/README.md`.
+
+RULED 2026-09-27 (review finding R2-01, roles 3/4 — Methodology, Claims
+auditor) — the paper said "the ablations confirm both admissibility rules", but
+A-unilateral matches Ours-L in every cell. — RULING: **ACCEPT-EDITORIAL**, and
+the review's explanation is corrected. The finding said T-3 zeroes the
+unilateral positive receipts. In fact E1 never produces one: `e1.rs` emits
+dual-signed receipts for honest successes, farming, collusion and camouflage
+(the attacker holds both keys), and requester-only receipts only for failures
+and slander. The arm therefore admits a receipt type that never occurs, and
+its largest difference from Ours-L (0.0023) is noise between independent
+random streams (B2L.md §2). E1 measures T-3, not R-4, and R-4 rests on the G1
+argument. Editorial; no wire change. — Implemented in
+`paper/sections/evaluation.tex` (Arms: "requester-only positive receipts"; new
+Ablations paragraph) and `paper/sections/security.tex` (reviewer-findings
+bullet on receipt farming).
+
 RULED 2026-09-27 (review finding R2-07, role 4 — Claims auditor) — the paper
 and the spec quoted MAP's signing overhead as 0.086% of task time at c = 8 and
 0.69% at c = 1, and the paper quoted a transcript append as 1.4 µs. These
