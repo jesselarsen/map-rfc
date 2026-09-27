@@ -526,3 +526,52 @@ Readings by the rules above:
 
 As fixed above, layer §8.4 gains an informative Sybil-ratio caveat on the
 W1 recommendation.
+
+**A11 (2026-09-27, EXPLORATORY; not a hypothesis test; written and pushed
+before any run of the code it describes).**
+- *Trigger:* review finding R2-03. E1 assumes honest discovery ("Discovery
+  is honest in E1"). E3 shows that free identities flood every shard
+  cheaply: all 256 shards reach an attacker majority in about 1.6 s of one
+  core at n = 10⁵. The trust layer can rank only the candidates discovery
+  returns, and the composition was never run.
+- *Simulator change (map-sim E1), off by default:*
+  - `flood_per_honest`: F = round(flood · (P − n_adv)) extra adversarial
+    identities with q = 0.2, zero evidence and overclaimed hints. They are
+    appended to the provider list, so each uniform shortlist is drawn from
+    P + F identities, as a flooded discovery layer would return them.
+  - `shortlist_memory` k: a local policy. k slots hold the requester's
+    top-k providers by the arm's own score, among those it holds a
+    success receipt for; the rest come from discovery.
+  - Both default to 0. The flood identities are created after every
+    pre-registered identity, so the RNG stream is unchanged when F = 0.
+    Before this amendment the golden smoke test and the E1 equivalence
+    tests passed, and `e1_camo_explore` re-run at this code reproduced its
+    committed CSV hash (checked at the commit that carries this amendment).
+- *No probe:* no flood or memory configuration has been run before this
+  amendment was pushed.
+- *Config:* `configs/e1_discovery_flood.toml`: α = 0.2, attack farming,
+  weights W1 (the §8.4 default), 20 seeds, `--fast-crypto` (A1).
+  - flood_per_honest ∈ {0, 1, 10, 100}. With 160 honest providers,
+    discovery returns adversarial identities with probability 0.2, 0.56,
+    0.91 and 0.99.
+  - shortlist_memory ∈ {0, 3}.
+  - Arms B0, B2, Ours-L, Ours-L+C. B0 and B2 hold no evidence, so memory
+    cannot act for them; their k = 3 cells are replicates.
+  - Output: `results/5bc7702/e1-discovery-flood.csv`.
+- *Reported, whatever the outcome:* per cell, mean [95% CI] of
+  - the steady-state attacker share (rounds 31–60, established
+    requesters);
+  - the rounds 1–5 attacker share (new requesters);
+  - steady-state honest success.
+- *Reading, fixed now (Ours-L and Ours-L+C):*
+  - *capture defeats it* at a flood level if its steady-state share CI
+    lies entirely above 0.5;
+  - *it still beats random* if its CI lies entirely below B0's at the
+    same flood level;
+  - *memory helps* if the k = 3 CI lies entirely below the k = 0 CI.
+- *Expectation, written down now:* without memory, the share should track
+  the flood's discovery share, because ranking cannot choose a provider
+  it is never shown. With memory, established requesters should recover.
+  New requesters cannot, because they have no memory.
+- *Script:* `analysis/discovery_flood.py` writes
+  `results/5bc7702/DISCOVERY-FLOOD.md`.

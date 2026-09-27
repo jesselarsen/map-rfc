@@ -1,0 +1,17 @@
+# EXPLORATORY (Amendment A11): review finding R2-03. E1 draws shortlists
+# from honest discovery. Here discovery also returns zero-evidence
+# adversarial "flood" identities, and requesters may keep known-good
+# providers on the shortlist (shortlist_memory).
+scenario = "e1"
+name = "e1-discovery-flood"
+seeds = 20
+
+[params]
+alpha = 0.2
+attack = "farming"
+weights = "w1"
+
+[sweep]
+flood_per_honest = [0.0, 1.0, 10.0, 100.0]
+shortlist_memory = [0, 3]
+arm = ["b0", "b2", "ours", "ours_c"]

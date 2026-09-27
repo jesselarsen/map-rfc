@@ -124,6 +124,14 @@ pub struct Cfg {
     pub pass_honest: f64,
     pub pass_adv: f64,
     pub fallback: usize,
+    /// Discovery flooding (Amendment A11): zero-evidence adversarial
+    /// identities per honest provider that discovery returns alongside the
+    /// real providers. 0 = honest discovery, the pre-registered E1 world.
+    pub flood_per_honest: f64,
+    /// Local shortlist policy (Amendment A11): this many slots hold the
+    /// requester's best-scored providers among those it has a success
+    /// receipt for; the rest come from discovery. 0 = discovery only.
+    pub shortlist_memory: usize,
 }
 
 pub fn cfg_from(p: &Params) -> Result<Cfg, String> {
@@ -180,6 +188,8 @@ pub fn cfg_from(p: &Params) -> Result<Cfg, String> {
         pass_honest: p.f64_or("pass_honest", 0.97)?,
         pass_adv: p.f64_or("pass_adv", 0.08)?,
         fallback: p.u64_or("fallback", 3)? as usize,
+        flood_per_honest: p.f64_or("flood_per_honest", 0.0)?,
+        shortlist_memory: p.u64_or("shortlist_memory", 0)? as usize,
     })
 }
 
@@ -303,6 +313,14 @@ pub fn simulate(cfg: &Cfg, rng: &mut Rng, mode: CryptoMode, mut dump: Option<&mu
     } else {
         Vec::new()
     };
+    // Discovery flooding (A11). Created after every pre-registered identity,
+    // so with no flood nothing here draws from the RNG.
+    let n_flood = (cfg.flood_per_honest * (cfg.providers - n_adv) as f64).round() as usize;
+    for _ in 0..n_flood {
+        let ident = next_ident;
+        next_ident += 1;
+        providers.push(Provider { q: cfg.q_adv, adv: true, kp: Keypair::from_seed(rng.bytes32()), ident, hint: 0.0 });
+    }
     let sybil_base = cfg.requesters as u32;
     let colluder_base = sybil_base + sybils.len() as u32;
     let mut pool = Pool::new(cfg.decay, cfg.issuer_cap);
@@ -349,6 +367,12 @@ pub fn simulate(cfg: &Cfg, rng: &mut Rng, mode: CryptoMode, mut dump: Option<&mu
             }
         }
         gcache.clear();
+        // Identity -> provider index, for the A11 shortlist-memory policy.
+        let ident_ix: HashMap<u32, usize> = if cfg.shortlist_memory > 0 {
+            providers.iter().enumerate().map(|(i, p)| (p.ident, i)).collect()
+        } else {
+            HashMap::new()
+        };
         let mut pending: Vec<Pending> = Vec::new();
         let ended_ms = now_ms + DAY_MS / 2;
         // Honest tasks.
@@ -357,6 +381,26 @@ pub fn simulate(cfg: &Cfg, rng: &mut Rng, mode: CryptoMode, mut dump: Option<&mu
             for _ in 0..k {
                 tasks[r] += 1;
                 let mut order: Vec<usize> = rng.sample_indices(providers.len(), cfg.shortlist.min(providers.len()));
+                if cfg.shortlist_memory > 0 && evidence_arm {
+                    // A11 local policy: keep the requester's best-scored
+                    // known-good providers next to what discovery returned.
+                    // Sorted by (score, index): HashMap order is not stable.
+                    let mut known: Vec<(f64, usize)> = pool
+                        .cells
+                        .get(o)
+                        .map(|m| {
+                            m.iter()
+                                .filter(|(_, c)| c.a > 0.0)
+                                .filter_map(|(id, _)| ident_ix.get(id).map(|&i| (score_for(cfg, &pool, o as u32, *id, now_ms, &wmap).0, i)))
+                                .collect()
+                        })
+                        .unwrap_or_default();
+                    known.sort_by(|a, b| b.0.total_cmp(&a.0).then(a.1.cmp(&b.1)));
+                    let keep: Vec<usize> = known.into_iter().take(cfg.shortlist_memory).map(|(_, i)| i).collect();
+                    order.retain(|i| !keep.contains(i));
+                    order.truncate(cfg.shortlist.saturating_sub(keep.len()));
+                    order.extend(keep);
+                }
                 if !rng.bernoulli(cfg.epsilon) && cfg.arm != Arm::B0 {
                     // Pre-shuffled, so the stable sort breaks score ties at random.
                     let mut keyed: Vec<((f64, f64), usize)> = Vec::with_capacity(order.len());
