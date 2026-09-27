@@ -174,8 +174,11 @@ checkpoints or idempotency keys, which are outside this layer.
 \paragraph{Billing bound.}
 \textbf{C-5}: a failed provider is owed only the usage in its last
 countersigned checkpoint. It is never owed a figure it claimed
-afterwards. Overbilling is therefore bounded by one checkpoint interval
-$c$. The default (C-6) depends on how countersignatures travel. It is
+afterwards. So the requester never pays for usage it did not
+acknowledge. What the interval $c$ bounds is the provider's risk: the
+Parts it delivered after its last checkpoint go unpaid, fewer than $c$
+per failure. The default $c$ (C-6) depends on how countersignatures
+travel. It is
 $c{=}8$ Parts when they return asynchronously while the task keeps
 running, and $c{=}32$ when the provider pauses for each one. Both come
 from the evaluation (\S\ref{sec:eval-checkpoint},

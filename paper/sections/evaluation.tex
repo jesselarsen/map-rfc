@@ -455,8 +455,14 @@ resuming from the failed provider's own claim of progress (provider-only).
   \item restarting wastes 768.6\ci{655.1}{881.7};
   \item the ratio is 0.0042\ci{0.0036}{0.0050}.
   \end{itemize}
-\item \textbf{The billing bound (C-5)} was asserted in every
-  countersigned run, and no run violated it.
+\item \textbf{The billing rule (C-5) holds by construction.} The
+  simulator bills a failed provider exactly its acknowledged usage.
+  Its check that no run bills more than was delivered is therefore an
+  invariant, not evidence. What C-5 costs is the provider's unpaid work,
+  the Parts delivered after its last checkpoint. That is fewer than $c$
+  per failure because the provider checkpoints every $c$ Parts. At the
+  H2 operating point it averages 3.2 Parts per task. Under countersigned
+  resumption, the waste above is exactly this unpaid work.
 \item \textbf{Provider-only resumption} wastes nothing when every provider
   is honest. With 20\% dishonest providers who overstate progress by
   50\%, requesters are overbilled 53.0\ci{40.8}{66.0} Parts per task,

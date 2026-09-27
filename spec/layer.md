@@ -712,11 +712,13 @@ interact directly.
 **only** from the `Usage` in that provider's **last dual-signed
 checkpoint** — never from a higher figure the provider merely claimed
 after the fact and never from a later, un-countersigned observation.
-Because checkpoints are produced at some interval (a matter of provider
-and requester policy, not fixed by this document), this bounds
-overbilling to at most one checkpoint interval of usage: exactly the gap
-between the last point the requester actually acknowledged and the
-point of failure.
+The requester therefore never pays for usage it did not acknowledge.
+Overbilling is zero under this rule, not merely bounded. What the
+checkpoint interval bounds is the provider's risk. The usage it
+delivered after its last dual-signed checkpoint goes unpaid: the gap
+between the last point the requester acknowledged and the point of
+failure. With a checkpoint every c transcript leaves (C-6), that is
+fewer than c leaves per failure.
 
 **C-6 (default interval).** Absent a negotiated value, a provider SHOULD
 propose a checkpoint every c transcript leaves, and at the terminal

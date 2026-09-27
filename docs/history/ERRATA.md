@@ -26,6 +26,29 @@ Findings are registered in `paper/REVIEW-redteam-1.md` (RT-xx) and
 `paper/REVIEW-redteam-2.md` (R2-xx), against the paper draft at `c67ad76`.
 Rulings below follow `REVIEW-PROCESS.md` Stage 2.
 
+RULED 2026-09-27 (review finding RT-06, roles 3/4 — Methodology, Claims
+auditor) — "overbilling is bounded by one checkpoint interval c" misstates
+C-5. Under C-5 a failed provider is paid exactly its last acknowledged
+usage, so overbilling is zero by the rule. What c bounds is the provider's
+unpaid delivered work. The simulator defines billed = acknowledged (`e2.rs`),
+so the "asserted in every run, no violation" claim was true by
+construction; its `unpaid_here >= c` check tests the simulator's own
+checkpoint schedule. — RULING: **ACCEPT-EDITORIAL** (paper and spec).
+Changes:
+- spec §7.5: the requester never pays for unacknowledged usage, so
+  overbilling is zero; the interval bounds the provider's risk to fewer
+  than c leaves per failure;
+- paper design: the "Billing bound" paragraph is reworded the same way;
+- paper E2: the bullet now says the check is an invariant, not evidence,
+  and reports what C-5 costs. That is the provider's unpaid work, 3.2
+  Parts per task at the H2 point, which equals the countersigned waste.
+  This is also the unpaid-Parts figure RT-05 asked for, from the committed
+  `unpaid_delivered_parts` column.
+The pre-registration's "H2-bound" wording is above the amendments line and
+stays as registered. Editorial; no wire change. — Implemented in
+`spec/layer.md` §7.5, `spec/CHANGELOG.md`, and
+`paper/sections/{design,evaluation}.tex`.
+
 RULED 2026-09-27 (review finding RT-02, roles 1/3 — PC, Methodology) — every
 E1 headline number was for W2, which the specification no longer recommends,
 and W1's results were not shown. — RULING: **ACCEPT**. A new
