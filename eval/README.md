@@ -28,8 +28,9 @@
     share random streams;
   - `prereg_extra.py` writes `PREREG-EXTRA.md`: pre-registered items
     `REPORT.md` does not cover. These are E1 time to detect and
-    all-rounds share, checkpoint bytes per Part, the 16-core E3b, and the
-    E3d message-rate crossover;
+    all-rounds share, checkpoint bytes per Part, the 16-core E3b, the
+    E3d message-rate crossover, and E2 with dishonest providers at both
+    λL points;
   - `sybil_sweep.py` (Amendment A10) writes `SYBIL-SWEEP.md` from
     `e1-sybil-sweep.csv`;
   - `discovery_flood.py` (Amendment A11) writes `DISCOVERY-FLOOD.md` from

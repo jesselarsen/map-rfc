@@ -26,6 +26,29 @@ Findings are registered in `paper/REVIEW-redteam-1.md` (RT-xx) and
 `paper/REVIEW-redteam-2.md` (R2-xx), against the paper draft at `c67ad76`.
 Rulings below follow `REVIEW-PROCESS.md` Stage 2.
 
+RULED 2026-09-27 (review finding RT-07, roles 1/3 — PC, Methodology; also
+resolves R2-11) — H2's saving belongs to checkpointing, not countersigning.
+Provider-only resumption also checkpoints and wastes nothing.
+Countersigning's value is safety (no overbilling, no unverified
+transcript), and that follows from the adversary model by construction. In
+addition, R2-11: the provider-only figures (53.0 overbilled, 0.45
+integrity failures) are at λL = 3 but were quoted under the λL = 1 H2
+bullet. — RULING: **ACCEPT-EDITORIAL**. Changes:
+- E2 gains "What H2 does and does not show": checkpointing gives the
+  saving, and countersigning gives safety, which E2 illustrates rather
+  than measures;
+- the provider-only bullet now gives the H2-point figures (30.2 overbilled,
+  0.20 integrity failures) and labels the λL = 3 ones;
+- `prereg_extra.py` gains an E2 dishonest-provider section at both λL
+  points, so these numbers come from `PREREG-EXTRA.md`;
+- the abstract says "Checkpointed resumption regenerates 0.42%" (1,900
+  characters);
+- the conclusion separates the measured saving from the safety argument.
+Editorial; no wire change. — Implemented in
+`paper/sections/{evaluation,conclusion}.tex`, `paper/main.tex`,
+`eval/analysis/prereg_extra.py`, `eval/results/5bc7702/PREREG-EXTRA.md` and
+`eval/README.md`.
+
 RULED 2026-09-27 (review finding RT-06, roles 3/4 — Methodology, Claims
 auditor) — "overbilling is bounded by one checkpoint interval c" misstates
 C-5. Under C-5 a failed provider is paid exactly its last acknowledged

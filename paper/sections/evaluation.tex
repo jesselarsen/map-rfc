@@ -463,11 +463,25 @@ resuming from the failed provider's own claim of progress (provider-only).
   per failure because the provider checkpoints every $c$ Parts. At the
   H2 operating point it averages 3.2 Parts per task. Under countersigned
   resumption, the waste above is exactly this unpaid work.
-\item \textbf{Provider-only resumption} wastes nothing when every provider
-  is honest. With 20\% dishonest providers who overstate progress by
-  50\%, requesters are overbilled 53.0\ci{40.8}{66.0} Parts per task,
-  and there are 0.45 transcript-integrity failures per task.
+\item \textbf{Provider-only resumption} wastes nothing, whether or not
+  providers are honest. With 20\% dishonest providers who overstate
+  progress by 50\%, it overbills requesters by 30.2\ci{20.5}{41.3}
+  Parts per task at the H2 operating point. It also causes
+  0.20\ci{0.15}{0.27} transcript-integrity failures per task. At
+  $\lambda L{=}3$ the figures are 53.0\ci{40.8}{66.0} and 0.45.
+  Countersigned resumption has neither.
 \end{itemize}
+
+\paragraph{What H2 does and does not show.}
+H2 compares countersigned resumption with restarting. Its saving belongs
+to \emph{checkpointing}, not to countersigning: provider-only resumption
+checkpoints too, and it wastes nothing. What countersigning buys is
+safety. A dishonest provider cannot overbill, and a successor never
+inherits a transcript the requester did not verify. That result follows
+from the adversary model by construction, so E2 illustrates it; it does
+not measure it. The measured claim is narrower: checkpointed resumption
+regenerates 0.42\% of what restarting does, and countersigning adds its
+safety at the cost of two signatures per checkpoint (\S\ref{sec:eval-meter}).
 \paragraph{What the waste metric counts.}
 E2's waste counts regenerated Parts. It does not count the successor's
 cost to fetch, verify and ingest the replayed prefix. Verifying is cheap:

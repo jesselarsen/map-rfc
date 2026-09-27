@@ -149,3 +149,14 @@ E4 voucher digests, bytes per Part (λL = 0):
 - Descriptor refresh: 12.54/TTL messages per query, i.e. N / (0.8·q) with N = 10.0 providers refreshing and q = 1 query/s.
 - Equal message cost at TTL = 0.63 s. Above that TTL, pull sends more messages per query than descriptor refresh at the simulated query rate; in general pull is the cheaper of the two only while query rate q < N / (1.6·K·TTL).
 
+## 5. E2 with 20% dishonest providers (L = 10³, c = 8)
+
+A dishonest provider that fails claims 50% more progress than it delivered.
+
+| λL | arm | overbilled Parts per task [CI] | integrity failures per task [CI] | waste [CI] |
+|---|---|---|---|---|
+| 1.0 | provider_only | 30.2 [20.5, 41.3] | 0.20 [0.15, 0.27] | 0.0 [0.0, 0.0] |
+| 1.0 | countersigned | 0.0 [0.0, 0.0] | 0.00 [0.00, 0.00] | 3.3 [2.7, 3.9] |
+| 3.0 | provider_only | 53.0 [40.8, 66.0] | 0.45 [0.38, 0.51] | 0.0 [0.0, 0.0] |
+| 3.0 | countersigned | 0.0 [0.0, 0.0] | 0.00 [0.00, 0.00] | 11.0 [10.0, 12.0] |
+
