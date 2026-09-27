@@ -26,6 +26,36 @@ Findings are registered in `paper/REVIEW-redteam-1.md` (RT-xx) and
 `paper/REVIEW-redteam-2.md` (R2-xx), against the paper draft at `c67ad76`.
 Rulings below follow `REVIEW-PROCESS.md` Stage 2.
 
+RULED 2026-09-27 (review finding RT-04, role 2 — Protocol red team) — the
+strongest attack on W1 was never run: camouflaging Sybils that report
+truthfully on most providers and lie about a few targets. E1's "combined"
+attack has no camouflage. — RULING: **ACCEPT**. Amendment A12 (exploratory)
+was pushed as `07b5681` before any run of its code. It adds a
+`targeted_slander` attack and an `e1t` scenario (E1 plus target-share
+metrics). The E1 scenario, its CSV columns and its RNG stream are unchanged:
+the golden hashes pass and e1_camo_explore's committed hash is reproduced.
+Results at α = 0.2, 5 targets, 20 seeds (relative loss of the targets'
+share of honest tasks, without / with camouflage):
+- B1 93% / 91%;
+- W0 none / none;
+- W1 none / 68%;
+- W2 none / 88%.
+This is exactly the expectation written down in A12. The attacker's own
+share is unchanged, so the attack is sabotage, and the camouflage costs
+1.6× the honest workload. Changes:
+- paper: evaluation paragraph and Table `tab:target`; a sentence in the
+  security G2 argument; the Limitations camouflage bullet; the Appendix
+  A12 entry;
+- spec §6.6: the badmouthing row gains an informative caveat, and a
+  CHANGELOG row records it.
+Editorial; no wire change. — Implemented in
+`map-rs/sim/src/scenarios/{e1,mod}.rs`, `eval/configs/e1_targeted_slander.toml`,
+`eval/analysis/targeted_slander.py`,
+`eval/results/5bc7702/{e1-targeted-slander.csv, TARGETED-SLANDER.md}`,
+`eval/run_all.ps1`, `eval/HYPOTHESES.md`, `spec/layer.md` §6.6,
+`spec/CHANGELOG.md`, and
+`paper/sections/{evaluation,security,limitations,appendix}.tex`.
+
 RULED 2026-09-27 (review finding RT-05, role 2 — Protocol red team; also
 resolves RT-19) — dishonest requesters were not modelled. They can
 free-ride up to c Parts per task, refuse the final receipt, and file

@@ -37,6 +37,8 @@
     `e1-discovery-flood.csv`;
   - `w1_h1.py` writes `W1-H1.md`: the H1 criterion re-evaluated for W1,
     next to W2, with unpaired CIs (exploratory);
+  - `targeted_slander.py` (Amendment A12) writes `TARGETED-SLANDER.md`
+    from `e1-targeted-slander.csv` (scenario `e1t`);
   - `stats.py` is the percentile bootstrap (10,000 resamples, seeds
     resampled jointly for comparisons).
 
@@ -56,7 +58,7 @@ pwsh eval/run_all.ps1 -Quick     # 2 seeds per point: plumbing only, not a resul
    their estimates in;
 4. writes `REPORT.md`, `figs/`, `PREREG-EXTRA.md`, `MINIMAX.md` (the
    Amendment A9 rule), `B2L.md` (exploratory), `SYBIL-SWEEP.md` (A10) and
-   `DISCOVERY-FLOOD.md` (A11) and `W1-H1.md`.
+   `DISCOVERY-FLOOD.md` (A11), `W1-H1.md` and `TARGETED-SLANDER.md` (A12).
    All but the first two need 20 seeds per cell, so `-Quick` skips them.
 
 `e1_main.toml` carries `weights = "D5_WINNER"` until the D5 decision has

@@ -646,3 +646,23 @@ before any run of the code it describes).**
     agreement), and do with it. That is RT-04's claim.
 - *Script:* `analysis/targeted_slander.py` writes
   `results/5bc7702/TARGETED-SLANDER.md`.
+
+**A12 result (2026-09-27).** `e1-targeted-slander` built from `07b5681` (the
+commit that carries A12): 480 jobs, CSV SHA-256 `cc89a5c4…`.
+`analysis/targeted_slander.py` writes `results/5bc7702/TARGETED-SLANDER.md`.
+Relative harm to the targets' steady-state share, without / with
+camouflage:
+- B1: 0.93 / 0.91;
+- W0: 0.01 / 0.01;
+- W1: −0.17 / 0.68;
+- W2: 0.03 / 0.88.
+
+Readings by the rules above:
+- the attack harms the targets under B1 in both settings, and under W1 and
+  W2 only with camouflage;
+- it never harms them under W0;
+- camouflage worsens it for W1 and W2.
+
+The expectation held in every cell. The attacker share is unchanged by the
+attack (W1 0.027, W2 0.026): it is sabotage of the targets, not a way to
+win tasks.

@@ -11,7 +11,7 @@ We did this because one author, working with a single AI model family
 (Acknowledgments), produced \sys{}, the baselines and the simulator.
 That is the main threat to validity~\cite{nosek2018prereg}.
 After the tag, the plan changed only through dated, appended amendments
-(A1--A11, Appendix~\ref{app:amendments}), and we report every hypothesis
+(A1--A12, Appendix~\ref{app:amendments}), and we report every hypothesis
 whatever its outcome. Two amendments changed a decision and are disclosed
 where they apply:
 \begin{itemize}
@@ -326,6 +326,46 @@ The price is small. Outside on-off and camouflage, W2 is ahead by at most
 0.003 at $\alpha\le0.3$ and by at most 0.007 at $\alpha{=}0.5$. Under
 on-off it is ahead by 0.003 to 0.040. H1 and the other E1
 verdicts stay as pre-registered, computed with W2.
+
+\paragraph{Targeted slander (exploratory, A12).}
+E1's slander spreads Sybil complaints over all honest providers, and its
+Sybils never camouflage. Amendment A12, pushed before its run, tests the
+sharper attack. Each Sybil runs two truthful tasks per round against
+honest providers, to earn agreement, and files its negatives only against
+five fixed honest targets. The metric is the targets' share of honest
+requesters' tasks, relative to no attack (Table~\ref{tab:target};
+$\alpha{=}0.2$, 20 Sybils per adversarial provider).
+\begin{itemize}
+\item \textbf{The global ledger} cuts the targets' traffic by about 90\%,
+  with or without camouflage.
+\item \textbf{Self-only weighting (W0)} is unaffected.
+\item \textbf{W1 and W2} are unaffected without camouflage, because the
+  Sybils have no agreement. With camouflage, W1 cuts the targets' traffic
+  by 68\% and W2 by 88\%.
+\end{itemize}
+The attack is sabotage, not profit: the attacker's own share does not
+change. It is not free either: the camouflage costs 1.6 times the honest
+workload in real tasks. W1 limits how much weight one agreeing issuer
+has, but not what that weight is aimed at.
+
+\begin{table}[t]
+\caption{Exploratory (A12): relative loss of the five targets' share of
+honest tasks under targeted slander ($\alpha{=}0.2$, 20 seeds), without
+and with camouflage (two truthful tasks per Sybil per round). All cells
+are in \texttt{TARGETED-SLANDER.md}.}
+\label{tab:target}
+\small
+\begin{tabular}{@{}lrr@{}}
+\toprule
+Arm & No camouflage & Camouflage \\
+\midrule
+B1 global ledger & 93\% & 91\% \\
+Ours-L, W0 & none & none \\
+Ours-L, W1 & none & 68\% \\
+Ours-L, W2 & none & 88\% \\
+\bottomrule
+\end{tabular}
+\end{table}
 
 \paragraph{H1 for the recommended weighting (exploratory).}
 Every E1 headline above uses W2, which the specification no longer
