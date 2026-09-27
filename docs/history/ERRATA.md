@@ -26,6 +26,23 @@ Findings are registered in `paper/REVIEW-redteam-1.md` (RT-xx) and
 `paper/REVIEW-redteam-2.md` (R2-xx), against the paper draft at `c67ad76`.
 Rulings below follow `REVIEW-PROCESS.md` Stage 2.
 
+RULED 2026-09-27 (review finding R2-10, role 1 — PC) — contribution 4
+presented "three negative results that we believe generalize", but all
+three are known: a global ledger collapsing under free Sybil slander follows
+from the threat model; propagation failing against bought attack edges is
+the classic weakness the paper itself cites; grinding with free identities
+follows from Douceur. — RULING: **ACCEPT-EDITORIAL**. Contribution 4 now
+reads "measured confirmations of three known weaknesses in the agent
+setting", with citations to SybilGuard and Douceur. It says two of them
+changed the specification: the default weighting became W1, and
+epoch-salted sharding became NOT RECOMMENDED as a mitigation. The slander
+result only confirmed T-3, which dates from v1, so it is not claimed as a
+change. The minimax reversal is promoted to a new contribution 5: a
+pre-registration should fix where a decision is tested, not only how it is
+made. The conclusion's negative-results paragraph is rewritten to match.
+Editorial; no wire change. — Implemented in `paper/sections/intro.tex` and
+`paper/sections/conclusion.tex`.
+
 RULED 2026-09-27 (review finding R2-05, role 1 — PC, novelty) — the closest
 prior art was missing. Checked against primary sources:
 - TrustChain (FGCS 107, 2020): its IETF draft says "transaction injection can

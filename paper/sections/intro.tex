@@ -78,15 +78,27 @@ Kademlia index carries discovery records, and MPP or x402 moves money.
   canary plus a provider-signed ledger, shows \sys{} with a canary
   better in 25 of 35 settings, with overlapping CIs in the other 10. Without the canary, \sys{} is
   worse than that design under whitewashing and slander.
-\item Three negative results that we believe generalize
+\item Measured confirmations of three known weaknesses in the agent
+  setting. Two of them changed the specification: one the default
+  weighting, and the other made epoch-salted sharding NOT RECOMMENDED as
+  a mitigation
   (\S\ref{sec:eval-trust}, \S\ref{sec:eval-discovery}):
   \begin{itemize}
-  \item a global ledger collapses under slander;
-  \item trust propagation over an agreement graph collapses when
-    camouflaging Sybils outnumber honest issuers;
+  \item a global ledger that admits unilateral complaints collapses under
+    slander from free Sybils (0.95 attacker share at $\alpha{=}0.5$);
+  \item trust propagation over an agreement graph collapses once
+    camouflaging Sybils outnumber honest issuers, which is the scarce
+    attack edges that graph-based Sybil defences assume
+    away~\cite{yu2006sybilguard};
   \item epoch-salted shard assignment does not stop identifier grinding
-    when identities are free.
+    when identities are free~\cite{douceur2002sybil}.
   \end{itemize}
+\item A methodological lesson. Our pre-registered rule for choosing the
+  default weighting was applied at a single adversarial fraction, and the
+  weighting it chose collapsed at a fraction the rule never examined. A
+  minimax rule over the whole grid, pre-registered before its run,
+  reversed the choice. A pre-registration should fix where a decision is
+  tested, not only how it is made.
 \end{enumerate}
 
 \paragraph{What we do not claim.}
