@@ -1,0 +1,65 @@
+\section{Artifact}
+\label{app:artifact}
+
+The artifact is one repository, to be released under Apache-2.0 at tag
+\texttt{paper-v1}. It contains:
+\begin{itemize}
+\item the specification: \texttt{spec/layer.md} (normative), the A2A and
+  libp2p-discovery bindings, the payment-rail mapping, and a changelog
+  from version~1;
+\item the Rust implementation (\texttt{map-rs}) and the Go implementation
+  (\texttt{map-go}), the test vectors and their generator, and the
+  28-cell interop matrix (\texttt{interop/run-matrix.ps1});
+\item the simulator (\texttt{map-rs/sim}), the pre-registration
+  (\texttt{eval/HYPOTHESES.md}, tag \texttt{prereg-v1}, amendments
+  appended), the configurations, and the analysis;
+\item every per-seed CSV of the runs reported here, with toolchain and
+  CPU metadata (\texttt{eval/results/5bc7702/}).
+\end{itemize}
+\texttt{eval/run\_all.ps1} reproduces every table and figure. It first
+checks golden hashes and that fast and real signing agree. On one 16-thread
+desktop the full run takes about three and a half hours, most of it the W2 trust grid.
+The paper's figures come from \texttt{eval/analysis/make\_figs.py} and
+\texttt{paper/figs/make\_flow.py}.
+
+\section{Amendments to the Pre-registration}
+\label{app:amendments}
+
+All amendments are appended, dated and committed. The pre-registered text
+above them is unchanged since \texttt{prereg-v1}.
+\begin{description}
+\item[A1] E1 uses fast signing, which the plan had reserved for larger
+  runs. A check grid covering all eight arms shows a byte-identical CSV
+  in real and fast modes, and every run repeats the check.
+\item[A2] Clarification: every E1 arm gets the same fallback of up to
+  three attempts, so arms differ only in ranking and filtering.
+\item[A3] Clarification: B1 keeps decay and the per-issuer cap. This is
+  a stronger baseline than an unweighted sum.
+\item[A4] Repair of the D5 tie clause. As written, it was satisfied almost
+  always and would have chosen W0. The repair was made after two-seed
+  plumbing numbers had been seen; both readings are reported.
+\item[A5] The grinding rate is set to the benchmark's 60,901 attempts per
+  second on one core. A 16-core variant is run as an exploratory
+  addition.
+\item[A6] D5 result: W2 wins at $\alpha{=}0.2$. W1/W2 were re-implemented
+  deterministically; the test compares them with the direct definitions
+  for exact equality.
+\item[A7] Implementation only: cache-blocked W2, bit-identical, after an
+  interrupted run.
+\item[A8] Exploratory: W2 collapses under camouflage at $\alpha{=}0.5$
+  (0.551), while W1 does not (0.206).
+\item[A9] Minimax re-test of the recommended weighting, pushed before its
+  run. W1 wins with a worst case of 0.200; W0 reaches 0.348 and W2 0.550.
+\end{description}
+
+\section{Recommended Parameters}
+\label{app:params}
+\begin{itemize}
+\item \textbf{Trust:} decay 0.98/day, prior $(1,1)$, future-skew bound
+  120\,s, per-issuer cap 50, issuer weighting W1.
+\item \textbf{Checkpoints:} interval $c{=}8$ Parts.
+\item \textbf{Discovery:} $r{=}3$ sampled shards; D-6 filter mandatory;
+  $d{=}3$ disjoint lookup paths; status pulled on demand; descriptor
+  validity of at most 24\,h.
+\end{itemize}
+The trust values were fixed before the runs and were not tuned. $c{=}8$ and W1 were chosen from the results, as described in \S\ref{sec:eval-checkpoint} and \S\ref{sec:eval-trust}.

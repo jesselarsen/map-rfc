@@ -1,0 +1,95 @@
+\section{Introduction}
+\label{sec:intro}
+
+Agents increasingly delegate work to other agents they do not operate.
+A planning agent sends a translation subtask to a provider it found in a
+directory. A coding agent rents inference from whichever peer has capacity.
+Protocols for this exchange have matured quickly. A2A~\cite{a2a2026}
+reached version~1.0 in March 2026 with signed Agent Cards. Directory
+services index agents by capability~\cite{ads2026,nanda2025}. Payment
+rails meter usage with payer-signed cumulative
+vouchers~\cite{mpp2026,x402v2}. What these protocols do not provide is
+\emph{accountability} for the delegated work itself. Three questions stay
+open:
+
+\begin{enumerate}
+\item \textbf{Evidence.} After a task, what record exists that both sides
+  can rely on? A provider-signed receipt shows what the provider
+  \emph{claims} it did. The requester can dispute it but cannot disprove
+  it.
+\item \textbf{Trust.} When choosing a provider, whose opinion counts? A
+  global ledger aggregates every issuer's feedback. On-chain, that
+  aggregate is dominated by coordinated Sybils: 59--91\% of reviewers in
+  the ERC-8004 reputation registry show coordinated Sybil
+  behaviour~\cite{xiong2026erc8004}.
+\item \textbf{Failure.} If the provider dies halfway through a long task,
+  can another provider continue, and on whose word about progress? If the
+  resumption point is the failed provider's own claim, the failed provider
+  can overbill, and the successor inherits a transcript nobody verified.
+\end{enumerate}
+
+Wang et al.\ recently argued that agent networks generalize peer-to-peer
+file sharing from ``who has this file?'' to ``who can do this
+task?''~\cite{wang2026agenticp2p}. Their system uses signed capability
+descriptors, provider-signed receipts, and a local plus federated
+reputation ledger. It is evaluated in simulation. We build on that framing
+and ask what the \emph{accountability} layer of such a network must look
+like if it is to survive adversaries who can mint identities for free.
+
+\paragraph{Approach.}
+\sys{} (Mutual Attestation Protocol) is a thin layer that runs \emph{over}
+existing systems rather than replacing them: A2A carries the task, a
+Kademlia index carries discovery records, and MPP or x402 moves money.
+\sys{} adds four things (\S\ref{sec:design}):
+\begin{itemize}
+\item \textbf{Dual-signed receipts} (\S\ref{sec:receipts}). Only a receipt
+  countersigned by the requester can count \emph{for} a provider. A
+  requester-only receipt can still count against one. This removes the
+  provider's ability to manufacture positive evidence alone.
+\item \textbf{Observer-local trust with a rebuild rule} (\S\ref{sec:trust}).
+  Each observer computes trust from receipts it has verified. An issuer
+  with no evidence relationship to the observer weighs zero, and the
+  projection is a pure function of the receipt store.
+\item \textbf{Countersigned checkpoints} (\S\ref{sec:checkpoints}). The
+  requester countersigns a Merkle root over the transcript and the
+  cumulative usage. Any provider can resume from that point after
+  verifying the replayed prefix, and a failed provider can bill only up to
+  the last acknowledged checkpoint.
+\item \textbf{Evidence-bound metering} (\S\ref{sec:metering}). Checkpoints
+  and receipts carry a digest of the rail voucher that pays for the usage
+  they record, without \sys{} defining a payment method.
+\end{itemize}
+
+\paragraph{Contributions.}
+\begin{enumerate}
+\item The design of \sys{} and a normative specification with an A2A~v1.0
+  extension binding (\S\ref{sec:design}, \S\ref{sec:binding}).
+\item Two implementations, in Rust and Go. They interoperate over A2A with
+  each other (28/28 cells of a live interop matrix) and with an unmodified
+  A2A Python SDK client. Along the way we found that the SDK's Agent Card
+  canonicalization differs from the A2A specification's
+  (\S\ref{sec:implementation}).
+\item A pre-registered evaluation (\S\ref{sec:evaluation}). It reproduces
+  Wang et al.'s published attack curve to within 0.024, measures \sys{}
+  against a global ledger and a canary baseline under seven attacks, and
+  quantifies checkpointed resumption, discovery attacks and metering
+  overhead. We report every verdict, including failed ones.
+\item Three negative results that we believe generalize
+  (\S\ref{sec:eval-trust}, \S\ref{sec:eval-discovery}):
+  \begin{itemize}
+  \item a global ledger collapses under slander;
+  \item trust propagation over an agreement graph collapses when
+    camouflaging Sybils outnumber honest issuers;
+  \item epoch-salted shard assignment does not stop identifier grinding
+    when identities are free.
+  \end{itemize}
+\end{enumerate}
+
+\paragraph{What we do not claim.}
+Dual-signed receipts are not new in themselves. Signet's bilateral
+receipts co-sign MCP tool calls~\cite{signet}, and accountable distributed
+systems have long used signed, tamper-evident
+logs~\cite{haeberlen2007peerreview}. \sys{} does not make agents honest.
+It makes their claims attributable, and it lets each observer decide how
+much evidence it needs. Identifier grinding and cold start remain open
+(\S\ref{sec:limitations}).

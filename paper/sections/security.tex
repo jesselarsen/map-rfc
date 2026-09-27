@@ -1,0 +1,76 @@
+\section{Security Analysis}
+\label{sec:security}
+
+We argue each goal of \S\ref{sec:threat} from the rules. Signatures are
+EUF-CMA Ed25519, and SHA-256 is collision-resistant.
+
+\paragraph{G1 Attributability.}
+By R-1, a counted signature is a valid signature by the key named in the
+core. By R-4, positive evidence requires the requester's signature.
+Forging positive evidence against an honest requester therefore requires
+forging that requester's signature. A requester-only receipt is negative
+evidence, and it is attributable to its signer, whose weight is the
+observer's decision (T-3). Role tags in the signing input stop a receipt
+signature from being replayed as a checkpoint signature, or the reverse.
+Verifying the received bytes rules out re-encoding tricks.
+
+\paragraph{G2 Local soundness.}
+Under T-3 an issuer's weight is 1 for the observer itself, and otherwise
+a function of evidence the observer verified. Under W1 it is agreement
+between the issuer's ratings and the observer's own. An issuer that
+shares fewer than three rated providers with the observer gets weight 0.
+A Sybil ring that only rates itself therefore contributes nothing. The
+rebuild rule (T-1/T-2) makes the projection a pure function of the
+receipt store, so nothing, including an implementation bug on one
+ingestion path, can raise a score without evidence.
+
+What G2 does \emph{not} give is Sybil-proofness against an adversary who
+buys agreement with real work. Camouflaging Sybils earn W1 weight by
+rating honest providers truthfully. W1 bounds what that buys to each
+observer's direct agreement; E1 shows W2's propagation does not bound it
+(\S\ref{sec:eval-trust}). Cheng and Friedman~\cite{cheng2005sybilproof}
+showed that no
+\emph{symmetric} reputation function is Sybil-proof. \sys{}'s weighting
+is asymmetric, because each observer computes its own. That does not
+help against camouflage: those Sybils earn their agreement with real,
+truthful tasks, so no evidence-based scheme can tell them from honest
+raters without an external cost. \sys{}'s answer is to make evidence cost
+real tasks, to limit what agreement buys to direct agreement (W1), and to
+recommend a canary in front.
+
+\paragraph{G3 Safe resumption.}
+A valid resumption point carries both signatures, and the requester
+signs only after recomputing the root (C-2). A successor recomputes the
+root over the replayed prefix and refuses to continue on a mismatch. So a
+successor never continues from content that the requester did not verify,
+unless it finds a second preimage for the root. By C-5, a failed
+provider's claim is bounded by the usage in the last checkpoint that
+both parties signed. C-3/C-4 stop a provider from splicing an older,
+higher-usage checkpoint into the chain. The zone label is inside the
+signed core, so a successor cannot be handed the task under a wider zone
+without the requester signing that wider label (Z-3).
+
+\paragraph{G4 Bounded exposure.}
+Suppose vouchers are issued per checkpoint and the requester follows M-6.
+Then the requester never authorizes more than the price of acknowledged
+usage plus the credit it chooses to extend. The provider never delivers
+more than one interval ahead of a covering voucher. Simulation asserted
+both bounds in every run (H5).
+
+\paragraph{Reviewer findings.}
+Before this work, an external review demonstrated exploits against the
+first version of the code. Here is how each was resolved:
+\begin{itemize}
+\item \textbf{Receipt farming.} A Sybil ring reached a score of 0.998 in
+  about 150\,ms of receipt generation. Fixed by R-2 to R-4, T-2 and T-3,
+  and measured in E1.
+\item \textbf{Shard flooding.} Fixed by D-6; measured in E3a.
+\item \textbf{Negative amounts.} Made unencodable.
+\item \textbf{Unsigned checkpoint usage.} Fixed by the new checkpoint
+  artifact.
+\item \textbf{Replay-cache cost and TTL.} Fixed.
+\item \textbf{Identifier grinding.} Not fixed. The proposed mitigation
+  was measured and found ineffective (E3b), and the specification now
+  lists grinding as a limitation. Captured shards contain identities with
+  no evidence, which the trust layer routes only through exploration.
+\end{itemize}

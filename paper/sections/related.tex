@@ -1,0 +1,107 @@
+\section{Related Work}
+\label{sec:related}
+
+\begin{table*}[t]
+\caption{Positioning. ``Evidence signed by'' asks who signs the record of
+an execution. ``Resume'' asks whether a task can continue on a different
+provider from a state verified by the requester. ``n/s'': not specified
+in the cited source; ``---'': out of the system's scope.}
+\label{tab:related}
+\small
+\begin{tabular}{@{}lllllp{3.2cm}@{}}
+\toprule
+System & Evidence signed by & Trust computed & Resume & Metering $\leftrightarrow$ evidence & Evaluation \\
+\midrule
+Agentic P2P~\cite{wang2026agenticp2p} & provider & local + federated ledger$^{a}$ & no & no & simulation \\
+MG-EigenTrust~\cite{zhang2026distributed} & n/s & global (EigenTrust-style) & no & no & simulation, prototype \\
+ERC-8004~\cite{erc8004} & feedback author & global, on-chain & no & n/s & measured by~\cite{xiong2026erc8004} \\
+Cairn~\cite{chard2026cairn} & n/s & community (decayed Beta) & no & no & simulation, case study \\
+AgentReputation~\cite{chishti2026agentreputation} & n/s & decentralized service & no & no & vision paper \\
+\midrule
+Signet~\cite{signet} & agent \emph{and} server & --- & no & no & --- \\
+Sello~\cite{figuera2026sello} & receiver & --- & no & no & microbenchmarks \\
+ACTA~\cite{acta2026} & decision maker & --- & no & no & --- \\
+Agent Passport~\cite{aps} & agent & --- & no & no & --- \\
+SCITT (RFC 9943)~\cite{rfc9943} & single issuer & --- & --- & --- & --- \\
+PeerReview~\cite{haeberlen2007peerreview} & each node's log & --- & --- & --- & implementation \\
+\midrule
+A2A~\cite{a2a2026} & (signed Agent Card) & --- & no & --- & --- \\
+ADS~\cite{ads2026}, NANDA~\cite{nanda2025} & (signed records) & --- & --- & --- & --- \\
+MPP~\cite{mpp2026}, x402 V2~\cite{x402v2} & payer (vouchers) & --- & --- & usage, not execution & --- \\
+AP2~\cite{ap2} & user (mandates) & --- & --- & authorization & --- \\
+\midrule
+EigenTrust~\cite{kamvar2003eigentrust} & --- & global & --- & --- & simulation \\
+Beta reputation~\cite{josang2002beta} & --- & aggregated ratings & --- & --- & --- \\
+\midrule
+\textbf{\sys{}} & \textbf{requester and provider} & \textbf{observer-local} & \textbf{yes} & \textbf{voucher digest} & \textbf{pre-registered sim.; 2 impls} \\
+\bottomrule
+\end{tabular}
+
+\smallskip
+\raggedright\footnotesize $^{a}$ As described in the paper's prose. Its
+released simulator ranks providers by a hint the provider reports about
+itself (\S\ref{sec:background}).
+\end{table*}
+
+\paragraph{Agent networks and reputation.}
+Wang et al.~\cite{wang2026agenticp2p} framed agent delegation as the
+successor of P2P content distribution. We adopt that framing and
+replicate their evaluation. We differ in who signs the evidence and where
+trust is computed, and we add resumption. Their group's follow-up,
+MG-EigenTrust, proposes multi-topic EigenTrust against cross-topic
+collusion~\cite{zhang2026distributed}. Our E1 result for W2 is a warning
+for any propagation-based scheme: once camouflaging Sybils outnumber
+honest raters, propagation amplifies them.
+
+ERC-8004~\cite{erc8004} provides on-chain identity, reputation and
+validation registries. An empirical study found its reputation registry
+unusable as a trust signal, with 59--91\% of reviewers showing coordinated
+Sybil behaviour~\cite{xiong2026erc8004}. That is the outcome E1 predicts
+for any global ledger that weights issuers equally.
+
+Cairn~\cite{chard2026cairn} aggregates agents' ratings of shared
+resources with a time-decayed Beta model and tests it against lying,
+collusion and camouflage. Its aggregation is community-wide. \sys{}'s is
+per observer, and \sys{} admits positive evidence only if it is
+countersigned. AgentReputation~\cite{chishti2026agentreputation} sketches
+context-conditioned reputation with explicit verification regimes, which
+is complementary to our admissibility rules.
+
+\paragraph{Receipts and transparency.}
+Signed receipts for agent actions are an active area. ACTA signs
+access-control decisions~\cite{acta2026}. Agent Passport signs a receipt
+for every delegated action~\cite{aps}. Sello inverts the trust boundary:
+the receiving service signs what it observed, encrypts it to the agent's
+owner, and publishes it to a witness-cosigned log~\cite{figuera2026sello}.
+Signet's bilateral receipts, co-signed by agent and MCP server, are the
+closest to \sys{}'s dual signatures~\cite{signet}. None of these defines
+how receipts feed trust, how a task resumes elsewhere, or how usage binds
+to payment.
+
+SCITT~\cite{rfc9943} and Certificate Transparency~\cite{rfc6962} make
+single-issuer statements auditable through transparency logs. \sys{}'s
+receipts could be registered with such a log, but \sys{} does not need
+one: evidence is held by the parties and disclosed at their discretion.
+PeerReview~\cite{haeberlen2007peerreview} established accountability
+through signed, tamper-evident logs with deterministic replay.
+Countersigned checkpoints are a lightweight, application-level analogue,
+for work that is not deterministic.
+
+\paragraph{Payments.}
+MPP sessions~\cite{mpp2026} and x402~V2~\cite{x402v2} already provide
+payer-signed cumulative metering. These, like payment
+channels~\cite{poon2016lightning}, prove that value was authorized, not
+which work it bought. AP2's mandates~\cite{ap2} prove what the user
+authorized. \sys{} adds only the reverse binding: a voucher digest inside
+dual-signed execution evidence.
+
+\paragraph{Classic reputation and Sybil defence.}
+Our scoring is Beta reputation~\cite{josang2002beta}, and W2 is a
+personalized variant of EigenTrust~\cite{kamvar2003eigentrust}. The
+attack taxonomy follows~\cite{hoffman2009survey}, and whitewashing
+follows Feldman et al.~\cite{feldman2006whitewashing}. Graph-based Sybil
+defences such as SybilGuard~\cite{yu2006sybilguard} assume that
+attack edges to honest nodes are scarce. Camouflage in E1 violates that
+assumption by construction, and W2's collapse is the measured
+consequence. S/Kademlia~\cite{baumgart2007skademlia} motivates D-9, and
+E3c replicates its effect.

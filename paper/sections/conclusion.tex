@@ -1,0 +1,30 @@
+\section{Conclusion}
+\label{sec:conclusion}
+
+Agent protocols now carry tasks, discovery records and payments. They do
+not yet carry accountability for the work itself. \sys{} supplies it as a
+thin layer over A2A and has three parts:
+\begin{itemize}
+\item positive evidence that needs both parties' signatures;
+\item trust that each observer computes from evidence it can verify;
+\item checkpoints the requester countersigns, so work can move to another
+  provider without trusting the one that failed.
+\end{itemize}
+
+Against pre-registered hypotheses, \sys{}'s local trust cut the attacker
+share to at most half that of a canary baseline in 27 of 28 settings. It
+survived the slander that collapses a global ledger, and countersigned
+resumption wasted 0.42\% of what restarting does. The evaluation also
+exposed where \sys{} loses: cold start, on-off behaviour, and identifier
+grinding. It showed that our own pre-registered trust propagation
+collapses under Sybil-majority camouflage. That finding changed the
+recommended default.
+
+We think the negative results are as useful as the positive ones. Global
+ledgers collapse under slander. Propagated trust collapses once
+camouflaging Sybils outnumber honest raters. And when identities are
+free, no shard function stops grinding.
+
+The specification, both implementations, the simulator, the
+pre-registration with all amendments, and every per-seed result will be
+released under the Apache-2.0 license (Appendix~\ref{app:artifact}).

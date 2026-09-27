@@ -464,7 +464,27 @@ tag `prereg-v1`), 65aa368 P6b, b08df48 P6c, and the P6d commit.
   vectors, P8 defaults); binding DHT-12/13; `checkpointIntervalParts` 8;
   provider bins default `--checkpoint-every 8`.
 - **No wire change:** gen_vectors regenerates byte-identically.
-- **Next: P9 (paper). D7 (arXiv category and endorser) is still open.**
+- **P9 (paper) STARTED 2026-09-27: first full draft in `paper/`.**
+  - Format: ACM acmart sigconf `nonacm`, about 12 pages projected.
+  - **The PDF has NOT been compiled.** There is no TeX here: the author
+    chose "source only", with the build on Overleaf via
+    `paper/paper-overleaf.zip`. `paper/lint_tex.py` does static checks
+    and was validated with planted errors.
+  - **Prior art re-checked 2026-09-27.** Dual-signed receipts alone are
+    NOT novel: Signet has BilateralReceipt, agent + MCP server co-signed.
+    Adjacent work also includes:
+    - Sello (arXiv 2606.04193), receiver-signed;
+    - Agent Passport, ACTA (draft-farley-acta-signed-receipts-03);
+    - Cairn (2609.19502), community decayed Beta;
+    - MG-EigenTrust (2606.17368);
+    - the ERC-8004 empirical study (2606.26028: 59–91% Sybil reviewers).
+
+    The paper claims the *combination*. Every bib entry was checked
+    against a primary source.
+  - **Author TODOs** (listed in `paper/README.md`): the affiliation
+    country; repo visibility (jesselarsen/map-rfc is PRIVATE, so the
+    paper says the artifact "will be released" at tag `paper-v1`);
+    D7 (arXiv category and endorser); compile and proofread.
   - The paper must report H1 as PARTIAL, L1/L3, the W2 camouflage
     collapse, the A9 deviation, and A4 as unmitigated.
 

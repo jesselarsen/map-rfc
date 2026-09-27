@@ -1,0 +1,85 @@
+\section{Implementation}
+\label{sec:implementation}
+
+\paragraph{Rust.}
+The reference implementation is 8,040 lines of Rust across ten crates:
+identity, core encoding and envelopes, transcript and checkpoints, trust,
+metering, discovery, the libp2p discovery node, and supporting crates.
+It also includes a 2,535-line A2A adapter (provider middleware, requester
+client, card and descriptor signing) and a 976-line conformance suite.
+The trust crate's \texttt{apply} function enforces R-1 to R-4 for both
+incremental ingestion and rebuild (T-2). Tests check that the two paths
+agree, including on mixed streams of forged, unilateral and dual-signed
+receipts. The workspace has 167 tests.
+
+\paragraph{Go.}
+A second, full implementation (9,274 lines, standard library only) covers
+the same layers, including an A2A provider and requester. It is
+\emph{not} independent in the IETF sense: the same author wrote it with
+the Rust source available. It does give a second parser and signer for
+every artifact, and it found real ambiguities in the specification. It
+has 78 top-level tests.
+
+\paragraph{Interoperability.}
+\begin{itemize}
+\item \textbf{Vectors.} Seventeen live test vectors pin every artifact
+  byte for byte: receipts, checkpoints, descriptors, signed Agent Cards,
+  admissibility decisions, TaskIDs and transcript leaves. Both
+  implementations reproduce all of them.
+\item \textbf{Live matrix.} A 28-cell matrix runs every combination of
+  Rust and Go as requester, provider~A and provider~B through a
+  kill-and-resume task over A2A HTTP. It also runs plain A2A clients
+  against \sys{} providers, and the core session cells. All 28 pass.
+\item \textbf{Unmodified SDK.} The official A2A Python SDK
+  (a2a-sdk~1.0.3), unmodified, does the following against our provider:
+  \begin{itemize}
+  \item resolves its Agent Card;
+  \item verifies the card's signature with the SDK's own verifier;
+  \item rejects the card once one field is altered (a negative control);
+  \item completes a plain task.
+  \end{itemize}
+\end{itemize}
+
+\paragraph{A canonicalization pitfall.}
+Our first signed Agent Card verified under our reading of the A2A
+specification but failed the Python SDK's EdDSA verifier. The SDK
+canonicalizes a card by converting it with protobuf's
+\texttt{MessageToDict}, dropping every empty value, and serializing with
+sorted keys. That differs from the specification's rule, which applies
+RFC~8785 after removing only non-required empties. The difference shows
+up in exactly the constructs we had used:
+\begin{itemize}
+\item \texttt{"required": false}, a proto3 implicit-presence default;
+\item integers inside a \texttt{google.protobuf.Struct}, which protobuf
+  re-serializes as doubles (\texttt{32.0}).
+\end{itemize}
+The binding now includes an interop profile: no empties, no implicit
+defaults, no JSON numbers in \texttt{Struct}s, and ASCII only. Cards
+within that profile produce identical bytes under both rules. We report
+this because every signed-Agent-Card deployment faces the same trap.
+
+\paragraph{Simulator.}
+\texttt{map-sim} (3,057 lines) is a deterministic discrete-event
+simulator.
+\begin{itemize}
+\item \textbf{Real crates.} It calls the real crates for admissibility,
+  transcripts, checkpoints, metering and shard checks. Only signing can
+  be replaced, by a fast mode; a fixed-seed test shows the fast mode
+  produces byte-identical output.
+\item \textbf{Randomness.} Every run draws from ChaCha8, seeded by
+  SHA-256 of (scenario, point, seed).
+\item \textbf{Reproducible output.} Results are written in job order, so
+  the output CSV is byte-identical at any thread count.
+\item \textbf{Weighting check.} A test compares the fast W1 and W2
+  implementations with their direct definitions for exact equality. We
+  validated it by planting a bug and checking that it fails.
+\end{itemize}
+Criterion benchmarks on one core of a Ryzen~7 5800X measure:
+\begin{itemize}
+\item a dual-signed receipt (encode, two signatures, two verifications):
+  $127\,\mu$s;
+\item a checkpoint cycle (propose, countersign, verify): $126\,\mu$s;
+\item appending a Part and recomputing the transcript root:
+  $1.4\,\mu$s.
+\end{itemize}
+A receipt is 327 bytes, and a checkpoint 312.

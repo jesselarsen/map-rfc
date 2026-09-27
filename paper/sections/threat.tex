@@ -1,0 +1,58 @@
+\section{Threat Model and Goals}
+\label{sec:threat}
+
+\paragraph{Adversary.}
+The adversary controls a fraction $\alpha$ of providers. It can create any
+number of requester and provider identities at negligible cost (a key pair
+costs about $16\,\mu$s on one core, \S\ref{sec:eval-discovery}). It can
+collude across all of them, sign anything with keys it holds, publish
+arbitrary receipts to any shared store, refuse to countersign, and change
+behaviour over time. It controls a fraction $f$ of DHT routers and can
+answer lookups arbitrarily. It cannot forge signatures of honest keys or
+break SHA-256. We do not model network-level denial of service or
+compromised honest keys. Key rotation and revocation are out of scope in
+this version.
+
+\paragraph{Attacks.}
+We evaluate the classic reputation
+attacks~\cite{hoffman2009survey,douceur2002sybil,feldman2006whitewashing},
+instantiated for agent delegation:
+\begin{itemize}
+\item \emph{farming}: Sybil requesters issue positive receipts for their
+  own providers;
+\item \emph{camouflage}: farming Sybils also run truthful tasks against
+  honest providers, to look like good raters;
+\item \emph{collusion}: adversarial providers vouch for each other;
+\item \emph{whitewashing}: adversarial providers re-enter under fresh
+  identities;
+\item \emph{on-off}: adversarial providers alternate good and bad
+  phases;
+\item \emph{slander}: Sybils file negative receipts against honest
+  providers;
+\item \emph{combined}: farming plus slander plus selective
+  countersigning.
+\end{itemize}
+In discovery, the adversary attempts \emph{shard flooding} (publishing
+records outside the shard they belong to), \emph{identifier grinding}
+(generating identities until they land in a target shard), and
+\emph{eclipse} of lookups through malicious routers.
+
+\paragraph{Goals.}
+\begin{description}
+\item[G1 Attributability.] Positive evidence about a provider exists only
+  if the requester agreed to it. Negative evidence is attributable to a
+  requester.
+\item[G2 Local soundness.] An observer's view of a provider depends only on
+  receipts it can verify, weighted by its own policy. Evidence from
+  issuers with no relationship to the observer contributes nothing.
+\item[G3 Safe resumption.] A task resumes only from a state that the
+  requester verified. A failed provider is owed at most the usage of its
+  last countersigned checkpoint.
+\item[G4 Bounded exposure.] Under voucher-per-checkpoint metering, neither
+  side is exposed beyond one checkpoint interval of usage.
+\item[G5 Composability.] Plain A2A clients keep working, and \sys{} adds
+  no payment method, transport or task protocol of its own.
+\end{description}
+Confidentiality of task content is \emph{not} a goal. \sys{}'s
+data-sensitivity zones are dual-signed labels with a refusal rule, which
+provides accountability rather than confidentiality (\S\ref{sec:zones}).

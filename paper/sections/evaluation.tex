@@ -1,0 +1,394 @@
+\section{Evaluation}
+\label{sec:evaluation}
+
+\subsection{Method}
+\label{sec:eval-method}
+
+\paragraph{Pre-registration.}
+We committed and tagged every hypothesis, decision rule and predicted
+losing regime (\texttt{prereg-v1}) \emph{before} writing the simulator.
+We did this because the same author wrote \sys{}, the baselines and the
+simulator; that is the main threat to validity~\cite{nosek2018prereg}.
+After the tag, the plan changed only through dated, appended amendments
+(A1--A9, Appendix~\ref{app:amendments}), and we report every hypothesis
+whatever its outcome. Two amendments changed a decision and are disclosed
+where they apply:
+\begin{itemize}
+\item \textbf{A4} repaired the weighting decision rule after we had seen
+  plumbing-test numbers (\S\ref{sec:eval-trust}).
+\item \textbf{A9}, requested by the author after an exploratory finding,
+  re-chose the recommended weighting with a new rule. That rule was
+  committed and pushed before its run.
+\end{itemize}
+
+\paragraph{Statistics.}
+Each sweep point runs 20 seeds (60 for F1, matching its source). We report
+means with 95\% percentile-bootstrap CIs over seeds (10,000
+resamples~\cite{efron1993bootstrap}). A comparative hypothesis
+\emph{holds at a point} only if the CI of the difference or ratio lies
+entirely on the claimed side. Seeds are resampled jointly for paired
+arms. We apply no multiple-comparison correction, and the full grid is
+published.
+
+\paragraph{Reproducibility.}
+One command (\texttt{eval/run\_all.ps1}) builds the simulator, checks the
+golden hashes, runs every experiment, and regenerates the report and the
+figures. We ran the whole evaluation twice, at two commits:
+\begin{itemize}
+\item \textbf{Byte-identical outputs.} Every experiment that ran in both
+  runs produced byte-identical CSVs.
+\item \textbf{Run once.} The main trust grid ran only at the second
+  commit, after a cache-blocking optimization verified to be bit-identical
+  (A7). The two follow-up weighting sweeps (A8, A9) also ran once.
+\item \textbf{Signing modes.} Real and fast signing produce identical
+  output on a check grid, re-verified on every run (A1).
+\end{itemize}
+
+\begin{table}[t]
+\caption{Pre-registered verdicts (20 seeds; F1: 60). ``Holds'' counts the
+points whose 95\% CI lies on the claimed side. L1--L4 are
+\emph{predicted} losing regimes, so ``occurs'' is a loss for \sys{}.}
+\label{tab:verdicts}
+\small
+\begin{tabular}{@{}llr@{}}
+\toprule
+Id & Claim & Verdict \\
+\midrule
+F1-a & Replicates~\cite{wang2026agenticp2p} Fig.~5a within $\pm$0.05 & holds 12/12 \\
+F1-b1 & At 60\,s, \sys{} adds nothing to Risk-Aware & partial 5/6 \\
+F1-b2 & At 3600\,s, \sys{}+RA $-$ RA $\ge 0.10$ & holds 4/4 \\
+F1-b3 & \ldots\ under 60\,s whitewashing, $\ge 0.05$ & holds 2/2 \\
+H1 & Attacker share $\le 0.5\times$ B1 and B2 & \textbf{partial 18/28} \\
+L1 & Cold start: worse than B2, rounds 1--5 & occurs 35/35 \\
+L2 & Sparse evidence: W0 $\not<$ random & did not occur \\
+L3 & On-off: decay lags the off phase & occurs 5/5 \\
+L4 & Camouflage hurts W1/W2 ($\alpha{=}0.2$) & did not occur \\
+H2 & Resume waste $\le 0.4\times$ restart & holds \\
+H3 & D-6 caps flooding at fair share & holds 6/6 \\
+H4 & Pulled status beats descriptor-carried & holds 4/4 \\
+H5 & Exposure $\le$ price($c$); overhead $<$1\% & holds 6/6 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Replicating an agentic P2P baseline}
+\label{sec:eval-f1}
+Before comparing against Wang et al.'s Risk-Aware
+policy~\cite{wang2026agenticp2p}, we re-implemented their simulator's model
+from its source code. We read that code but did not execute it. The model:
+\begin{itemize}
+\item 100 peers, a fraction $\alpha$ of them Sybils that overclaim their
+  self-reported hints and succeed 5\% of the time;
+\item two-step workflows, a shortlist of 25, and up to three attempts
+  per step;
+\item a canary that honest peers pass 97\% of the time and Sybils 8\%.
+\end{itemize}
+Our curves match their published Fig.~5a at all 12 points to within
+$\pm$0.05; the largest difference is 0.024 (Figure~\ref{fig:f1}). This
+gate had to pass before any comparison.
+
+We then added \sys{}'s local projection, evaluated in their world:
+\begin{itemize}
+\item \textbf{Short horizon.} In their 60\,s horizon, a requester has
+  less than one workflow of its own history. As predicted, \sys{}
+  ranking in front of the canary (\sys{}+RA) adds nothing at five of six
+  values of $\alpha$. The exception is $\alpha{=}0.3$, a small gain of
+  $+0.037$\ci{0.002}{0.071}.
+\item \textbf{One hour.} At 3,600\,s, evidence accumulates and \sys{}+RA
+  beats Risk-Aware by 0.123 to 0.265 for $\alpha\in[0.2,0.5]$.
+\item \textbf{Whitewashing.} With Sybils re-keying every 60\,s, it still
+  beats Risk-Aware by 0.105 at $\alpha{=}0.2$ and 0.169 at
+  $\alpha{=}0.3$, because honest providers keep their history.
+\end{itemize}
+Risk-Aware verifies each task; it does not remember the result. \sys{}
+supplies the memory.
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=0.9\columnwidth]{figs/f1_replication}
+  \caption{Replication of~\cite{wang2026agenticp2p} Fig.~5a (dashed:
+  published; solid: ours, 60 seeds, 95\% CIs) and \sys{}'s local
+  projection with the canary over a 3,600\,s horizon.}
+  \label{fig:f1}
+\end{figure}
+
+\subsection{Trust under attack (E1)}
+\label{sec:eval-trust}
+
+\paragraph{World.}
+The simulated world has:
+\begin{itemize}
+\item 200 providers and 500 honest requesters over 60 rounds; one round
+  is one day of decay;
+\item Poisson(2) tasks per requester per round;
+\item a shortlist of 10 providers per task, with 10\% uniform
+  exploration and up to 3 attempts.
+\end{itemize}
+Honest providers succeed with $q\sim U[0.80,0.98]$. A fraction $\alpha$
+of providers is adversarial, with $q{=}0.2$. Adversarial providers refuse
+to countersign their failures. In the Sybil attacks (farming, camouflage,
+slander, combined), each one also controls 20 Sybil requesters.
+Every receipt goes to one public pool, the worst case. The metric is the
+steady-state (rounds 31--60) share of honest requesters' tasks that go to
+adversarial providers.
+
+\paragraph{Arms.}
+\begin{itemize}
+\item \textbf{B0}: random selection.
+\item \textbf{B1}: a global ledger in the style of ERC-8004. It is
+  \sys{}'s own projection with every issuer weighted~1; it keeps the
+  decay and the cap, which makes it a \emph{stronger} baseline than a raw
+  sum (A3).
+\item \textbf{B2}: Risk-Aware's canary.
+\item \textbf{B2L}: B2 plus a ledger of provider-signed receipts, the
+  paper's prose design.
+\item \textbf{Ours-L}: \sys{}.
+\item \textbf{Ours-L+C}: \sys{} with the canary in front.
+\item \textbf{Ablations:} unknown issuers weighted 0.5
+  (\emph{A-prior}); unilateral positive receipts admitted
+  (\emph{A-unilateral}).
+\end{itemize}
+
+\begin{figure*}[t]
+  \centering
+  \includegraphics[width=\textwidth]{figs/e1_attacker_share}
+  \caption{E1: steady-state attacker share of honest requesters' tasks
+  versus adversarial fraction $\alpha$ (20 seeds, 95\% CIs). The dashed
+  line is random selection. Ours-L uses the pre-registered weighting, W2.}
+  \label{fig:e1}
+\end{figure*}
+
+\paragraph{Results (Figure~\ref{fig:e1}).}
+H1 is only \textbf{partially} supported: Ours-L's attacker share is at
+most half of both baselines' at 18 of 28 points. Against the canary
+baseline B2 it holds at 27 of 28 points. The exception is camouflage at
+$\alpha{=}0.3$, with a ratio of 0.69. Against the global ledger B1, H1
+fails in three families:
+\begin{itemize}
+\item \textbf{Whitewashing.} The ratio is about 1.04 at every $\alpha$.
+  Fresh identities have no evidence under \emph{either} scheme, so both
+  sit at the floor set by exploration and fallback. Halving that floor
+  is not possible.
+\item \textbf{On-off.} The ratio is about 1.4. B1 pools every issuer's
+  evidence, so it sees the ``off'' phase sooner than an observer that
+  trusts only issuers resembling itself.
+\item \textbf{Camouflage at $\alpha\ge0.2$.} Discussed below.
+\end{itemize}
+In the other direction, the global ledger \emph{collapses} under slander:
+\begin{itemize}
+\item B1's attacker share is 0.406 at $\alpha{=}0.2$ and 0.952 at
+  $\alpha{=}0.5$. Sybil complaints bury honest providers, and the
+  adversaries inherit the traffic.
+\item Ours-L stays at 0.025 and 0.080, because complaints from issuers
+  that disagree with the observer weigh nothing.
+\item Under combined attacks B1 reaches 0.713 at $\alpha{=}0.2$.
+\end{itemize}
+The ablations confirm both admissibility rules. With unknown issuers
+weighted 0.5 (the v1 design), farming wins 0.715 of tasks at
+$\alpha{=}0.2$; with weight 0 it wins 0.025. The canary composes with
+\sys{}: Ours-L+C keeps the attacker share at or below 0.15 in every cell,
+and at or below 0.004 in every cell with $\alpha\le0.3$ except
+camouflage.
+
+\paragraph{Losing regimes.}
+All four predicted losing regimes were tested:
+\begin{itemize}
+\item \textbf{Cold start (L1): occurs everywhere.} In rounds 1--5,
+  Ours-L without the canary has a higher attacker share than B2: by
+  0.014 at $\alpha{=}0.05$, up to 0.217 at $\alpha{=}0.5$. Local trust
+  needs history, and a deployment should run a canary until it has some.
+\item \textbf{On-off (L3): occurs.} At the start of each off phase the
+  attacker share exceeds steady state by 0.017 to 0.196, the lag of a
+  0.98/day decay.
+\item \textbf{Sparse evidence (L2): did not occur.} At 0.1 tasks per
+  requester per round, self-only weighting still beat random, by 0.9 to
+  2.3 points.
+\item \textbf{Camouflage (L4): did not occur at the pre-registered
+  $\alpha{=}0.2$.} Agreement-based weights were not worse than self-only
+  there. At higher $\alpha$ they were, as described next.
+\end{itemize}
+
+\paragraph{Choosing the weighting: a pre-registered rule, a collapse,
+and a re-test.}
+The pre-registered rule compared W0/W1/W2 at $\alpha{=}0.2$ only.
+Averaged over all attacks, the steady-state attacker shares were:
+\begin{itemize}
+\item W0: 0.0796;
+\item W1: 0.0312;
+\item W2: 0.0290.
+\end{itemize}
+It selected W2 (A6). One disclosure applies: the rule's tie clause, as
+first written, was satisfied almost always, and it would have chosen W0.
+We repaired it (A4) \emph{after} seeing two-seed plumbing numbers, and
+report both readings.
+
+The main grid then showed W2 \emph{worse than random} under camouflage
+at $\alpha{=}0.5$: 0.550, against 0.500 for random selection. At that
+point 2,000 camouflaging Sybils face 500 honest requesters. Their
+truthful reports about honest providers earn them agreement edges, and
+propagation concentrates the observer's trust mass in the Sybil cluster.
+This is the classic weakness of transitive trust against Sybils who have
+bought honest-looking edges~\cite{yu2006sybilguard,cheng2005sybilproof}.
+We had not tested it at that $\alpha$.
+
+An exploratory run confirmed the collapse and showed that W1 does not
+suffer it (A8). We then pre-registered a minimax rule (A9) and pushed it
+before its run: choose the weighting with the lowest worst-case attacker
+share over all 35 ($\alpha$, attack) cells. Table~\ref{tab:minimax}
+gives the worst cells; Figure~\ref{fig:minimax} shows the two families
+where the weightings differ most.
+
+W1 wins, with non-overlapping CIs, and the specification recommends it.
+The price is small. Outside on-off and camouflage, W2 is ahead by at most
+0.003 at $\alpha\le0.3$ and by at most 0.007 at $\alpha{=}0.5$. Under
+on-off it is ahead by 0.003 to 0.040. H1 and the other E1
+verdicts stay as pre-registered, computed with W2.
+
+\begin{table}[t]
+\caption{A9 minimax re-test: each weighting's worst cell over
+$\alpha\in\{0.05,\ldots,0.5\}\times$ seven attacks (steady-state attacker
+share, 95\% CI).}
+\label{tab:minimax}
+\small
+\begin{tabular}{@{}llll@{}}
+\toprule
+Weighting & Worst cell & Attacker share & Honest succ. \\
+\midrule
+W0 self only & 0.5, on-off & 0.348\ci{0.346}{0.350} & 0.960 \\
+\textbf{W1 direct} & 0.5, camouflage & \textbf{0.200}\ci{0.196}{0.204} & 0.978 \\
+W2 propagation & 0.5, camouflage & 0.550\ci{0.543}{0.557} & 0.867 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=\columnwidth]{figs/e1_minimax}
+  \caption{Issuer weightings under camouflage and on-off (20 seeds, 95\%
+  CIs). W2's propagation collapses once camouflaging Sybils outnumber
+  honest requesters. W1 never does worse than random.}
+  \label{fig:minimax}
+\end{figure}
+
+\subsection{Countersigned resumption (E2)}
+\label{sec:eval-checkpoint}
+Tasks of $L\in\{10^2,10^3,10^4\}$ Parts fail with hazard $\lambda$, with
+$\lambda L\in\{0.1,1,3\}$ expected failures per task, and are resumed on
+a fresh provider. We compare three recovery strategies: restarting from
+scratch; resuming from a countersigned checkpoint every $c$ Parts; and
+resuming from the failed provider's own claim of progress (provider-only).
+
+\begin{itemize}
+\item \textbf{H2 holds.} At $L{=}10^3$, $\lambda L{=}1$, $c{=}8$:
+  \begin{itemize}
+  \item countersigned resumption wastes 3.2\ci{2.8}{3.7} Parts per task;
+  \item restarting wastes 768.6\ci{655.1}{881.7};
+  \item the ratio is 0.0042\ci{0.0036}{0.0050}.
+  \end{itemize}
+\item \textbf{The billing bound (C-5)} was asserted in every
+  countersigned run, and no run violated it.
+\item \textbf{Provider-only resumption} wastes nothing when every provider
+  is honest. With 20\% dishonest providers who overstate progress by
+  50\%, requesters are overbilled 53.0\ci{40.8}{66.0} Parts per task,
+  and there are 0.45 transcript-integrity failures per task.
+\end{itemize}
+Figure~\ref{fig:e2} shows the trade-off in $c$: waste grows roughly
+linearly in $c$, while signatures shrink as $1/c$. Pricing a signature at
+$\kappa\in\{0.01,0.1\}$ Parts of work, most settings are optimized
+between $c{=}8$ and $c{=}32$. We made $c{=}8$ the default (C-6).
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=0.85\columnwidth]{figs/e2_waste}
+  \caption{E2 ($L{=}1000$): wasted Parts per task under countersigned
+  resumption versus checkpoint interval $c$. Dotted lines: restart from
+  scratch, in the same colour as the $\lambda L$ they match. At $c{=}1$
+  no work is wasted.}
+  \label{fig:e2}
+\end{figure}
+
+\subsection{Discovery (E3)}
+\label{sec:eval-discovery}
+\paragraph{Shard flooding (H3).}
+An attacker holding a fraction $a$ of identities publishes its records
+into every shard that queriers sample:
+\begin{itemize}
+\item \textbf{Without D-6}, it holds 46--91\% of candidates for
+  $a\in\{0.01,0.05,0.1\}$.
+\item \textbf{With D-6's shard check}, its share equals $a$ within 0.01
+  at all six points ($n\in\{10^3,10^4\}$).
+\end{itemize}
+
+\paragraph{Identifier grinding: no mitigation.}
+Generating a key pair and computing its shard costs 16.4\,$\mu$s on one
+core, so an attacker makes 60,901 attempts per second.
+\begin{itemize}
+\item \textbf{Result.} Epoch-salted shard assignment, which re-randomizes
+  every agent's shard each epoch, did not help: the attacker held
+  1.000\ci{1.000}{1.000} of the target shard in all 27 configurations
+  (network size, attack window, and epoch length).
+\item \textbf{Why.} One core adds about 238 identities per second to any
+  shard, while a shard of a $10^5$-provider network holds about 390
+  honest providers. The attacker therefore has a majority about 2\,s
+  after each re-salt.
+\end{itemize}
+When identities are free, grinding is just targeted Sybil creation, and no
+shard function prevents it. The specification now says so plainly (A4 in
+\S\ref{sec:security}).
+
+\paragraph{Eclipse (E3c).}
+In a simulated Kademlia (20-entry buckets, 3 parallel queries) with a
+fraction $f$ of malicious routers, three disjoint lookup paths raise
+lookup success at $N{=}10^5$ with $f{=}0.3$ from 0.755 to 0.930 without
+churn, and from 0.906 to 0.975 with 10\% churn (Figure~\ref{fig:e3c}).
+They cost 1.3--1.7$\times$ the messages. This
+replicates the S/Kademlia result~\cite{baumgart2007skademlia}, and D-9
+became a SHOULD.
+
+\paragraph{Volatile plane (H4).}
+Queue lengths follow an M/M/1 process. Pulling status at selection time
+has lower regret than reading a value cached in a descriptor at every TTL
+of 60\,s or more:
+\begin{itemize}
+\item at utilization 0.8 and a 600\,s TTL, the regret difference is
+  $-3.40$ queue positions;
+\item pulling costs 20 messages per query, against 0.02 for a
+  descriptor refresh.
+\end{itemize}
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=0.85\columnwidth]{figs/e3c_lookup}
+  \caption{E3c: Kademlia lookup success versus malicious-router fraction
+  (10\% churn), with one path and with three disjoint paths.}
+  \label{fig:e3c}
+\end{figure}
+
+\subsection{Metering (E4) and supporting evidence (E5)}
+\label{sec:eval-meter}
+\paragraph{Metering (H5).}
+Vouchers are issued per checkpoint, with per-token prices.
+\begin{itemize}
+\item \textbf{Invariants.} Cumulative vouchers are monotone, re-delivery
+  is idempotent, and amounts are non-negative. The simulator asserts all
+  three in every run, and a provider's unpaid exposure never exceeded
+  price($c$).
+\item \textbf{Overhead.} At a generation speed of 20\,ms per token, \sys{}
+  signing and verification add 0.086\% of task time at $c{=}8$, and
+  0.69\% even at $c{=}1$.
+\end{itemize}
+
+\paragraph{Formal and interop evidence (E5).}
+\begin{itemize}
+\item \textbf{Interop.} The interop matrix and vectors are described in
+  \S\ref{sec:implementation}.
+\item \textbf{Formal model.} ProVerif~\cite{proverif} proves injective
+  agreement for the discovery-plane handshake's channel binding (the
+  anti-relay property), with unbounded sessions. A control model that
+  derives the binding without the handshake transcript fails as designed.
+  Removing the signature check, the channel-binding check or the
+  responder nonce each breaks the proof.
+\end{itemize}
+We have \emph{no} formal model of receipt or checkpoint non-repudiation.
+The argument for those rests on construction, tests and vectors
+(\S\ref{sec:security}).

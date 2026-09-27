@@ -32,3 +32,4 @@ __pycache__/
 
 # map-sim default output (P7 writes eval/results/<git-sha>/)
 eval/results/local/
+paper/paper-overleaf.zip

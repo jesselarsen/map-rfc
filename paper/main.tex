@@ -1,0 +1,83 @@
+% MAP paper -- ACM acmart, sigconf, preprint (nonacm).
+% Build: latexmk -pdf main.tex   (or upload the paper/ directory to Overleaf)
+% Every number in this paper comes from eval/results/5bc7702/ (REPORT.md,
+% MINIMAX.md) or from the repository at the tag cited in Appendix A.
+\documentclass[sigconf,nonacm]{acmart}
+
+\settopmatter{printacmref=false, printfolios=true}
+\renewcommand\footnotetextcopyrightpermission[1]{}
+\pagestyle{plain}
+
+\usepackage{multirow}
+
+\newcommand{\sys}{MAP}
+\newcommand{\eg}{e.g.,\ }
+\newcommand{\ie}{i.e.,\ }
+\newcommand{\ci}[2]{\,[#1,\,#2]}
+\newcommand{\hyp}[1]{\textsf{#1}}
+
+\begin{document}
+
+\title{Mutual Attestation for Delegated Agent Work}
+\subtitle{Dual-Signed Evidence, Observer-Local Trust, and Countersigned Resumption over A2A}
+
+\author{Jesse Larsen}
+% TODO(author): set \country{...}; acmart warns when it is missing.
+\affiliation{\institution{Independent researcher}\country{}}
+\email{jesselarsen@gmail.com}
+
+\begin{abstract}
+When one AI agent delegates work to another, three questions follow.
+Did the work happen as claimed? Whom should the delegator trust next time?
+And if the worker fails halfway, can a different worker take over without
+the delegator paying twice or trusting the failed worker's word?
+Agent protocols such as A2A carry the task but leave these questions open.
+Emerging trust layers answer them with global reputation ledgers or
+single-signer receipts. We present \sys{}, a thin accountability layer that
+runs over A2A, a Kademlia discovery index and existing payment rails.
+\sys{} makes a receipt signed by \emph{both} parties the only admissible
+positive evidence. Each observer computes trust locally, from receipts it
+can verify, weighting third-party issuers by how well they agree with its
+own experience. The requester countersigns transcript checkpoints, so a
+task can resume on a different provider and a failed provider can bill
+only for acknowledged work.
+We implement \sys{} twice, in Rust and Go. The two implementations
+interoperate over A2A with each other and with an unmodified A2A SDK
+client. We evaluate \sys{} against pre-registered hypotheses.
+We replicate a recent agent P2P simulation to within 0.024 at every
+point. Across seven attacks, observer-local trust keeps the steady-state
+attacker share at most half that of a canary-only baseline in 27 of 28
+settings;
+a global ledger collapses under slander (0.95 attacker share at
+$\alpha{=}0.5$), and local trust does not (0.08). Countersigned resumption
+wastes 0.42\% of the work that restarting does. We also report where
+\sys{} loses: during cold start; against on-off and whitewashing attackers
+relative to a global ledger; and, for our pre-registered weighting, a
+collapse under Sybil-majority camouflage. That collapse changed the
+recommended default. Identifier grinding remains unmitigated.
+\end{abstract}
+
+\keywords{AI agents, accountability, reputation, Sybil resistance, A2A,
+checkpointing, verifiable receipts}
+
+\maketitle
+
+\input{sections/intro}
+\input{sections/background}
+\input{sections/threat}
+\input{sections/design}
+\input{sections/binding}
+\input{sections/implementation}
+\input{sections/evaluation}
+\input{sections/security}
+\input{sections/related}
+\input{sections/limitations}
+\input{sections/conclusion}
+
+\bibliographystyle{ACM-Reference-Format}
+\bibliography{references}
+
+\appendix
+\input{sections/appendix}
+
+\end{document}

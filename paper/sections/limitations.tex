@@ -1,0 +1,52 @@
+\section{Limitations and Threats to Validity}
+\label{sec:limitations}
+
+\paragraph{One author.}
+The same person wrote \sys{}, both implementations, the baselines and the
+simulator. The Go implementation was written with the Rust source open,
+so it is a second implementation, not an independent one. Our
+mitigations:
+\begin{itemize}
+\item the pre-registration;
+\item replicating a third party's published curve before comparing
+  against it;
+\item implementing the global-ledger baseline as \sys{} minus issuer
+  weighting, which makes H1 harder to meet;
+\item publishing all code, configurations and per-seed CSVs.
+\end{itemize}
+None of these substitutes for independent replication.
+
+\paragraph{Simulation, not deployment.}
+E1--E4 run in simulation. The world model has fixed success probabilities,
+Poisson arrivals and a public receipt pool, and these are assumptions.
+Real providers' quality drifts, real requesters overlap in which providers
+they use more unevenly than our uniform shortlists, and real pools may be
+partial. Signing is real only on a check grid (A1). The trust grid used
+the fast mode, proven byte-identical on that grid.
+
+\paragraph{Decisions made after seeing data.}
+Two decisions changed after results were seen:
+\begin{itemize}
+\item the D5 rule's repair (A4), after two-seed numbers;
+\item the minimax re-test (A9), after W2's collapse.
+\end{itemize}
+Both are disclosed with the original readings. The minimax rule was
+pushed before its run, but it was written knowing W2's worst cell. W1's
+worst cell was the new information.
+
+\paragraph{Open problems.}
+\begin{itemize}
+\item \textbf{Identifier grinding and free identities.} Neither is
+  solved at the discovery layer (E3b), and admission costs are out of
+  scope.
+\item \textbf{Cold start.} It favours canary-style verification (L1).
+\item \textbf{Behaviour changes.} On-off attackers exploit decay lag (L3).
+\item \textbf{Formal coverage.} We have no model of receipt or checkpoint
+  non-repudiation.
+\item \textbf{Keys and privacy.} Key compromise is unrecoverable within
+  the layer, and receipts are pseudonymous personal data whose disclosure
+  is the holder's choice.
+\item \textbf{Zones} provide accountability, not confidentiality.
+\item \textbf{Disjoint-path lookups} are specified and simulated, but not
+  yet implemented in our libp2p node.
+\end{itemize}

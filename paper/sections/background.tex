@@ -1,0 +1,52 @@
+\section{Background and Setting}
+\label{sec:background}
+
+\paragraph{Delegated agent work.}
+A \emph{requester} agent delegates a task to a \emph{provider} agent.
+The provider streams output as a sequence of \emph{Parts} and ends in a
+terminal state: completed, failed or cancelled. The requester may pay per
+unit of usage: tokens, milliseconds or invocations. Either party may be
+adversarial. Identities are public keys that anyone can generate at no
+cost.
+
+\paragraph{A2A.}
+A2A~v1.0~\cite{a2a2026} defines tasks, messages and artifacts over
+JSON-RPC, REST and gRPC bindings. It defines an \emph{Agent Card} that
+advertises an agent's skills and can be signed (JWS over a canonical JSON
+form). Extensions are advertised in the card, activated per request with
+an \texttt{A2A-Extensions} header, and may carry data in
+\texttt{metadata} maps. A2A says nothing about evidence of execution,
+reputation or resumption on another agent. Those are the parts \sys{}
+supplies. MCP~\cite{mcp2025} connects an agent to its tools, not to other
+agents. The IETF's proposed agentproto working group~\cite{agentproto2026}
+targets common requirements for agent dialogs.
+
+\paragraph{Discovery.}
+The Agent Directory Service~\cite{ads2026} stores signed agent records
+in a Kademlia DHT~\cite{maymounkov2002kademlia}, keyed by capability.
+NANDA~\cite{nanda2025} proposes a lean index that resolves to
+cryptographically verifiable ``AgentFacts''.
+
+\paragraph{Metering rails.}
+MPP's \emph{session} intent~\cite{mpp2026} and the batch-settlement scheme
+of x402~V2~\cite{x402v2} both let a payer sign cumulative authorizations
+as usage accrues, and pause delivery until the next one arrives. This
+makes payment channels~\cite{poon2016lightning} practical for agent
+metering. What the rail proves is that money moved or was authorized. It
+does not prove which work that money bought, or that the work happened.
+
+\paragraph{The baseline we build on.}
+Wang et al.~\cite{wang2026agenticp2p} proposed ``Agentic P2P'' networks.
+They also released a simulator (v0.3.10), which we re-implemented from
+source for our replication (\S\ref{sec:eval-f1}). Reading that source, we
+found two things:
+\begin{itemize}
+\item the trust value used for provider ranking is a hint the provider
+  reports about itself;
+\item the ``Risk-Aware'' policy is a memoryless per-task canary: it tests
+  a candidate with a probe task before delegating, and falls back to
+  another candidate on failure.
+\end{itemize}
+The paper's prose also describes a ``federated community ledger'' of
+provider-signed receipts. Its simulator does not implement one. We
+therefore model the ledger as a separate baseline (B2L).

@@ -1,0 +1,54 @@
+\section{Binding to A2A}
+\label{sec:binding}
+
+\sys{} is an A2A~v1.0 extension. Its URI appears in the Agent Card under
+\texttt{capabilities.extensions}, with \texttt{required} left false. A
+client activates the extension per request with the
+\texttt{A2A-Extensions} header. A provider that does not recognize the
+extension, or a client that does not ask for it, gets a plain A2A
+interaction (G5).
+
+\paragraph{Where artifacts ride.}
+Each \sys{} artifact travels as base64url of its CBOR bytes, under one
+namespaced key, \texttt{"map/v2"}, in A2A \texttt{metadata}:
+\begin{itemize}
+\item \textbf{Opening message:} carries the requester's AgentID, a
+  16-byte task nonce and the zone label.
+\item \textbf{Checkpoint proposals:} ride on a status-update event that
+  leaves the task \textsc{working}. The countersignature comes back
+  asynchronously in a message to the running task.
+\item \textbf{Fallback:} A2A leaves it to the implementation whether a
+  client can send a message mid-\textsc{working}. A provider therefore
+  must also support pausing in a transient \textsc{input-required} state
+  to collect the countersignature.
+\item \textbf{Receipt:} the provider proposes it at the terminal state.
+\end{itemize}
+
+\paragraph{TaskID and transcript leaves.}
+The A2A task identifier is chosen by the provider, so it cannot name the
+task on its own. \sys{} derives
+\[
+\mathit{TaskID} = \mathrm{SHA\text{-}256}(\mathit{enc}([
+\texttt{"MAPTaskID"}, \mathit{nonce}, \mathit{provider}, \mathit{a2aTaskId}])).
+\]
+This binds the requester's freshness, the provider's identity and A2A's
+handle together. The transcript leaves are the Parts the provider
+delivers. A leaf's content is the RFC~8785 (JCS)~\cite{rfc8785} canonical
+JSON of the Part, so two implementations that parse and re-serialize a
+Part still agree on the root.
+
+\paragraph{Resumption.}
+Resuming is an ordinary new A2A task at the successor. Its opening
+message lists the failed task in \texttt{referenceTaskIds}. It carries the
+countersigned checkpoint in metadata, and carries the transcript prefix as
+a \texttt{DataPart}.
+
+\paragraph{Descriptors embed the Agent Card.}
+A \sys{} descriptor is a COSE-signed map containing:
+\begin{itemize}
+\item the Agent Card's JCS bytes and its JWS signature;
+\item the capability keys, a sequence number and a TTL;
+\item the accepted zones.
+\end{itemize}
+The JWS key must be the AgentID key. Discovery results are therefore
+self-verifying A2A Agent Cards, and an agent needs one identity, not two.
