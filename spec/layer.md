@@ -1395,13 +1395,25 @@ therefore makes no discovery-level Sybil-resistance claim.
   as periodically rebalancing shard load. A querier MUST NOT assume a
   mesh uses it unless the mesh says so.
 
-What bounds the damage of shard capture is the trust layer, not
-discovery. Every captured-shard record is a verified descriptor (D-6,
-§4.3) of an identity with no evidence history. T-3 and §8.5 route such
-an identity only on exploration, and receipts then separate it from
-honest providers (E1). Capture can hide honest providers, an
-availability loss, and it can waste exploration budget. It cannot forge
-another agent's descriptor or its evidence. Admission cost for
+Every captured-shard record is a verified descriptor (D-6, §4.3) of an
+identity with no evidence history. Capture cannot forge another agent's
+descriptor or its evidence. But the trust layer can rank only the
+candidates discovery returns. When a flooded discovery layer returns
+almost no honest providers, T-3 and §8.5 have nothing better to route to.
+
+*Measured (informative, evaluation A11).* The setting is α = 0.2 under
+farming with W1:
+- Flood identities at 10 per honest provider make discovery return an
+  adversary 91% of the time, and adversaries then get 0.888 of tasks.
+- A requester that keeps its best-scored known-good providers on its
+  shortlist (k = 3 slots), with a per-task canary in front, holds the
+  attacker to 0.036 at that flood level and 0.085 at 100 per honest
+  provider.
+- A new requester has no such providers, and gets 0.182 and 0.660.
+
+Requesters are therefore advised to keep known-good providers on their
+shortlists alongside discovery results, and to run a canary. Discovery
+capture remains an open problem for new requesters. Admission cost for
 identities (stake, proof of work, attested hardware) is out of scope.
 
 ### 11.6 Anti-eclipse and record integrity

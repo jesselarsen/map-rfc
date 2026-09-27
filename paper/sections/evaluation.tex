@@ -11,7 +11,7 @@ We did this because one author, working with a single AI model family
 (Acknowledgments), produced \sys{}, the baselines and the simulator.
 That is the main threat to validity~\cite{nosek2018prereg}.
 After the tag, the plan changed only through dated, appended amendments
-(A1--A10, Appendix~\ref{app:amendments}), and we report every hypothesis
+(A1--A11, Appendix~\ref{app:amendments}), and we report every hypothesis
 whatever its outcome. Two amendments changed a decision and are disclosed
 where they apply:
 \begin{itemize}
@@ -129,7 +129,9 @@ Honest providers succeed with $q\sim U[0.80,0.98]$. A fraction $\alpha$
 of providers is adversarial, with $q{=}0.2$. Adversarial providers refuse
 to countersign their failures. In the Sybil attacks (farming, camouflage,
 slander, combined), each one also controls 20 Sybil requesters.
-Every receipt goes to one public pool, the worst case. The metric is the
+Every receipt goes to one public pool, the worst case. Discovery is
+honest: shortlists are drawn from the real providers only
+(\S\ref{sec:eval-discovery} drops this assumption). The metric is the
 steady-state (rounds 31--60) share of honest requesters' tasks that go to
 adversarial providers.
 
@@ -473,8 +475,54 @@ core, so an attacker makes 60,901 attempts per second.
 A 16-core attacker, the exploratory variant of Amendment A5, also holds
 the whole target shard in every configuration. When identities are free,
 grinding is just targeted Sybil creation, and no shard function prevents
-it. The specification now says so plainly (A4 in
-\S\ref{sec:security}).
+it. The specification now says so plainly (\S\ref{sec:security}).
+
+\paragraph{Flooded discovery composed with trust (exploratory, A11).}
+E1 assumes honest discovery, while E3b shows that discovery can be
+flooded cheaply. Amendment A11, pushed before its run, composes the two.
+Discovery returns $F$ zero-evidence adversarial identities alongside the
+200 real providers, and every shortlist is drawn from both. It also
+tests one local policy: \emph{shortlist memory}, where $k$ slots hold the
+requester's best-scored providers among those it has a success receipt
+for. Table~\ref{tab:flood} gives the results at $\alpha{=}0.2$ under
+farming, with W1.
+\begin{itemize}
+\item \textbf{Without memory, trust cannot help once the flood is
+  heavy.} At 10 flood identities per honest provider, discovery returns
+  adversaries 91\% of the time, and Ours-L gives them 0.888 of tasks.
+  Ranking cannot pick a provider that discovery never showed.
+\item \textbf{Memory and the canary together protect established
+  requesters.} With $k{=}3$, Ours-L+C holds the attacker to 0.036 at 10
+  flood identities per honest provider and to 0.085 at 100. Honest
+  success stays at 0.94 or above.
+\item \textbf{New requesters are not protected.} In rounds 1--5 they have
+  no memory, and Ours-L+C with $k{=}3$ still gives adversaries 0.182 and
+  0.660 of tasks.
+\end{itemize}
+So E1's results hold only while discovery keeps returning honest
+candidates. Discovery capture, not grinding into one shard, is the main
+open problem.
+
+\begin{table}[t]
+\caption{Exploratory (A11): steady-state attacker share with a flooded
+discovery layer ($\alpha{=}0.2$, farming, W1, 20 seeds; every 95\% CI is
+within $\pm$0.008 of the mean). ``Disc.'' is the adversarial share of
+discovery, which is also random selection's share. $k$ is the shortlist
+memory. ``New'' is rounds 1--5.}
+\label{tab:flood}
+\small
+\begin{tabular}{@{}rrrrrrr@{}}
+\toprule
+ & & \multicolumn{2}{c}{Ours-L} & \multicolumn{3}{c}{Ours-L+C} \\
+Flood & Disc. & $k{=}0$ & $k{=}3$ & $k{=}0$ & $k{=}3$ & new, $k{=}3$ \\
+\midrule
+0 & 0.20 & 0.027 & 0.024 & 0.002 & 0.002 & 0.007 \\
+1 & 0.56 & 0.211 & 0.086 & 0.023 & 0.010 & 0.032 \\
+10 & 0.91 & 0.888 & 0.199 & 0.435 & 0.036 & 0.182 \\
+100 & 0.99 & 0.990 & 0.634 & 0.892 & 0.085 & 0.660 \\
+\bottomrule
+\end{tabular}
+\end{table}
 
 \paragraph{Eclipse (E3c).}
 In a simulated Kademlia (20-entry buckets, 3 parallel queries) with a

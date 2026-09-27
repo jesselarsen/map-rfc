@@ -29,7 +29,9 @@ It was validated against planted errors. It does not replace compiling.
   - `B2L.md`, by `b2l.py` (exploratory);
   - `PREREG-EXTRA.md`, by `prereg_extra.py`: pre-registered items that
     `REPORT.md` omits;
-  - `SYBIL-SWEEP.md`, by `sybil_sweep.py` (Amendment A10, exploratory).
+  - `SYBIL-SWEEP.md`, by `sybil_sweep.py` (Amendment A10, exploratory);
+  - `DISCOVERY-FLOOD.md`, by `discovery_flood.py` (Amendment A11,
+    exploratory).
 - **Implementation numbers** come from the tree at the commit that adds
   this directory: line counts via `git ls-files`, and test counts from
   `cargo test` (167) and `go test -v` (78).

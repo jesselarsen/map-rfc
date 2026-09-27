@@ -80,5 +80,8 @@ human review. Here is how each finding was resolved:
 \item \textbf{Identifier grinding.} Not fixed. The proposed mitigation
   was measured and found ineffective (E3b), and the specification now
   lists grinding as a limitation. Captured shards contain identities with
-  no evidence, which the trust layer routes only through exploration.
+  no evidence, but the trust layer can rank only what discovery returns.
+  Once discovery is flooded, it cannot help unless requesters keep
+  known-good providers on their shortlists, and new requesters have none
+  (A11, \S\ref{sec:eval-discovery}).
 \end{itemize}

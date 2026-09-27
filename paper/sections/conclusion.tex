@@ -23,8 +23,10 @@ comparison with the canary-plus-ledger design that Wang et al.\ describe,
 overlapping CIs in the other 10. The canary and \sys{}'s memory are
 complementary. The evaluation also exposed where \sys{} loses: cold
 start; on-off, whitewashing and camouflage relative to a global ledger;
-identifier grinding; and, without a canary, whitewashing and slander
-relative to that design. It showed that our own pre-registered trust
+identifier grinding; without a canary, whitewashing and slander relative
+to that design; and a flooded discovery layer. With flooded discovery,
+only shortlist memory and a canary protect a requester, and new
+requesters have no memory. It showed that our own pre-registered trust
 propagation collapses under Sybil-majority camouflage. That finding changed the
 recommended default.
 

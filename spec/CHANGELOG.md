@@ -98,5 +98,5 @@ No wire format changed in P8, so all vector bytes are unchanged.
 |---|---|---|---|
 | C-6 rationale overhead figures corrected to run 5bc7702 (0.079% at c = 8, 0.63% at c = 1) | editorial | layer §7.5 | R2-07; `eval/results/5bc7702/REPORT.md` H5 |
 | Resumption scope stated: complete only for tasks whose state is their delivered output; hidden state and external side effects are not carried, and this layer does not make side effects idempotent | editorial (informative) | layer §7.4 | R2-08 |
-
 | W1 recommendation: informative Sybil-ratio caveat. W1 falls behind W0 at 6.4 camouflaging Sybils per honest requester | editorial (informative) | layer §8.4 | R2-04; evaluation A10, `eval/results/5bc7702/SYBIL-SWEEP.md` |
+| §11.5 shard-capture text corrected: the trust layer can rank only what discovery returns. Informative measurement (A11) and advice to keep known-good providers on shortlists and run a canary; new requesters remain exposed | editorial (informative) | layer §11.5 | R2-03; evaluation A11, `eval/results/5bc7702/DISCOVERY-FLOOD.md` |

@@ -575,3 +575,28 @@ before any run of the code it describes).**
   New requesters cannot, because they have no memory.
 - *Script:* `analysis/discovery_flood.py` writes
   `results/5bc7702/DISCOVERY-FLOOD.md`.
+
+**A11 result (2026-09-27).** `e1-discovery-flood` built from `6866a57` (the
+commit that carries A11): 640 jobs, CSV SHA-256 `0c43e1be…`.
+`analysis/discovery_flood.py` writes `results/5bc7702/DISCOVERY-FLOOD.md`.
+With no flood the grid reproduces E1 (Ours-L W1 farming 0.027; B0 0.199).
+Steady-state attacker share at flood 0 / 1 / 10 / 100 per honest provider
+(discovery returns an adversary with probability 0.20 / 0.56 / 0.91 /
+0.99):
+- Ours-L, k = 0: 0.027 / 0.211 / 0.888 / 0.990;
+- Ours-L, k = 3: 0.024 / 0.086 / 0.199 / 0.634;
+- Ours-L+C, k = 0: 0.002 / 0.023 / 0.435 / 0.892;
+- Ours-L+C, k = 3: 0.002 / 0.010 / 0.036 / 0.085.
+
+Rounds 1–5 (new requesters), Ours-L+C with k = 3: 0.007 / 0.032 / 0.182 /
+0.660.
+
+Readings by the rules above:
+- capture defeats Ours-L at flood 10 and 100 with k = 0, and at flood 100
+  even with k = 3;
+- capture defeats Ours-L+C only at flood 100 with k = 0;
+- memory helps both arms at every flood level ≥ 1.
+
+The expectation held for established requesters: without memory the share
+tracks discovery's once honest candidates become rare, and memory recovers
+most of it. New requesters are not protected.

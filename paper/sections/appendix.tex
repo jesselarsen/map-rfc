@@ -55,6 +55,12 @@ above them is unchanged since \texttt{prereg-v1}.
   Sybils per provider (6.4 per honest requester), and W2 becomes worse
   than random at 320. It adds a Sybil-ratio caveat to the W1
   recommendation.
+\item[A11] Exploratory, pushed before any run of the code it adds:
+  discovery flooding composed with trust, plus a shortlist-memory local
+  policy. Both are off by default, and the existing results are
+  reproduced exactly with them off. Without memory, a flooded discovery
+  layer defeats trust. With memory and a canary, established requesters
+  recover, but new ones do not.
 \end{description}
 
 \section{Recommended Parameters}

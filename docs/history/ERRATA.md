@@ -26,6 +26,37 @@ Findings are registered in `paper/REVIEW-redteam-1.md` (RT-xx) and
 `paper/REVIEW-redteam-2.md` (R2-xx), against the paper draft at `c67ad76`.
 Rulings below follow `REVIEW-PROCESS.md` Stage 2.
 
+RULED 2026-09-27 (review finding R2-03, roles 2/3 — Protocol red team,
+Methodology; also covers the impact half of RT-13) — E1 assumed honest
+discovery, and the paper never said so. E3 shows discovery can be flooded
+cheaply, yet the paper and spec §11.5 said captured shards are routed "only
+through exploration". The composition was never run. — RULING: **ACCEPT**.
+Amendment A11 (exploratory) was pushed as `6866a57` before any run of its
+code. It adds two map-sim E1 options, off by default, which leave every
+existing result unchanged: the golden hashes pass and e1_camo_explore's
+committed hash is reproduced. Results at α = 0.2, farming, W1:
+- without shortlist memory, Ours-L gives adversaries 0.888 at 10 flood
+  identities per honest provider (discovery share 0.91);
+- with memory (k = 3) and a canary, established requesters are held to
+  0.036 at flood 10 and 0.085 at flood 100;
+- new requesters get 0.182 and 0.660.
+Changes:
+- paper: E1 now states the honest-discovery assumption; E3 gains a
+  "Flooded discovery composed with trust" paragraph and Table `tab:flood`;
+  the security and Limitations bullets are corrected; the conclusion and
+  the Appendix A11 entry match;
+- spec: §11.5's "routes only on exploration" is replaced with the
+  measurement and advice to keep known-good providers on shortlists and
+  run a canary. New requesters remain an open problem;
+- R2-20 is resolved in passing: "A4 in §security" is removed.
+Editorial; no wire change. — Implemented in
+`map-rs/sim/src/scenarios/e1.rs`, `eval/configs/e1_discovery_flood.toml`,
+`eval/analysis/discovery_flood.py`,
+`eval/results/5bc7702/{e1-discovery-flood.csv, DISCOVERY-FLOOD.md}`,
+`eval/run_all.ps1`, `eval/HYPOTHESES.md`, `spec/layer.md` §11.5,
+`spec/CHANGELOG.md`, and
+`paper/sections/{evaluation,security,limitations,conclusion,appendix}.tex`.
+
 RULED 2026-09-27 (review finding R2-04, roles 2/3 — Protocol red team,
 Methodology) — the threat model makes identities free, but E1 fixed 20 Sybil
 requesters per adversarial provider. W1's per-issuer cap bounds each issuer,
