@@ -1,0 +1,15 @@
+# E3c with the A14 model correction: colluding routers advertise only
+# online colluders (review finding R2-12). Same sweep as e3c.toml.
+scenario = "e3c"
+name = "e3c-live"
+seeds = 20
+[params]
+k = 20
+alpha = 3
+lookups = 200
+colluders_live_only = 1
+[sweep]
+n = [1000, 10000, 100000]
+churn = [0.0, 0.1, 0.3]
+f_malicious = [0.0, 0.1, 0.2, 0.3]
+paths = [1, 3]

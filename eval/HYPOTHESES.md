@@ -737,3 +737,34 @@ Against the expectation:
   better even at 5% visibility.
 - The camouflage expectation held.
 - B1 worsened under every attack, not only slander.
+
+**A14 (2026-09-27, model correction to E3c; post hoc and disclosed; pushed
+before the corrected run).**
+- *Trigger:* review finding R2-12. In `e3c.csv`, single-path lookup success
+  under attack *rose* with churn (N = 10⁵, f = 0.3: 0.755 at 0%, 0.906 at
+  10%, 0.988 at 30%). This amendment is written after seeing those
+  results.
+- *Cause, found in the code:*
+  - `kad.rs` builds the colluders' shared answer list from every malicious
+    node, including offline ones.
+  - A querier times out on the dead contacts a colluder advertises, drops
+    them, and moves on to other candidates.
+  - Churn therefore turns part of the adversary's poisoned answers into
+    dead ends and weakens the attack. A coordinating adversary knows which
+    of its own nodes are up and would advertise only those.
+  - Honest routing entries that point at offline nodes are realistic and
+    stay as they are.
+- *Correction:* a new E3c parameter, `colluders_live_only`, default 0. At 1,
+  colluders advertise only online colluders. The default reproduces the
+  committed `e3c.csv` hash exactly (`a0bde516…`), and the golden smoke test
+  passes, so the committed results stay reproducible as run.
+- *Config:* `configs/e3c_live.toml`, the E3c sweep unchanged except
+  `colluders_live_only = 1`. Output: `results/5bc7702/e3c-live.csv`.
+- *Consequence, fixed now:*
+  - E3c has no hypothesis, so no verdict changes. With churn 0 the two
+    models are identical, since no colluder is offline.
+  - The paper quotes E3c from the corrected run, and Fig. 5 is drawn from
+    it. The original E3c table in REPORT.md stays as run and is labelled
+    as the artefact.
+- *Script:* `analysis/e3c_live.py` writes `results/5bc7702/E3C-LIVE.md`, the
+  original and corrected 1-path and 3-path success side by side.

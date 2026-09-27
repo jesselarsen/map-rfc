@@ -12,7 +12,10 @@
 //!   them, and a query to one costs a 1 s timeout.
 //! - A fraction f of nodes is malicious and colludes. Queried about a
 //!   target, a malicious node answers with the k malicious nodes closest to
-//!   it.
+//!   it. By default that list includes offline colluders, which then time
+//!   out, so churn weakens the adversary: an artifact (review finding
+//!   R2-12). With `colluders_live_only = 1` (Amendment A14), colluders
+//!   advertise only online colluders, as a coordinating adversary would.
 //!
 //! **Lookup.** Iterative with α = 3 parallel queries per round, and a
 //! shortlist of the k closest nodes seen. It ends when the k closest known
@@ -141,13 +144,14 @@ pub fn run(p: &Params, rng: &mut Rng, _mode: CryptoMode) -> Result<Vec<f64>, Str
     let k = p.u64_or("k", 20)? as usize;
     let alpha = p.u64_or("alpha", 3)? as usize;
     let lookups = p.u64_or("lookups", 200)? as usize;
+    let live_only = p.u64_or("colluders_live_only", 0)? != 0;
     let mut ids: Vec<u64> = (0..n).map(|_| u64::from_le_bytes(rng.bytes32()[..8].try_into().expect("8"))).collect();
     ids.sort_unstable();
     ids.dedup();
     let n = ids.len();
     let online: Vec<bool> = (0..n).map(|_| !rng.bernoulli(churn)).collect();
     let malicious: Vec<bool> = (0..n).map(|_| rng.bernoulli(f)).collect();
-    let mal_sorted: Vec<u64> = (0..n).filter(|i| malicious[*i]).map(|i| ids[i]).collect();
+    let mal_sorted: Vec<u64> = (0..n).filter(|i| malicious[*i] && (online[*i] || !live_only)).map(|i| ids[i]).collect();
     let net = Net { ids, online, malicious, mal_sorted, k, salt: rng.bytes32() };
     let honest_online: Vec<usize> = (0..n).filter(|i| net.online[*i] && !net.malicious[*i]).collect();
     if honest_online.len() < 2 {
