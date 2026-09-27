@@ -24,6 +24,7 @@ ACTA~\cite{acta2026} & decision maker & --- & no & no & --- \\
 Agent Passport~\cite{aps} & agent & --- & no & no & --- \\
 SCITT (RFC 9943)~\cite{rfc9943} & single issuer & --- & --- & --- & --- \\
 PeerReview~\cite{haeberlen2007peerreview} & each node's log & --- & --- & --- & implementation \\
+TrustChain~\cite{otte2020trustchain} & both parties & per agent (NetFlow) & --- & --- & implementation \\
 \midrule
 A2A~\cite{a2a2026} & (signed Agent Card) & --- & no & --- & --- \\
 ADS~\cite{ads2026}, NANDA~\cite{nanda2025} & (signed records) & --- & --- & --- & --- \\
@@ -31,6 +32,7 @@ MPP~\cite{mpp2026}, x402 V2~\cite{x402v2} & payer (vouchers) & --- & --- & usage
 AP2~\cite{ap2} & user (mandates) & --- & --- & authorization & --- \\
 \midrule
 EigenTrust~\cite{kamvar2003eigentrust} & --- & global & --- & --- & simulation \\
+Credence~\cite{walsh2006credence} & voter & per client (correlation, flow) & --- & --- & deployment \\
 Beta reputation~\cite{josang2002beta} & --- & aggregated ratings & --- & --- & --- \\
 \midrule
 \textbf{\sys{}} & \textbf{requester and provider} & \textbf{observer-local} & \textbf{yes} & \textbf{voucher digest} & \textbf{pre-registered sim.; 2 impls} \\
@@ -74,9 +76,23 @@ for every delegated action~\cite{aps}. Sello inverts the trust boundary:
 the receiving service signs what it observed, encrypts it to the agent's
 owner, and publishes it to a witness-cosigned log~\cite{figuera2026sello}.
 Signet's bilateral receipts, co-signed by agent and MCP server, are the
-closest to \sys{}'s dual signatures~\cite{signet}. None of these defines
-how receipts feed trust, how a task resumes elsewhere, or how usage binds
-to payment.
+closest agent-specific analogue of \sys{}'s dual signatures~\cite{signet}.
+None of these agent receipts defines how receipts feed trust, how a task
+resumes elsewhere, or how usage binds to payment.
+
+The closest prior design overall is TrustChain~\cite{otte2020trustchain}.
+It records each interaction only with both parties' signatures, so a
+Sybil can create trust only with itself, and each agent ranks others with
+a flow computation (NetFlow) over the interaction graph. \sys{}'s R-4 and
+T-3 make the same argument. \sys{} differs in three ways:
+\begin{itemize}
+\item its receipts are standalone artifacts, not entries in per-agent
+  hash chains, so it has no chain-consistency or double-spend detection;
+\item it weights issuers by agreement with the observer's own experience,
+  not by contribution flow;
+\item it adds countersigned mid-task checkpoints, resumption on another
+  provider, and a binding to payment vouchers.
+\end{itemize}
 
 SCITT~\cite{rfc9943} and Certificate Transparency~\cite{rfc6962} make
 single-issuer statements auditable through transparency logs. \sys{}'s
@@ -97,7 +113,25 @@ dual-signed execution evidence.
 
 \paragraph{Classic reputation and Sybil defence.}
 Our scoring is Beta reputation~\cite{josang2002beta}, and W2 is a
-personalized variant of EigenTrust~\cite{kamvar2003eigentrust}. The
+personalized variant of EigenTrust~\cite{kamvar2003eigentrust}. Neither
+weighting is new:
+\begin{itemize}
+\item \textbf{W1} is the credibility weighting of PeerTrust's personalized
+  similarity measure~\cite{xiong2004peertrust} and of
+  Credence~\cite{walsh2006credence}. Both weigh another rater by how
+  closely its past ratings match one's own on commonly rated items.
+\item \textbf{W2}'s analogue is Credence's second step: it combines those
+  pairwise weights with a PageRank-style flow computation, from each
+  client's own perspective.
+\end{itemize}
+Credence bounds Sybils with certificates from a central authority, an
+external cost that \sys{} does not have. What E1 adds is a measurement in
+the agent setting: propagation fails once camouflaging Sybils outnumber
+honest raters, and direct agreement holds at the ratios we tested.
+DSybil~\cite{yu2009dsybil} goes further. It gives provable, optimal
+bounds on a user's loss against an unlimited number of Sybil identities,
+under an assumption about how honest users vote. \sys{} has no comparable
+guarantee (\S\ref{sec:security}). The
 attack taxonomy follows~\cite{hoffman2009survey}, and whitewashing
 follows Feldman et al.~\cite{feldman2006whitewashing}. Graph-based Sybil
 defences such as SybilGuard~\cite{yu2006sybilguard} assume that

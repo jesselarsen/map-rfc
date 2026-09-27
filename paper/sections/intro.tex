@@ -90,10 +90,14 @@ Kademlia index carries discovery records, and MPP or x402 moves money.
 \end{enumerate}
 
 \paragraph{What we do not claim.}
-Dual-signed receipts are not new in themselves. Signet's bilateral
-receipts co-sign MCP tool calls~\cite{signet}, and accountable distributed
-systems have long used signed, tamper-evident
-logs~\cite{haeberlen2007peerreview}. \sys{} does not make agents honest.
+Dual-signed receipts are not new in themselves. TrustChain already uses
+records signed by both parties as a Sybil defence~\cite{otte2020trustchain},
+Signet's bilateral receipts co-sign MCP tool calls~\cite{signet}, and
+accountable distributed systems have long used signed, tamper-evident
+logs~\cite{haeberlen2007peerreview}. Nor is agreement-weighted,
+observer-local trust new~\cite{xiong2004peertrust,walsh2006credence}.
+Our contribution is the combination for agent delegation, the countersigned
+resumption, and the pre-registered measurement. \sys{} does not make agents honest.
 It makes their claims attributable, and it lets each observer decide how
 much evidence it needs. Identifier grinding and cold start remain open
 (\S\ref{sec:limitations}).

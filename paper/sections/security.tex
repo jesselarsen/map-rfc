@@ -33,8 +33,11 @@ showed that no
 \emph{symmetric} reputation function is Sybil-proof. \sys{}'s weighting
 is asymmetric, because each observer computes its own. That does not
 help against camouflage: those Sybils earn their agreement with real,
-truthful tasks, so no evidence-based scheme can tell them from honest
-raters without an external cost. \sys{}'s answer is to make evidence cost
+truthful tasks, so evidence alone cannot tell them from honest raters. It
+can still bound the damage. DSybil~\cite{yu2009dsybil} bounds each user's
+loss against unlimited Sybils, under an assumption about how honest users
+vote. W1 carries no such bound, and adapting a loss-bounded weighting to
+receipts is future work. \sys{}'s answer for now is to make evidence cost
 real tasks, to limit what agreement buys to direct agreement (W1), and to
 recommend a canary in front.
 

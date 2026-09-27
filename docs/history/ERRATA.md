@@ -26,6 +26,34 @@ Findings are registered in `paper/REVIEW-redteam-1.md` (RT-xx) and
 `paper/REVIEW-redteam-2.md` (R2-xx), against the paper draft at `c67ad76`.
 Rulings below follow `REVIEW-PROCESS.md` Stage 2.
 
+RULED 2026-09-27 (review finding R2-05, role 1 — PC, novelty) — the closest
+prior art was missing. Checked against primary sources:
+- TrustChain (FGCS 107, 2020): its IETF draft says "transaction injection can
+  only be done with two valid signatures, meaning a Sybil attacker can only
+  create trust with itself", which is MAP's R-4/T-3 argument;
+- Credence (NSDI '06, HTML text): per-client weights from correlations of
+  voting histories plus a "PageRank-style" flow computation, the analogues of
+  W1 and W2;
+- PeerTrust (TKDE 16(7), 2004): the personalized similarity measure;
+- DSybil (IEEE S&P 2009, pp. 283–298): provable loss bounds against unlimited
+  Sybils.
+— RULING: **ACCEPT**. Changes:
+- all four are in `references.bib`;
+- related work has a TrustChain paragraph with MAP's three differences
+  (standalone receipts rather than per-agent chains; agreement weighting
+  rather than contribution flow; checkpoints, resumption and the voucher
+  binding), and Table 3 gains TrustChain and Credence rows;
+- the classic-reputation paragraph now says neither W1 nor W2 is new;
+- design §W1 credits PeerTrust and Credence;
+- the security G2 argument engages DSybil: "no evidence-based scheme can tell
+  them apart" becomes "evidence cannot tell them apart but can bound the
+  damage", and a loss-bounded weighting for receipts is named as future work;
+- the intro's "What we do not claim" now names TrustChain and
+  agreement-weighted local trust.
+Credence entry has no pages because USENIX lists none for NSDI '06. Editorial;
+no wire change. — Implemented in `paper/references.bib` and
+`paper/sections/{related,design,security,intro}.tex`.
+
 RULED 2026-09-27 (review finding R2-09, roles 1/4 — PC, Claims auditor) — the
 paper had no generative-AI disclosure. Of the 90 commits up to its first
 draft, 81 carry a Claude co-author trailer, and review 1 was run by the model
