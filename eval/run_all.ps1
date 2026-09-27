@@ -1,7 +1,8 @@
 # One-command evaluation (eval/HYPOTHESES.md). Results go to
 # eval/results/<git-sha>/: one CSV + env.json per experiment, bench/,
 # REPORT.md (every hypothesis verdict), MINIMAX.md (Amendment A9), B2L.md
-# (exploratory) and figs/.
+# (exploratory), PREREG-EXTRA.md (pre-registered items outside REPORT.md)
+# and figs/.
 #
 # Usage:  pwsh eval/run_all.ps1 [-Quick] [-Out DIR] [-SkipBench]
 #   -Quick     2 seeds per point (plumbing check; not a result)
@@ -87,14 +88,16 @@ Write-Host "`n== analysis =="
 Push-Location (Join-Path $eval "analysis")
 & $py analyze.py $Out
 & $py make_figs.py $Out
-# minimax.py (the A9 rule) and b2l.py (exploratory) require 20 seeds per cell.
+# minimax.py (the A9 rule), b2l.py (exploratory) and prereg_extra.py require 20 seeds per cell.
 if ($Quick) {
-  Write-Host "  -Quick: skipping minimax.py and b2l.py (they require 20 seeds per cell)"
+  Write-Host "  -Quick: skipping minimax.py, b2l.py and prereg_extra.py (they require 20 seeds per cell)"
 } elseif (Test-Path (Join-Path $Out "e1-main.csv")) {
   & $py minimax.py $Out | Out-Null
   if ($LASTEXITCODE -ne 0) { Pop-Location; Write-Error "minimax.py failed" }
   & $py b2l.py $Out | Out-Null
   if ($LASTEXITCODE -ne 0) { Pop-Location; Write-Error "b2l.py failed" }
+  & $py prereg_extra.py $Out | Out-Null
+  if ($LASTEXITCODE -ne 0) { Pop-Location; Write-Error "prereg_extra.py failed" }
 }
 Pop-Location
 Write-Host "`nReport: $(Join-Path $Out 'REPORT.md')"

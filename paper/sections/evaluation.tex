@@ -269,6 +269,25 @@ All four predicted losing regimes were tested:
   there. At higher $\alpha$ they were, as described next.
 \end{itemize}
 
+\paragraph{Detection time and whole-run share.}
+Two further pre-registered E1 metrics are in \texttt{PREREG-EXTRA.md}.
+\emph{Time to detect} is the first round from which the attacker share,
+averaged over five rounds, is at most $\alpha/4$.
+\begin{itemize}
+\item \textbf{Ours-L} reaches $\alpha/4$ after 26--33 rounds with W2 and
+  27--38 with W1 in 34 of 35 cells. It never does under camouflage at
+  $\alpha{=}0.5$.
+\item \textbf{The canary alone (B2)} never reaches it in any cell: it
+  holds the attacker to $0.51$--$0.62\alpha$.
+\item \textbf{B1} never reaches it in 18 of 35 cells, and \textbf{B2L}
+  in 20.
+\item \textbf{Ours-L+C} is below it from the first round in every cell.
+\end{itemize}
+Over all 60 rounds, which include the cold start, Ours-L's attacker share
+is about three times its steady-state value (0.076 against 0.025 at
+$\alpha{=}0.2$ under farming). Ours-L+C stays at or below 0.023 for
+$\alpha\le0.3$ and reaches at most 0.098 at $\alpha{=}0.5$.
+
 \paragraph{Choosing the weighting: a pre-registered rule, a collapse,
 and a re-test.}
 The pre-registered rule compared W0/W1/W2 at $\alpha{=}0.2$ only.
@@ -393,8 +412,10 @@ core, so an attacker makes 60,901 attempts per second.
   honest providers. The attacker therefore has a majority about 2\,s
   after each re-salt.
 \end{itemize}
-When identities are free, grinding is just targeted Sybil creation, and no
-shard function prevents it. The specification now says so plainly (A4 in
+A 16-core attacker, the exploratory variant of Amendment A5, also holds
+the whole target shard in every configuration. When identities are free,
+grinding is just targeted Sybil creation, and no shard function prevents
+it. The specification now says so plainly (A4 in
 \S\ref{sec:security}).
 
 \paragraph{Eclipse (E3c).}
@@ -416,6 +437,11 @@ of 60\,s or more:
 \item pulling costs 20 messages per query, against 0.02 for a
   descriptor refresh.
 \end{itemize}
+The pre-registered message-rate crossover favours descriptors. Pulling
+costs $2K$ messages per query and refreshing costs $N/(0.8\,\mathrm{TTL})$
+per second, so pulling sends fewer messages only while the query rate
+$q<N/(1.6\,K\,\mathrm{TTL})$. In E3d ($N{=}K{=}10$, $q{=}1$/s) that means
+any TTL above 0.63\,s. Pulling buys fresher status with messages.
 
 \begin{figure}[t]
   \centering
@@ -437,6 +463,18 @@ Vouchers are issued per checkpoint, with per-token prices.
 \item \textbf{Overhead.} At a generation speed of 20\,ms per token, \sys{}
   signing and verification add 0.079\% of task time at $c{=}8$, and
   0.63\% even at $c{=}1$.
+\item \textbf{Bytes.} Checkpoints are large relative to token-sized
+  Parts, as the pre-registration predicted:
+  \begin{itemize}
+  \item at $c{=}8$ they add 38.5 bytes per Part, 4.8 times the 8-byte
+    payload of a simulated Part, plus 4.25 bytes of voucher digest;
+  \item at $c{=}1$ they add 308 bytes per Part, at $c{=}32$ 9.5, and at
+    $c{=}128$ 2.2;
+  \item these are raw CBOR sizes, and the A2A binding's base64url adds a
+    third.
+  \end{itemize}
+  A larger $c$ is the mitigation, at the price of more waste and exposure
+  (E2).
 \end{itemize}
 
 \paragraph{Formal and interop evidence (E5).}

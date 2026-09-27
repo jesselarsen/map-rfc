@@ -26,6 +26,31 @@ Findings are registered in `paper/REVIEW-redteam-1.md` (RT-xx) and
 `paper/REVIEW-redteam-2.md` (R2-xx), against the paper draft at `c67ad76`.
 Rulings below follow `REVIEW-PROCESS.md` Stage 2.
 
+RULED 2026-09-27 (review finding R2-06, roles 3/4 — Methodology, Claims
+auditor) — the paper omitted items the pre-registration committed to reporting,
+while saying it reports everything. These were checkpoint byte overhead ("the
+paper states this honestly"), B1's zero feedback cost ("stated as a
+limitation"), the E1 time-to-detect and all-rounds metrics, the 16-core E3b
+("the paper reports both"), and the E3d message-rate crossover (also RT-14). —
+RULING: **ACCEPT-EDITORIAL**. A new `eval/analysis/prereg_extra.py` reads only
+the committed CSVs and writes `eval/results/5bc7702/PREREG-EXTRA.md`, and
+`run_all.ps1` now runs it. The paper now reports each item:
+- time to detect: Ours-L reaches α/4 in 26–33 rounds (W2) and 27–38 (W1) in
+  34 of 35 cells, and never under camouflage at α = 0.5; B2 never reaches it;
+  B1 never does in 18 cells and B2L in 20; Ours-L+C is below it from round 0;
+- all-rounds share: cold start roughly triples Ours-L's share;
+- bytes: 38.5 B per Part at c = 8, 4.8× an 8-byte Part, plus 4.25 B of
+  voucher digest and base64 overhead;
+- the 16-core E3b also holds the whole shard;
+- the E3d crossover: pull costs fewer messages only while q < N/(1.6·K·TTL),
+  i.e. TTL < 0.63 s in E3d;
+- B1's zero-fee assumption is stated in Limitations.
+RT-14 is resolved by the crossover sentence. Editorial; no wire change. —
+Implemented in `paper/sections/{evaluation,limitations}.tex`,
+`eval/analysis/prereg_extra.py`, `eval/results/5bc7702/PREREG-EXTRA.md`,
+`eval/run_all.ps1`, the provenance notes in `paper/main.tex`,
+`paper/README.md` and `eval/README.md`.
+
 RULED 2026-09-27 (review finding R2-10, role 1 — PC) — contribution 4
 presented "three negative results that we believe generalize", but all
 three are known: a global ledger collapsing under free Sybil slander follows
