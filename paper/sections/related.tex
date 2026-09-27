@@ -5,7 +5,8 @@
 \caption{Positioning. ``Evidence signed by'' asks who signs the record of
 an execution. ``Resume'' asks whether a task can continue on a different
 provider from a state verified by the requester. ``n/s'': not specified
-in the cited source; ``---'': out of the system's scope.}
+in the cited source; ``---'': out of the system's scope, or, in the
+Evaluation column, no evaluation reported.}
 \label{tab:related}
 \small
 \begin{tabular}{@{}lllllp{3.2cm}@{}}
@@ -48,8 +49,10 @@ itself (\S\ref{sec:background}).
 \paragraph{Agent networks and reputation.}
 Wang et al.~\cite{wang2026agenticp2p} framed agent delegation as the
 successor of P2P content distribution. We adopt that framing and
-replicate their evaluation. We differ in who signs the evidence and where
-trust is computed, and we add resumption. Their group's follow-up,
+replicate their evaluation. We differ in who signs the evidence, which
+receipts are admissible, and how issuers are weighted; like the ledger
+they propose, our trust is local to each observer. We also add
+resumption. Their group's follow-up,
 MG-EigenTrust, proposes multi-topic EigenTrust against cross-topic
 collusion~\cite{zhang2026distributed}. Our E1 result for W2 is a warning
 for any propagation-based scheme: once camouflaging Sybils outnumber
@@ -58,8 +61,11 @@ honest raters, propagation amplifies them.
 ERC-8004~\cite{erc8004} provides on-chain identity, reputation and
 validation registries. An empirical study found its reputation registry
 unusable as a trust signal, with 59--91\% of reviewers showing coordinated
-Sybil behaviour~\cite{xiong2026erc8004}. That is the outcome E1 predicts
-for any global ledger that weights issuers equally.
+Sybil behaviour~\cite{xiong2026erc8004}. E1 does not reproduce that finding
+directly. Its global ledger B1 holds up under farming (0.094 at
+$\alpha{=}0.2$, half of random) and collapses under slander. Unlike
+ERC-8004's feedback, it also admits positive evidence only when
+dual-signed.
 
 Cairn~\cite{chard2026cairn} aggregates agents' ratings of shared
 resources with a time-decayed Beta model and tests it against lying,
@@ -120,6 +126,23 @@ T-3 make the same argument. \sys{} differs in three ways:
   provider, and a binding to payment vouchers.
 \end{itemize}
 
+\paragraph{Attesting execution.}
+A receipt records what two parties agreed happened. It does not prove
+that a computation ran correctly. Stronger evidence is possible, at a
+cost:
+\begin{itemize}
+\item \textbf{Verified execution.} Trusted-execution attestation, proofs
+  of computation, and re-execution by validators are the options ERC-8004's
+  validation registry anticipates~\cite{erc8004}.
+\item \textbf{Accountability primitives.} A2M~\cite{chun2007a2m} and
+  TrInc~\cite{levin2009trinc} use small trusted components to stop a
+  party from telling different stories to different peers.
+  AVM~\cite{haeberlen2010avm} records execution for audit by replay.
+\end{itemize}
+\sys{} needs none of these, and a receipt could be accompanied by any of
+them. We chose receipts because they need neither trusted hardware nor
+deterministic execution, and agent tasks rarely offer the latter.
+
 SCITT~\cite{rfc9943} and Certificate Transparency~\cite{rfc6962} make
 single-issuer statements auditable through transparency logs. \sys{}'s
 receipts could be registered with such a log, but \sys{} does not need
@@ -135,7 +158,11 @@ payer-signed cumulative metering. These, like payment
 channels~\cite{poon2016lightning}, prove that value was authorized, not
 which work it bought. AP2's mandates~\cite{ap2} prove what the user
 authorized. \sys{} adds only the reverse binding: a voucher digest inside
-dual-signed execution evidence.
+dual-signed execution evidence. Countersigning and paying per checkpoint
+turn one exchange into many small ones, so either party's loss is at
+most one step. Fair-exchange protocols obtain strong fairness instead,
+with an optional trusted third party~\cite{asokan1997fairexchange}. \sys{}
+accepts one step of exposure rather than introduce one.
 
 \paragraph{Classic reputation and Sybil defence.}
 Our scoring is Beta reputation~\cite{josang2002beta}, and W2 is a

@@ -26,6 +26,82 @@ Findings are registered in `paper/REVIEW-redteam-1.md` (RT-xx) and
 `paper/REVIEW-redteam-2.md` (R2-xx), against the paper draft at `c67ad76`.
 Rulings below follow `REVIEW-PROCESS.md` Stage 2.
 
+RULED 2026-09-27 (remaining MINOR and NIT findings of both paper
+red-team registers, roles 1/3/4/5) — each ruled as below. All are
+editorial, with no wire change, and all are implemented in `paper/`.
+- **RT-10** DOCUMENT: E1 adds a caveat that q = 0.2 adversaries are easy
+  to separate, and that subtler degraders are untested.
+- **RT-11** DOCUMENT: E1 adds a caveat that Ours-L sits near the
+  ε-exploration floor (0.12–0.16 α), so its ratios to B1 reflect ε, which
+  was not swept.
+- **R2-13** ACCEPT-EDITORIAL: "Halving that floor is not possible" is
+  replaced. The floor comes from exploration of zero-evidence identities,
+  it can be lowered at a cost to newcomers, and the canary removes it.
+- **RT-12** ACCEPT-EDITORIAL: Statistics now says the pre-registration's
+  seed pairing is nominal (independent streams, no common random numbers).
+- **RT-15** ACCEPT-EDITORIAL: Statistics now says "holds" is close to a
+  sign test and that several verdicts turn on about 0.01.
+- **RT-13** ACCEPT-EDITORIAL: E3b is called arithmetic, and its trust
+  consequence is pointed to A11.
+- **RT-16** ACCEPT-EDITORIAL: the Go claim is kept, with the evidence: the
+  v1 port's five ambiguities, and the shard-number text form example.
+- **RT-17** ACCEPT-EDITORIAL: the vectors "pin these artifacts", and
+  StatusQuery/StatusReport and voucher digests are named as unvectored.
+- **RT-18** ACCEPT-EDITORIAL: 327 bytes is labelled a minimal receipt
+  (TV-002, without zone and resumed-from).
+- **R2-26** ACCEPT-EDITORIAL: the A2A adapter is 2,172 lines (the old
+  figure included ollama-provider). The Go total is broken down and marked
+  not comparable.
+- **RT-20** ACCEPT-EDITORIAL: G2 says the rebuild rule makes divergence
+  detectable, not bugs impossible.
+- **R2-21** ACCEPT-EDITORIAL: G3's argument is corrected: a monotone
+  checkpoint chain, no underpayment by stale checkpoint, and Z-3 stated as
+  never-widen.
+- **R2-23** ACCEPT-EDITORIAL: receipt farming is "mitigated, not
+  eliminated" (A10, A12).
+- **RT-21** ACCEPT: a new related-work paragraph, "Attesting execution",
+  covers TEE, proofs and re-execution (ERC-8004 validation) and cites
+  A2M, TrInc and AVM (verified).
+- **R2-25** ACCEPT-EDITORIAL: E2 cites Young (1974) and Daly (2006) and
+  shows the grid argmins match √(2CM). The payments paragraph cites
+  Asokan et al. (1997) on fair exchange.
+- **RT-22** ACCEPT-EDITORIAL: Table 3's caption now defines "---" in the
+  Evaluation column.
+- **RT-23** ACCEPT-EDITORIAL: E3c now "qualitatively matches" S/Kademlia.
+- **R2-14** ACCEPT-EDITORIAL: the ERC-8004 paragraph no longer claims E1
+  predicts its finding (B1 holds up under farming).
+- **R2-15** ACCEPT-EDITORIAL: the Wang et al. difference is stated as
+  signers, admissibility and weighting, not locality.
+- **R2-16** ACCEPT-EDITORIAL: E3d notes that status reports are
+  self-estimated and that E3d assumes honest reports.
+- **R2-17** ACCEPT-EDITORIAL: F1 notes the absence-of-evidence test and
+  the α = 0 shortfall of about 2 points.
+- **R2-18** ACCEPT-EDITORIAL: E5 says the ProVerif model covers the v1
+  HELLO handshake used for status queries, and supports none of G1–G5
+  directly.
+- **R2-19** ACCEPT-EDITORIAL: Reproducibility no longer says the whole
+  evaluation ran twice.
+- **R2-22** ACCEPT-EDITORIAL: the abstract and contribution 2 now say the
+  SDK verifies the Agent Cards and exercises no MAP artifact.
+- **R2-24** ACCEPT-EDITORIAL: the design section says C-2 checks
+  integrity, not quality.
+- **RT-25** ACCEPT-EDITORIAL: the abstract and conclusion put 0.42% "on a
+  1,000-Part task", and the conclusion notes the c/L scaling.
+- **RT-26** DOCUMENT: Limitations gains "Parts are tokens in the
+  simulation".
+- **RT-27** fix: the unused `multirow` and `\hyp` are removed.
+- **RT-28** fix: Wang et al. "proposes" the ledger, which their simulator
+  lacks.
+- **RT-29** ACCEPT-EDITORIAL: pre-registration is "before committing any
+  simulator code", and git is noted to prove commit order only.
+- **R2-27** fix: L1's maximum is 0.220.
+The abstract ends "Discovery flooding remains open" (A11) in place of the
+grinding sentence, and stays within arXiv's limit (1,905 characters plain,
+1,912 with TeX math). Six bibliography entries are added, each checked
+against its primary listing. — Implemented in `paper/main.tex`,
+`paper/references.bib` and
+`paper/sections/{intro,design,evaluation,implementation,security,related,limitations,conclusion}.tex`.
+
 RULED 2026-09-27 (review finding R2-12, role 3 — Methodology) — in E3c,
 single-path lookup success under attack *rose* with churn (N = 10⁵,
 f = 0.3: 0.755 at 0%, 0.906 at 10%, 0.988 at 30%), and the paper quoted the

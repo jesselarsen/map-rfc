@@ -5,7 +5,7 @@
 The reference implementation is 8,040 lines of Rust across ten crates:
 identity, core encoding and envelopes, transcript and checkpoints, trust,
 metering, discovery, the libp2p discovery node, and supporting crates.
-It also includes a 2,535-line A2A adapter (provider middleware, requester
+It also includes a 2,172-line A2A adapter (provider middleware, requester
 client, card and descriptor signing) and a 976-line conformance suite.
 The trust crate's \texttt{apply} function enforces R-1 to R-4 for both
 incremental ingestion and rebuild (T-2). Tests check that the two paths
@@ -13,19 +13,26 @@ agree, including on mixed streams of forged, unilateral and dual-signed
 receipts. The workspace has 167 tests.
 
 \paragraph{Go.}
-A second, full implementation (9,274 lines, standard library only) covers
-the same layers, including an A2A provider and requester. It is
+A second, full implementation covers
+the same layers, including an A2A provider and requester. It is 9,274
+lines using only the standard library, which includes an 878-line
+conformance suite and 614 lines of command-line tools, so it is not
+directly comparable with the Rust count above. It is
 \emph{not} independent in the IETF sense: the same author and model
 family produced it with the Rust source available. It does give a second parser and signer for
-every artifact, and it found real ambiguities in the specification. It
-has 78 top-level tests.
+every artifact. Written from the version~1 drafts, it surfaced five
+ambiguities, all resolved in the specification. One still matters in
+version~2: the text form of the shard number inside a sharded DHT key,
+now pinned to unpadded decimal. It has 78 top-level tests.
 
 \paragraph{Interoperability.}
 \begin{itemize}
-\item \textbf{Vectors.} Seventeen live test vectors pin every artifact
+\item \textbf{Vectors.} Seventeen live test vectors pin these artifacts
   byte for byte: receipts, checkpoints, descriptors, signed Agent Cards,
   admissibility decisions, TaskIDs and transcript leaves. Both
-  implementations reproduce all of them.
+  implementations reproduce all of them. \textsc{StatusQuery} and
+  \textsc{StatusReport} messages, and voucher digests, are not yet
+  vectored.
 \item \textbf{Live matrix.} A 28-cell matrix runs every combination of
   Rust and Go as requester, provider~A and provider~B through a
   kill-and-resume task over A2A HTTP. It also runs plain A2A clients
@@ -84,4 +91,5 @@ Criterion benchmarks on one core of a Ryzen~7 5800X measure:
 \item appending a Part and recomputing the transcript root:
   $1.3\,\mu$s.
 \end{itemize}
-A receipt is 327 bytes, and a checkpoint 312.
+A minimal dual-signed receipt (TV-002, without the optional zone and
+resumed-from fields) is 327 bytes, and a checkpoint (TV-021) is 312.

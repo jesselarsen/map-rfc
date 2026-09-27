@@ -21,8 +21,9 @@ between the issuer's ratings and the observer's own. An issuer that
 shares fewer than three rated providers with the observer gets weight 0.
 A Sybil ring that only rates itself therefore contributes nothing. The
 rebuild rule (T-1/T-2) makes the projection a pure function of the
-receipt store, so nothing, including an implementation bug on one
-ingestion path, can raise a score without evidence.
+receipt store. A divergence between the incremental and rebuilt
+projections, like the bug that motivated T-2, is therefore detectable by
+rebuilding. The rule cannot prevent such bugs, but it makes them visible.
 
 What G2 does \emph{not} give is Sybil-proofness against an adversary who
 buys agreement with real work. Camouflaging Sybils earn W1 weight by
@@ -52,10 +53,13 @@ root over the replayed prefix and refuses to continue on a mismatch. So a
 successor never continues from content that the requester did not verify,
 unless it finds a second preimage for the root. By C-5, a failed
 provider's claim is bounded by the usage in the last checkpoint that
-both parties signed. C-3/C-4 stop a provider from splicing an older,
-higher-usage checkpoint into the chain. The zone label is inside the
-signed core, so a successor cannot be handed the task under a wider zone
-without the requester signing that wider label (Z-3).
+both parties signed. C-3/C-4 make a provider's countersigned checkpoints
+a monotone chain, so the latest one carries the highest usage. A
+requester cannot underpay by presenting a stale checkpoint either,
+because the provider holds the later one with both signatures. The zone
+label is inside the signed core, and Z-3 forbids widening it along a
+resumption chain, so a successor cannot be handed the task under a wider
+zone than the requester signed.
 
 \paragraph{G4 Bounded exposure.}
 Suppose vouchers are issued per checkpoint and the requester follows M-6.
@@ -101,7 +105,8 @@ access to the implementation sessions (Acknowledgments), and was not a
 human review. Here is how each finding was resolved:
 \begin{itemize}
 \item \textbf{Receipt farming.} A Sybil ring reached a score of 0.998 in
-  about 150\,ms of receipt generation. Fixed by R-2 to R-4, T-2 and T-3.
+  about 150\,ms of receipt generation. Mitigated by R-2 to R-4, T-2 and
+  T-3, not eliminated: camouflage still buys weight (A10, A12).
   E1 measures T-3's part. R-4's part is the G1 argument above, because
   no E1 agent emits a receipt that R-4 rejects.
 \item \textbf{Shard flooding.} Fixed by D-6; measured in E3a.

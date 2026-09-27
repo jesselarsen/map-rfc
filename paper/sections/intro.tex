@@ -31,8 +31,9 @@ open:
 Wang et al.\ recently argued that agent networks generalize peer-to-peer
 file sharing from ``who has this file?'' to ``who can do this
 task?''~\cite{wang2026agenticp2p}. Their system uses signed capability
-descriptors, provider-signed receipts, and a local plus federated
-reputation ledger. It is evaluated in simulation. We build on that framing
+descriptors and provider-signed receipts, and proposes a local plus
+federated reputation ledger, which its released simulator does not
+implement. It is evaluated in simulation. We build on that framing
 and ask what the \emph{accountability} layer of such a network must look
 like if it is to survive adversaries who can mint identities for free.
 
@@ -66,8 +67,10 @@ Kademlia index carries discovery records, and MPP or x402 moves money.
 \item The design of \sys{} and a normative specification with an A2A~v1.0
   extension binding (\S\ref{sec:design}, \S\ref{sec:binding}).
 \item Two implementations, in Rust and Go. They interoperate over A2A with
-  each other (28/28 cells of a live interop matrix) and with an unmodified
-  A2A Python SDK client. Along the way we found that the SDK's Agent Card
+  each other (28/28 cells of a live interop matrix). An unmodified A2A
+  Python SDK client verifies their signed Agent Cards and completes plain
+  tasks against them, but exercises no \sys{} artifact. Along the way we
+  found that the SDK's Agent Card
   canonicalization differs from the A2A specification's
   (\S\ref{sec:implementation}).
 \item A pre-registered evaluation (\S\ref{sec:evaluation}). It reproduces

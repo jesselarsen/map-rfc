@@ -151,6 +151,10 @@ The signing order is fixed:
 \item \textbf{C-3/C-4.} \texttt{through-seq} strictly increases between
   checkpoints, and usage never decreases.
 \end{itemize}
+C-2 checks integrity, not quality. The requester countersigns that it
+received exactly these Parts, not that they are correct. A requester that
+dislikes the output can stop countersigning, but the Parts it has already
+acknowledged stay billable.
 A checkpoint with both signatures is a \emph{valid resumption point}.
 
 \paragraph{Resumption.}

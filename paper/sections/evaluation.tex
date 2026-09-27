@@ -6,7 +6,9 @@
 
 \paragraph{Pre-registration.}
 We committed and tagged every hypothesis, decision rule and predicted
-losing regime (\texttt{prereg-v1}) \emph{before} writing the simulator.
+losing regime (\texttt{prereg-v1}) \emph{before} committing any simulator
+code. The tag contains no simulator files. Git proves the commit order,
+not the order in which things were written.
 We did this because one author, working with a single AI model family
 (Acknowledgments), produced \sys{}, the baselines and the simulator.
 That is the main threat to validity~\cite{nosek2018prereg}.
@@ -27,20 +29,26 @@ Each sweep point runs 20 seeds (60 for F1, matching its source). We report
 means with 95\% percentile-bootstrap CIs over seeds (10,000
 resamples~\cite{efron1993bootstrap}). A comparative hypothesis
 \emph{holds at a point} only if the CI of the difference or ratio lies
-entirely on the claimed side. Seeds are resampled jointly for paired
-arms. We apply no multiple-comparison correction, and the full grid is
-published.
+entirely on the claimed side. The pre-registration resamples seed
+indices jointly for arms it calls paired. Each arm is a separate sweep
+point with its own random stream, though, so that pairing is nominal:
+there are no common random numbers, and the exploratory analyses resample
+arms independently. With 20 seeds the CIs are narrow, often $\pm$0.001,
+so ``holds'' is close to a sign test. Several verdicts turn on margins of
+about 0.01, so we give effect sizes with every verdict. We apply no
+multiple-comparison correction, and the full grid is published.
 
 \paragraph{Reproducibility.}
 One command (\texttt{eval/run\_all.ps1}) builds the simulator, checks the
 golden hashes, runs every experiment, and regenerates the report and the
-figures. We ran the whole evaluation twice, at two commits:
+figures. Every pre-registered experiment except the main trust grid ran
+at two commits:
 \begin{itemize}
 \item \textbf{Byte-identical outputs.} Every experiment that ran in both
   runs produced byte-identical CSVs.
 \item \textbf{Run once.} The main trust grid ran only at the second
   commit, after a cache-blocking optimization verified to be bit-identical
-  (A7). The two follow-up weighting sweeps (A8, A9) also ran once.
+  (A7). The exploratory sweeps (A8--A14) also ran once.
 \item \textbf{Signing modes.} Real and fast signing produce identical
   output on a check grid, re-verified on every run (A1).
 \end{itemize}
@@ -86,7 +94,9 @@ from its source code. We read that code but did not execute it. The model:
 \end{itemize}
 Our curves match their published Fig.~5a at all 12 points to within
 $\pm$0.05; the largest difference is 0.024 (Figure~\ref{fig:f1}). This
-gate had to pass before any comparison.
+gate had to pass before any comparison. At $\alpha{=}0$, however, both
+policies' CIs exclude the published value: our success is about 2 points
+lower there, a small systematic shortfall that the tolerance absorbs.
 
 We then added \sys{}'s local projection, evaluated in their world:
 \begin{itemize}
@@ -94,7 +104,9 @@ We then added \sys{}'s local projection, evaluated in their world:
   less than one workflow of its own history. As predicted, \sys{}
   ranking in front of the canary (\sys{}+RA) adds nothing at five of six
   values of $\alpha$. The exception is $\alpha{=}0.3$, a small gain of
-  $+0.037$\ci{0.002}{0.071}.
+  $+0.037$\ci{0.002}{0.071}. ``Adds nothing'' was tested as ``the CI of
+  the difference contains 0'', which is absence of evidence, not an
+  equivalence test.
 \item \textbf{One hour.} At 3,600\,s, evidence accumulates and \sys{}+RA
   beats Risk-Aware by 0.123 to 0.265 for $\alpha\in[0.2,0.5]$.
 \item \textbf{Whitewashing.} With Sybils re-keying every 60\,s, it still
@@ -174,8 +186,12 @@ fails in three families:
 \begin{itemize}
 \item \textbf{Whitewashing.} The ratio is about 1.04 at every $\alpha$.
   Fresh identities have no evidence under \emph{either} scheme, so both
-  sit at the floor set by exploration and fallback. Halving that floor
-  is not possible.
+  sit at the floor set by exploration and fallback. The floor comes from
+  the 10\% uniform exploration, which also tries zero-evidence
+  identities. It could be lowered only by exploring less, or by excluding
+  identities with no evidence, at a cost to honest newcomers (the
+  specification's graduated bootstrap). The canary removes it: B2L and
+  Ours-L+C reach 0.002 under whitewashing.
 \item \textbf{On-off.} The ratio is about 1.4. B1 pools every issuer's
   evidence, so it sees the ``off'' phase sooner than an observer that
   trusts only issuers resembling itself.
@@ -214,6 +230,14 @@ measured.
 The canary composes with \sys{}: Ours-L+C keeps the attacker share at or
 below 0.15 in every cell, and at or below 0.004 in every cell with
 $\alpha\le0.3$ except camouflage.
+
+Two caveats apply to every E1 ratio. First, in most non-camouflage cells
+Ours-L's steady-state share sits near the floor set by 10\% exploration
+and fallback, about $0.12$--$0.16\,\alpha$. Its ratios to B1 therefore
+reflect $\varepsilon{=}0.1$ as much as the weighting, and we did not
+sweep $\varepsilon$. Second, adversarial providers succeed with $q{=}0.2$
+against honest $q\ge0.8$, which is easy to separate. A subtler degrader,
+closer to honest quality, is untested.
 
 B2L, the canary plus a provider-signed ledger, is the design Wang et al.'s
 prose describes, and Figure~\ref{fig:e1} plots it. H1 did not
@@ -262,7 +286,7 @@ All four predicted losing regimes were tested:
 \begin{itemize}
 \item \textbf{Cold start (L1): occurs everywhere.} In rounds 1--5,
   Ours-L without the canary has a higher attacker share than B2: by
-  0.014 at $\alpha{=}0.05$, up to 0.217 at $\alpha{=}0.5$. Local trust
+  0.014 at $\alpha{=}0.05$, up to 0.220 at $\alpha{=}0.5$. Local trust
   needs history, and a deployment should run a canary until it has some.
 \item \textbf{On-off (L3): occurs.} At the start of each off phase the
   attacker share exceeds steady state by 0.017 to 0.196, the lag of a
@@ -585,7 +609,14 @@ compatible successor skip ingestion. Resumption is always by transcript
 replay.
 
 Figure~\ref{fig:e2} shows the trade-off in $c$: waste grows roughly
-linearly in $c$, while signatures shrink as $1/c$. Pricing a signature at
+linearly in $c$, while signatures shrink as $1/c$. This is the classic
+checkpoint-interval trade-off. Young's first-order optimum is
+$\sqrt{2CM}$~\cite{young1974checkpoint,daly2006checkpoint}, with
+checkpoint cost $C{=}2\kappa$ Parts and mean time to failure $M{=}1/\lambda$.
+At the H2 operating point it gives 6, 20 and 63 Parts for
+$\kappa{=}0.01$, 0.1 and 1. E2's grid argmins (8, 32, 32) are consistent
+with it, so the simulation checks the closed form rather than
+discovering it. Pricing a signature at
 $\kappa\in\{0.01,0.1\}$ Parts of work, most settings are optimized
 between $c{=}8$ and $c{=}32$. Those prices count signing only. When the
 provider pauses for each countersignature, a checkpoint also costs a
@@ -629,6 +660,8 @@ core, so an attacker makes 60,901 attempts per second.
   honest providers. The attacker therefore has a majority about 2\,s
   after each re-salt.
 \end{itemize}
+E3b is arithmetic more than simulation, and the simulation only confirms
+it. Its consequence for trust is measured below (A11).
 A 16-core attacker, the exploratory variant of Amendment A5, also holds
 the whole target shard in every configuration. When identities are free,
 grinding is just targeted Sybil creation, and no shard function prevents
@@ -693,9 +726,9 @@ routers also advertised offline colluders. Churn then turned part of
 their poisoned answers into dead ends, so success appeared to \emph{rise}
 with churn: 0.906 at 10\% and 0.988 at 30\%. With colluders advertising
 only live colluders, churn lowers success slightly, as it should (0.705
-at 30\%). This
-replicates the S/Kademlia result~\cite{baumgart2007skademlia}, and D-9
-became a SHOULD.
+at 30\%). This qualitatively matches the S/Kademlia
+result~\cite{baumgart2007skademlia}, though we did not reproduce its
+exact setup. D-9 became a SHOULD.
 
 \paragraph{Volatile plane (H4).}
 Queue lengths follow an M/M/1 process. Pulling status at selection time
@@ -711,7 +744,11 @@ The pre-registered message-rate crossover favours descriptors. Pulling
 costs $2K$ messages per query and refreshing costs $N/(0.8\,\mathrm{TTL})$
 per second, so pulling sends fewer messages only while the query rate
 $q<N/(1.6\,K\,\mathrm{TTL})$. In E3d ($N{=}K{=}10$, $q{=}1$/s) that means
-any TTL above 0.63\,s. Pulling buys fresher status with messages.
+any TTL above 0.63\,s. Pulling buys fresher status with messages. Status
+reports are the provider's own estimates, so an adversary can report an
+empty queue. That is the self-reported-hint problem we noted in the
+baseline (\S\ref{sec:background}). E3d assumes honest reports, and the
+specification leaves ranking by status to local policy (D-7).
 
 \begin{figure}[t]
   \centering
@@ -770,8 +807,11 @@ Vouchers are issued per checkpoint, with per-token prices.
 \item \textbf{Interop.} The interop matrix and vectors are described in
   \S\ref{sec:implementation}.
 \item \textbf{Formal model.} ProVerif~\cite{proverif} proves injective
-  agreement for the discovery-plane handshake's channel binding (the
-  anti-relay property), with unbounded sessions. A control model that
+  agreement for the channel binding of the HELLO handshake that the
+  libp2p discovery binding uses for status queries (the anti-relay
+  property), with unbounded sessions. This handshake is kept from
+  version~1 and is not part of the design above. It supports none of
+  G1--G5 directly. A control model that
   derives the binding without the handshake transcript fails as designed.
   Removing the signature check, the channel-binding check or the
   responder nonce each breaks the proof.
