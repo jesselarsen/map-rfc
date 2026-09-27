@@ -719,9 +719,15 @@ between the last point the requester actually acknowledged and the
 point of failure.
 
 **C-6 (default interval).** Absent a negotiated value, a provider SHOULD
-propose a checkpoint every **c = 8** transcript leaves, and at the
-terminal state. The interval is local policy. The default comes from
-evaluation E2/E4 (`eval/HYPOTHESES.md`):
+propose a checkpoint every c transcript leaves, and at the terminal
+state. The default depends on how the countersignature travels:
+- **c = 8** when it returns asynchronously while the task keeps running
+  (binding-a2a A2A-20);
+- **c = 32** when the provider pauses for each countersignature, a
+  synchronous round trip (binding-a2a A2A-21).
+
+The interval is local policy. The defaults come from evaluation E2/E4
+(`eval/HYPOTHESES.md`):
 
 - *Waste.* At λL = 1 expected failure per task and L = 10³ Parts,
   countersigned resume at c = 8 wastes 3.2 Parts per task. That is
@@ -729,21 +735,35 @@ evaluation E2/E4 (`eval/HYPOTHESES.md`):
   0.0050], hypothesis H2). With no intermediate checkpoints (c = ∞) it
   wastes 591.6. Waste grows roughly linearly in c:
   15.7 Parts at c = 32, 64.8 at c = 128.
-- *Cost.* A checkpoint costs two signatures and about 310 bytes (TV-021
-  is 312). At
-  c = 8, MAP signing and verification add 0.079% to a task that
-  generates one token per 20 ms (criterion benchmark of the reference
-  implementation). At c = 1 they add 0.63%.
+- *CPU cost.* A checkpoint costs two signatures and about 310 bytes
+  (TV-021 is 312). At c = 8, MAP signing and verification add 0.079% to
+  a task that generates one token per 20 ms (criterion benchmark of the
+  reference implementation). At c = 1 they add 0.63%. These figures
+  exclude the network.
+- *Round-trip cost (estimated, not measured).* Assume a 50–100 ms round
+  trip.
+  - A synchronous pause adds one round trip per checkpoint: 31–63% of
+    task time at c = 8, 7.8–16% at c = 32 and 2.0–3.9% at c = 128. Priced
+    as work, that is 2.5–5 Parts per checkpoint.
+  - An asynchronous countersignature adds no pause. Instead the
+    provider's unacknowledged exposure grows by the Parts generated
+    while it is in flight: 2.5–5 beyond c.
 - *Exposure.* Under voucher-per-checkpoint metering, a provider's
   unpaid exposure is at most price(c Parts). This is H5, asserted in
   every run. So c also sets the credit a provider extends.
 
-Price a signature at κ ∈ {0.01, 0.1} Parts of work. The c that minimizes
-waste + κ·signatures then lies between 8 and 32 in most E2 settings.
-The exceptions are c = 128 when failures are rare on long tasks, and
-c = 1 when κ = 0.01 and failures are frequent on short tasks. c = 8 is
-the conservative end of that range. Deployments with expensive
-signatures, or with long and reliable tasks, MAY raise it.
+Price a signature at κ ∈ {0.01, 0.1} Parts of work, which is signing
+only. The c that minimizes waste + κ·signatures then lies between 8 and
+32 in most E2 settings. The exceptions are c = 128 when failures are
+rare on long tasks, and c = 1 when κ = 0.01 and failures are frequent on
+short tasks. c = 8 is the conservative end of that range, and it is the
+asynchronous default.
+
+A synchronous pause raises κ to 1.25–2.5 per signature (2.5–5 Parts per checkpoint, two signatures each). At κ = 1 the
+minimizing c is 32 at the H2 operating point, and 32–128 in 8 of 9 E2
+settings. That gives the synchronous default. Deployments with expensive
+signatures or round trips, or with long and reliable tasks, MAY raise
+either default.
 
 ### 7.6 Engine-state / KV-cache shortcut
 

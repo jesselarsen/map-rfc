@@ -26,6 +26,31 @@ Findings are registered in `paper/REVIEW-redteam-1.md` (RT-xx) and
 `paper/REVIEW-redteam-2.md` (R2-xx), against the paper draft at `c67ad76`.
 Rulings below follow `REVIEW-PROCESS.md` Stage 2.
 
+RULED 2026-09-27 (review finding RT-01, roles 2/3 — Protocol red team,
+Methodology; widened in register 2) — "<1% overhead" counted CPU signing
+only. The binding's fallback path (A2A-21), which every provider must
+support, which is the default when the path is not negotiated, and which is
+the only path either implementation has, pauses the task in INPUT_REQUIRED
+for one round trip per checkpoint. The C-6 default c = 8 was chosen with a
+signing-only κ. — RULING: **ACCEPT** (paper) + **normative, no wire change**
+(spec). Changes:
+- the paper and spec call the H5 figure "CPU overhead" and add an estimated
+  round-trip cost at 50–100 ms. The fallback adds 31–63% at c = 8,
+  7.8–16% at c = 32 and 2.0–3.9% at c = 128. The primary path does not
+  pause, but its unacknowledged exposure grows by 2.5–5 Parts;
+- C-6 now has two defaults: c = 8 asynchronous and c = 32 synchronous. The
+  synchronous one comes from E2's κ = 1 column (argmin 32 at the H2 point;
+  32–128 in 8 of 9 settings), since the pause prices κ at 1.25–2.5 per
+  signature. `binding-a2a` `checkpointIntervalParts` follows;
+- the paper says both implementations use only the fallback path.
+Not done: both implementations still default to c = 8 (the map-rs provider
+`--checkpoint-every`, and the card defaults in map-rs/map-go). Changing
+them is an implementation step under REVIEW-PROCESS Stage 3, and the
+28-cell interop matrix must be re-run with it, because the kill-and-resume
+cells depend on checkpoint timing. — Implemented in `spec/layer.md` §7.5,
+`spec/binding-a2a.md` §3, `spec/CHANGELOG.md`, and
+`paper/sections/{design,evaluation,implementation}.tex`.
+
 RULED 2026-09-27 (review finding R2-03, roles 2/3 — Protocol red team,
 Methodology; also covers the impact half of RT-13) — E1 assumed honest
 discovery, and the paper never said so. E3 shows discovery can be flooded

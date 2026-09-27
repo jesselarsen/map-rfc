@@ -83,7 +83,7 @@ and discovery binding*):
 |---|---|---|
 | `agentId` | string | This agent's AgentID, multibase `z...` form (layer spec, *Identity*) |
 | `supportedZones` | array of tstr (decimal uint) | Zone labels this provider will accept tasks under (layer spec, *Zones and data sensitivity*) |
-| `checkpointIntervalParts` | tstr (decimal uint) | Default number of transcript leaves (§4) between checkpoint proposals. A session-local policy default, overridable per task (§3). RECOMMENDED value 8 (layer C-6) |
+| `checkpointIntervalParts` | tstr (decimal uint) | Default number of transcript leaves (§4) between checkpoint proposals. A session-local policy default, overridable per task (§3). RECOMMENDED value 8 on the primary path (A2A-20) and 32 on the fallback path (A2A-21) (layer C-6) |
 | `acceptedVoucherRails` | array of tstr | Rail URIs (mapping-payment-rails.md §1) this provider can bind metering evidence to |
 
 A2A-3a: `params` MUST NOT contain JSON numbers; unsigned integers are

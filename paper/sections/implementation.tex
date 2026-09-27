@@ -30,6 +30,8 @@ has 78 top-level tests.
   Rust and Go as requester, provider~A and provider~B through a
   kill-and-resume task over A2A HTTP. It also runs plain A2A clients
   against \sys{} providers, and the core session cells. All 28 pass.
+  Both implementations collect countersignatures only through the
+  binding's fallback path, pausing in \textsc{input-required}.
 \item \textbf{Unmodified SDK.} The official A2A Python SDK
   (a2a-sdk~1.0.3), unmodified, does the following against our provider:
   \begin{itemize}

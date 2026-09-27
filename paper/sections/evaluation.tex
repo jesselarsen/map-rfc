@@ -67,7 +67,7 @@ L4 & Camouflage hurts W1/W2 ($\alpha{=}0.2$) & did not occur \\
 H2 & Resume waste $\le 0.4\times$ restart & holds \\
 H3 & D-6 caps flooding at fair share & holds 6/6 \\
 H4 & Pulled status beats descriptor-carried & holds 4/4 \\
-H5 & Exposure $\le$ price($c$); overhead $<$1\% & holds 6/6 \\
+H5 & Exposure $\le$ price($c$); CPU overhead $<$1\% & holds 6/6 \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -435,7 +435,12 @@ replay.
 Figure~\ref{fig:e2} shows the trade-off in $c$: waste grows roughly
 linearly in $c$, while signatures shrink as $1/c$. Pricing a signature at
 $\kappa\in\{0.01,0.1\}$ Parts of work, most settings are optimized
-between $c{=}8$ and $c{=}32$. We made $c{=}8$ the default (C-6).
+between $c{=}8$ and $c{=}32$. Those prices count signing only. When the
+provider pauses for each countersignature, a checkpoint also costs a
+round trip, and $\kappa$ rises to 1.25--2.5 per signature (\S\ref{sec:eval-meter}).
+At $\kappa{=}1$ the optimum is $c{=}32$ at the H2 operating point, and
+32--128 in 8 of 9 settings. The default (C-6) is therefore $c{=}8$ when
+countersignatures are asynchronous and $c{=}32$ when they pause the task.
 
 \begin{figure}[t]
   \centering
@@ -566,9 +571,26 @@ Vouchers are issued per checkpoint, with per-token prices.
   is idempotent, and amounts are non-negative. The simulator asserts all
   three in every run, and a provider's unpaid exposure never exceeded
   price($c$).
-\item \textbf{Overhead.} At a generation speed of 20\,ms per token, \sys{}
-  signing and verification add 0.079\% of task time at $c{=}8$, and
-  0.63\% even at $c{=}1$.
+\item \textbf{CPU overhead.} At a generation speed of 20\,ms per token,
+  \sys{} signing and verification add 0.079\% of task time at $c{=}8$,
+  and 0.63\% even at $c{=}1$. This is what H5 measured, and it excludes
+  the network.
+\item \textbf{Round trips.} The countersignature also has to travel, and
+  the cost depends on the binding's path. We estimate it rather than
+  measure it, assuming a 50--100\,ms round trip.
+  \begin{itemize}
+  \item On the fallback path (A2A-21), the provider pauses in
+    \textsc{input-required} for one round trip per checkpoint. At
+    $c{=}8$, where a checkpoint covers 160\,ms of generation, that adds
+    31--63\% to task time. It adds 7.8--16\% at $c{=}32$ and 2.0--3.9\%
+    at $c{=}128$. Priced as work, the pause is 2.5--5 Parts per
+    checkpoint.
+  \item On the primary path (A2A-20), nothing pauses. Instead the
+    provider keeps generating while the countersignature is in flight,
+    so its unacknowledged exposure grows by 2.5--5 Parts beyond $c$.
+  \end{itemize}
+  Both of our implementations use only the fallback path, which every
+  provider must support.
 \item \textbf{Bytes.} Checkpoints are large relative to token-sized
   Parts, as the pre-registration predicted:
   \begin{itemize}
