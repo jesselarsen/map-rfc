@@ -1,0 +1,15 @@
+# EXPLORATORY (Amendment A10), not pre-registered as a hypothesis: review
+# finding R2-04. E1 fixed 20 Sybil requesters per adversarial provider. This
+# sweeps that count for W0/W1/W2 under camouflage, with farming as a control.
+scenario = "e1"
+name = "e1-sybil-sweep"
+seeds = 20
+
+[params]
+arm = "ours"
+alpha = 0.2
+
+[sweep]
+attack = ["camouflage", "farming"]
+weights = ["w0", "w1", "w2"]
+sybils_per_adv = [5, 20, 80, 320]

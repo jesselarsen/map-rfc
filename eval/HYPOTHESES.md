@@ -468,3 +468,42 @@ The CIs do not overlap, so **W1 wins** with no tie and becomes the layer
 §8.4 recommended default. Full table: `results/5bc7702/MINIMAX.md`. H1 and
 the other E1 verdicts stay as pre-registered, computed with the D5 winner
 (W2).
+
+**A10 (2026-09-27, EXPLORATORY; not a hypothesis test; written before the
+run it describes).**
+- *Trigger:* review finding R2-04 (`paper/REVIEW-redteam-2.md`). The threat
+  model says identities are free, but E1 fixed 20 Sybil requesters per
+  adversarial provider (800 against 500 honest requesters at α = 0.2).
+  Under W1 each camouflaging Sybil earns roughly an honest peer's weight.
+  The per-issuer cap bounds each issuer, not the number of issuers. So W1's
+  robustness, and the A9 minimax result, may hold only at that ratio.
+- *Disclosure:* before this amendment was written, a one-seed timing probe
+  was run to size the grid (α = 0.2, camouflage, seed 0; not a result).
+  Its steady-state attacker shares were W1 0.070 at 80 Sybils and 0.157 at
+  320, and W2 0.204 and 0.530. The grid below was chosen after seeing them.
+- *Config:* `configs/e1_sybil_sweep.toml`.
+  - Arm `ours`, α = 0.2, 20 seeds, `--fast-crypto` (A1).
+  - Attack ∈ {camouflage, farming}. Farming, without camouflage, is the
+    control: its Sybils share no providers with honest observers.
+  - Weights ∈ {W0, W1, W2}; `sybils_per_adv` ∈ {5, 20, 80, 320}.
+  - The binary is built from the current tree. Its simulator is unchanged
+    since 5bc7702, apart from the additive `ProjParams::recommended()`,
+    which map-sim does not call.
+  - Output: `results/5bc7702/e1-sybil-sweep.csv`, alongside A8/A9.
+    `env.json` records the actual commit.
+- *Reported, whatever the outcome:*
+  - steady-state attacker share and honest success per cell, mean
+    [95% CI];
+  - the Sybil-to-honest-requester ratio (n_adv · s / 500);
+  - the camouflage tasks the attacker buys per round, n_adv · s · 2,
+    against the honest workload of about 1,000 tasks per round.
+- *Reading, fixed now:*
+  - W1 *degrades* at a Sybil count if its CI lies entirely above its CI
+    at 20;
+  - it *loses to self-only* if its CI lies entirely above W0's in the same
+    cell;
+  - it is *worse than random* if its CI lies entirely above α = 0.2.
+- If W1 loses to self-only at any count, the layer §8.4 recommendation
+  gets a stated Sybil-ratio caveat. That is a P8-style spec decision,
+  recorded separately.
+- *Script:* `analysis/sybil_sweep.py` writes `results/5bc7702/SYBIL-SWEEP.md`.
