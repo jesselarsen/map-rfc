@@ -43,11 +43,17 @@ signing-only κ. — RULING: **ACCEPT** (paper) + **normative, no wire change**
   32–128 in 8 of 9 settings), since the pause prices κ at 1.25–2.5 per
   signature. `binding-a2a` `checkpointIntervalParts` follows;
 - the paper says both implementations use only the fallback path.
-Not done: both implementations still default to c = 8 (the map-rs provider
-`--checkpoint-every`, and the card defaults in map-rs/map-go). Changing
-them is an implementation step under REVIEW-PROCESS Stage 3, and the
-28-cell interop matrix must be re-run with it, because the kill-and-resume
-cells depend on checkpoint timing. — Implemented in `spec/layer.md` §7.5,
+Follow-up done the same day. Both provider binaries' `--checkpoint-every`
+default is now 32 (`map-rs` `map-a2a-provider`, `map-go`
+`cmd/map-a2a-provider`); these providers implement only A2A-21. The TV-022
+fixture cards keep "8" as their sample value, since changing them would
+change vector bytes. Verification:
+- `cargo test --workspace --all-features`: 173 passed;
+- `go test ./...`, `go vet` and `gofmt -l`: clean;
+- the interop matrix: 28/28 PASS, including both unmodified-SDK cells
+  (a2a-sdk 1.0.3, CPython 3.12.10), re-stamped in `interop/MATRIX.md`.
+The matrix passes `--checkpoint-every 4` explicitly, so the default does
+not change what it tests.— Implemented in `spec/layer.md` §7.5,
 `spec/binding-a2a.md` §3, `spec/CHANGELOG.md`, and
 `paper/sections/{design,evaluation,implementation}.tex`.
 

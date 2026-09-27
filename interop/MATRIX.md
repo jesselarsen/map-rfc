@@ -10,11 +10,17 @@ generator, and the unmodified A2A Python SDK.
 
 ## Latest run
 
-- **Date:** 2026-09-26
-- **Result:** **28 / 28 PASS**
-- **Commit:** the accountability-layer P5c commit
-- **Toolchains:** Go 1.26.5 (windows/amd64); rustc 1.96.0
-  (stable-x86_64-pc-windows-gnu); a2a-sdk 1.0.3 (CPython 3.12)
+- **Date:** 2026-09-27
+- **Result:** **28 / 28 PASS**, including both SDK cells.
+- **Commit:** the RT-01 follow-up commit, which changes both providers'
+  `--checkpoint-every` default from 8 to 32 (layer C-6, synchronous
+  path). The matrix passes `--checkpoint-every 4` explicitly, so the
+  change does not alter what it tests.
+- **Toolchains:** Go 1.26.5 windows/amd64; rustc 1.96.0 (ac68faa20 2026-05-25);
+  a2a-sdk 1.0.3 with base58 2.1.1 (CPython 3.12.10, a fresh venv from
+  `a2a-sdk/requirements.txt`)
+- **Previous run:** 2026-09-26, the accountability-layer P5c commit:
+  **28 / 28 PASS**, including both SDK cells (a2a-sdk 1.0.3, CPython 3.12).
 - **Driver:** [`run-matrix.ps1`](run-matrix.ps1): builds every peer, runs
   all three parts, exits non-zero on any failure. The SDK cells run when
   `MAP_A2A_SDK_PY` names a Python with `a2a-sdk/requirements.txt`
@@ -103,7 +109,7 @@ test-harness transport only: raw TCP does not authenticate the static keys.
 ## Peer contracts
 
 - **A2A (part b):** `map-a2a-provider --listen H:P --seed N [--parts 24]
-  [--checkpoint-every 8] [--zones 1,2] [--fail-after-parts N]` and
+  [--checkpoint-every 32] [--zones 1,2] [--fail-after-parts N]` and
   `map-a2a-requester --providers URL,URL [--seed N] [--zone Z] [--prompt S]
   [--plain]`. Both implementations take the same flags. The requester's
   last stdout line is `MAP-DEMO-RESULT {json}`. Rust bins:

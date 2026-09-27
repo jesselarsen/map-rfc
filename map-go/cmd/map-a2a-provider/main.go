@@ -3,7 +3,7 @@
 // implementations:
 //
 //	map-a2a-provider --listen 127.0.0.1:8701 --seed 2 [--parts 24]
-//	    [--checkpoint-every 8] [--zones 1,2] [--fail-after-parts N]
+//	    [--checkpoint-every 32] [--zones 1,2] [--fail-after-parts N]
 package main
 
 import (
@@ -25,7 +25,7 @@ func main() {
 	listen := flag.String("listen", "127.0.0.1:8701", "listen address")
 	seed := flag.Int("seed", 2, "key seed byte (test keys)")
 	parts := flag.Int("parts", 24, "Parts per task")
-	every := flag.Uint64("checkpoint-every", 8, "checkpoint cadence in Parts (layer C-6)")
+	every := flag.Uint64("checkpoint-every", 32, "checkpoint cadence in Parts (layer C-6: 32 on the synchronous A2A-21 path, the only one this provider implements)")
 	zonesFlag := flag.String("zones", "1,2", "accepted zone labels")
 	failAfter := flag.Uint64("fail-after-parts", 0, "crash after producing this many Parts (0 = never)")
 	flag.Parse()
