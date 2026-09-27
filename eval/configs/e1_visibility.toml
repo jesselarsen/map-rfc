@@ -1,0 +1,15 @@
+# EXPLORATORY (Amendment A13): review finding RT-03. E1 assumes one public
+# receipt pool. Here each observer sees each other honest requester's
+# receipts with probability `visibility`; Sybil receipts stay fully visible.
+scenario = "e1"
+name = "e1-visibility"
+seeds = 20
+
+[params]
+alpha = 0.2
+
+[sweep]
+attack = ["farming", "camouflage", "slander"]
+visibility = [1.0, 0.5, 0.2, 0.05]
+arm = ["b1", "ours", "ours_c"]
+weights = ["w0", "w1"]

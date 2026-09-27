@@ -152,6 +152,11 @@ pub struct Cfg {
     /// requester's best-scored providers among those it has a success
     /// receipt for; the rest come from discovery. 0 = discovery only.
     pub shortlist_memory: usize,
+    /// Partial receipt visibility (Amendment A13): the probability that an
+    /// observer sees a given other honest requester's receipts, fixed per
+    /// (observer, issuer) pair. Sybil and colluder receipts stay visible to
+    /// everyone. 1 = one public pool, the pre-registered E1 world.
+    pub visibility: f64,
 }
 
 pub fn cfg_from(p: &Params) -> Result<Cfg, String> {
@@ -212,6 +217,7 @@ pub fn cfg_from(p: &Params) -> Result<Cfg, String> {
         fallback: p.u64_or("fallback", 3)? as usize,
         flood_per_honest: p.f64_or("flood_per_honest", 0.0)?,
         shortlist_memory: p.u64_or("shortlist_memory", 0)? as usize,
+        visibility: p.f64_or("visibility", 1.0)?,
     })
 }
 
@@ -359,6 +365,25 @@ pub fn simulate_with(cfg: &Cfg, rng: &mut Rng, mode: CryptoMode, mut dump: Optio
         next_ident += 1;
         providers.push(Provider { q: cfg.q_adv, adv: true, kp: Keypair::from_seed(rng.bytes32()), ident, hint: 0.0 });
     }
+    // A13 visibility salt, drawn only when visibility < 1, so the default
+    // RNG stream is unchanged.
+    let vis_salt: u64 = if cfg.visibility < 1.0 {
+        let b = rng.bytes32();
+        u64::from_le_bytes([b[0], b[1], b[2], b[3], b[4], b[5], b[6], b[7]])
+    } else {
+        0
+    };
+    // Whether observer `o` sees issuer `i`'s receipts (SplitMix64 of the pair).
+    let visible = |o: u32, i: u32| -> bool {
+        if cfg.visibility >= 1.0 || i == o || i as usize >= cfg.requesters {
+            return true;
+        }
+        let mut z = vis_salt.wrapping_add(((o as u64) << 32) | i as u64).wrapping_add(0x9e37_79b9_7f4a_7c15);
+        z = (z ^ (z >> 30)).wrapping_mul(0xbf58_476d_1ce4_e5b9);
+        z = (z ^ (z >> 27)).wrapping_mul(0x94d0_49bb_1331_11eb);
+        z ^= z >> 31;
+        ((z >> 11) as f64 / (1u64 << 53) as f64) < cfg.visibility
+    };
     let sybil_base = cfg.requesters as u32;
     let colluder_base = sybil_base + sybils.len() as u32;
     let mut pool = Pool::new(cfg.decay, cfg.issuer_cap);
@@ -411,6 +436,13 @@ pub fn simulate_with(cfg: &Cfg, rng: &mut Rng, mode: CryptoMode, mut dump: Optio
                 Weighting::W1 => wmap = weights::w1(&pool, cfg.requesters),
                 Weighting::W2 => wmap = weights::w2(&pool, cfg.requesters),
             }
+            if cfg.visibility < 1.0 {
+                // A13: an observer weights only issuers whose receipts it sees.
+                // Exact for W1 (agreement is pairwise); W2 is not evaluated.
+                for (o, m) in wmap.iter_mut().enumerate() {
+                    m.retain(|i, _| visible(o as u32, *i));
+                }
+            }
         }
         gcache.clear();
         // Identity -> provider index, for the A11 shortlist-memory policy.
@@ -455,6 +487,10 @@ pub fn simulate_with(cfg: &Cfg, rng: &mut Rng, mode: CryptoMode, mut dump: Optio
                         let hint = if matches!(cfg.arm, Arm::B2 | Arm::B2L) { pv.hint } else { 0.0 };
                         let s = if cfg.arm == Arm::B2 {
                             0.5
+                        } else if global && cfg.visibility < 1.0 {
+                            // A13: a global ledger scores from the receipts this
+                            // observer can see, so it is no longer global.
+                            pool.score(pv.ident, now_ms, |iss| if visible(o as u32, iss) { 1.0 } else { 0.0 }).0
                         } else if global {
                             *gcache
                                 .entry(pv.ident)

@@ -666,3 +666,49 @@ Readings by the rules above:
 The expectation held in every cell. The attacker share is unchanged by the
 attack (W1 0.027, W2 0.026): it is sabotage of the targets, not a way to
 win tasks.
+
+**A13 (2026-09-27, EXPLORATORY; not a hypothesis test; written and pushed
+before any run of the code it describes).**
+- *Trigger:* review finding RT-03. E1 puts every receipt in one public pool
+  that every observer reads. The paper called that "the worst case", but it
+  is the worst case only for flooding. For evidence availability it is the
+  best case: W1 and B1 beat W0 only because observers read other honest
+  requesters' receipts, and the design specifies no dissemination (the
+  holder discloses at its discretion).
+- *Simulator change (map-sim E1), off by default:* `visibility` v. Observer o
+  sees honest requester i's receipts with probability v. The draw is fixed
+  per (o, i) pair by a SplitMix64 hash under a per-run salt. An observer
+  always sees its own receipts. Sybil and colluder receipts stay visible to
+  everyone: the adversary publishes without limit.
+  - Under W1, invisible issuers get weight 0. This is exact, because W1's
+    agreement is pairwise.
+  - Under B1 and B2L, the ledger scores from the receipts this observer can
+    see, so it is no longer global.
+  - W2 is not evaluated: its propagation runs through issuers an observer
+    may not see, and masking only its final weights would not be exact.
+  - The salt is drawn only when v < 1, so the default stream is unchanged.
+    Before this amendment the golden smoke test and the E1 and weighting
+    equivalence tests passed, and `e1_camo_explore` reproduced its
+    committed CSV hash.
+- *No probe:* no v < 1 configuration has been run before this amendment was
+  pushed.
+- *Config:* `configs/e1_visibility.toml`: α = 0.2, 20 seeds, `--fast-crypto`
+  (A1).
+  - attack ∈ {farming, camouflage, slander}; v ∈ {1, 0.5, 0.2, 0.05}.
+  - arm ∈ {B1, Ours-L, Ours-L+C}; weights ∈ {W0, W1}. B1 ignores weights,
+    so its two rows are replicates, and W0 ignores v, so it is the control.
+  - Output: `results/5bc7702/e1-visibility.csv`.
+- *Reported, whatever the outcome:* per cell, mean [95% CI] of the
+  steady-state attacker share and honest success.
+- *Reading, fixed now (Ours-L with W1, per attack and v):*
+  - W1 *keeps its advantage* if its CI lies entirely below W0's;
+  - it *loses to self-only* if its CI lies entirely above W0's;
+  - otherwise the two are *indistinguishable*.
+- *Expectation, written down now:*
+  - as v falls, W1 should converge to W0, because less honest third-party
+    evidence reaches the observer;
+  - under camouflage W1 may fall below W0, because Sybil receipts stay
+    visible while honest ones fade;
+  - B1 should worsen under slander as v falls, because the Sybils' share
+    of the visible evidence grows.
+- *Script:* `analysis/visibility.py` writes `results/5bc7702/VISIBILITY.md`.
