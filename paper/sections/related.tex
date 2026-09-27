@@ -18,7 +18,7 @@ ERC-8004~\cite{erc8004} & feedback author & global, on-chain & no & n/s & measur
 Cairn~\cite{chard2026cairn} & n/s & community (decayed Beta) & no & no & simulation, case study \\
 AgentReputation~\cite{chishti2026agentreputation} & n/s & decentralized service & no & no & vision paper \\
 \midrule
-Signet~\cite{signet} & agent \emph{and} server & --- & no & no & --- \\
+Signet~\cite{signet} & agent (request), server (response) & --- & no & no & --- \\
 Sello~\cite{figuera2026sello} & receiver & --- & no & no & microbenchmarks \\
 ACTA~\cite{acta2026} & decision maker & --- & no & no & --- \\
 Agent Passport~\cite{aps} & agent & --- & no & no & --- \\
@@ -75,10 +75,36 @@ access-control decisions~\cite{acta2026}. Agent Passport signs a receipt
 for every delegated action~\cite{aps}. Sello inverts the trust boundary:
 the receiving service signs what it observed, encrypts it to the agent's
 owner, and publishes it to a witness-cosigned log~\cite{figuera2026sello}.
-Signet's bilateral receipts, co-signed by agent and MCP server, are the
-closest agent-specific analogue of \sys{}'s dual signatures~\cite{signet}.
-None of these agent receipts defines how receipts feed trust, how a task
-resumes elsewhere, or how usage binds to payment.
+None of these defines how receipts feed trust, how a task resumes
+elsewhere, or how usage binds to payment.
+
+Signet~\cite{signet} is the closest agent-specific analogue of \sys{}'s
+dual signatures, so we compare them precisely. As of Signet version 0.11:
+\begin{itemize}
+\item \textbf{Who attests the outcome.} In a Signet bilateral receipt the
+  calling agent signs the request (tool, parameters, time). The server
+  then co-signs its response and the outcome state (executed, failed,
+  rejected, or requires approval). The outcome is therefore attested by
+  the party that did the work. In \sys{} the provider proposes the
+  outcome and usage, and the requester, the party that received the
+  work, countersigns them. Only that countersignature makes a receipt
+  positive evidence (R-4).
+\item \textbf{Granularity.} Signet signs one tool call, request and
+  response. \sys{} signs a task, with countersigned checkpoints over a
+  Merkle root of its streamed output, which is what lets the task resume
+  on another provider.
+\item \textbf{What the evidence is for.} Signet targets audit and
+  authorization: hash-chained local logs, delegation chains whose scope
+  only narrows, policy attestations, revocation and replay protection.
+  \sys{} has none of these. It retired delegation, and leaves key
+  rotation and revocation out of scope. \sys{} instead defines how
+  receipts become trust, through admissibility and observer-local
+  weighting, and it binds usage to payment vouchers. Signet's spend
+  limits constrain what an agent is authorized to do; they are not
+  metering evidence.
+\end{itemize}
+The two are complementary. A Signet receipt could serve as the evidence
+for a single tool call made inside a \sys{} task.
 
 The closest prior design overall is TrustChain~\cite{otte2020trustchain}.
 It records each interaction only with both parties' signatures, so a

@@ -26,6 +26,28 @@ Findings are registered in `paper/REVIEW-redteam-1.md` (RT-xx) and
 `paper/REVIEW-redteam-2.md` (R2-xx), against the paper draft at `c67ad76`.
 Rulings below follow `REVIEW-PROCESS.md` Stage 2.
 
+RULED 2026-09-27 (review finding RT-24, role 1 — PC, novelty) — the Signet
+comparison is the crux of novelty for dual signatures, but the paper gave
+it one sentence and did not say what MAP adds over BilateralReceipt. —
+RULING: **ACCEPT**. Checked against Signet's repository README (version
+0.11, accessed 2026-09-27):
+- the agent signs the request (tool, params, time), and the server
+  co-signs its response and outcome state (executed / failed / rejected /
+  requires_approval);
+- Signet also offers hash-chained audit logs, narrowing delegation chains,
+  policy attestations, revocation and replay protection.
+Related work now compares the two on three axes:
+- who attests the outcome: Signet's executor versus MAP's receiving
+  requester (R-4);
+- granularity: one tool call versus a task with checkpoints and
+  resumption;
+- purpose: audit and authorization versus trust and metering. MAP lacks
+  Signet's authorization features, and says so.
+It calls the two complementary. Table 3's Signet row now reads "agent
+(request), server (response)", the intro points to the comparison, and the
+bib note records the version. Editorial; no wire change. — Implemented in
+`paper/sections/{related,intro}.tex` and `paper/references.bib`.
+
 RULED 2026-09-27 (review finding RT-03, roles 2/3 — Protocol red team,
 Methodology) — E1 assumed one public receipt pool and called it "the worst
 case". That is the worst case for flooding but the best case for evidence
