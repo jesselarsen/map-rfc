@@ -49,11 +49,16 @@ point. Across seven attacks, observer-local trust keeps the steady-state
 attacker share at most half that of a canary-only baseline in 27 of 28
 settings;
 a global ledger collapses under slander (0.95 attacker share at
-$\alpha{=}0.5$), and local trust does not (0.08). Countersigned resumption
+$\alpha{=}0.5$), and local trust does not (0.08).
+That simulation's paper also describes a canary backed by a ledger of
+provider-signed receipts. In an exploratory comparison, \sys{} with the
+same canary in front beats that design in 25 of 35 settings and is
+indistinguishable from it in the other 10. Countersigned resumption
 wastes 0.42\% of the work that restarting does. We also report where
 \sys{} loses: during cold start; against on-off and whitewashing attackers
-relative to a global ledger; and, for our pre-registered weighting, a
-collapse under Sybil-majority camouflage. That collapse changed the
+relative to a global ledger; without a canary, against the
+canary-plus-ledger design under whitewashing and slander; and, for our
+pre-registered weighting, a collapse under Sybil-majority camouflage. That collapse changed the
 recommended default. Identifier grinding remains unmitigated.
 \end{abstract}
 

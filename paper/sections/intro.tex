@@ -73,7 +73,11 @@ Kademlia index carries discovery records, and MPP or x402 moves money.
   Wang et al.'s published attack curve to within 0.024, measures \sys{}
   against a global ledger and a canary baseline under seven attacks, and
   quantifies checkpointed resumption, discovery attacks and metering
-  overhead. We report every verdict, including failed ones.
+  overhead. We report every verdict, including failed ones. An
+  exploratory comparison against the design Wang et al.\ describe, a
+  canary plus a provider-signed ledger, shows \sys{} with a canary
+  better in 25 of 35 settings, with overlapping CIs in the other 10. Without the canary, \sys{} is
+  worse than that design under whitewashing and slander.
 \item Three negative results that we believe generalize
   (\S\ref{sec:eval-trust}, \S\ref{sec:eval-discovery}):
   \begin{itemize}
