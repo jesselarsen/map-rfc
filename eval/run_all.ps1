@@ -1,7 +1,7 @@
 # One-command evaluation (eval/HYPOTHESES.md). Results go to
 # eval/results/<git-sha>/: one CSV + env.json per experiment, bench/,
 # REPORT.md (every hypothesis verdict), MINIMAX.md (Amendment A9), B2L.md
-# (exploratory), PREREG-EXTRA.md (pre-registered items outside REPORT.md)
+# (exploratory), PREREG-EXTRA.md (pre-registered items outside REPORT.md), SYBIL-SWEEP.md (A10)
 # and figs/.
 #
 # Usage:  pwsh eval/run_all.ps1 [-Quick] [-Out DIR] [-SkipBench]
@@ -53,6 +53,7 @@ if ($main -match 'weights = "D5_WINNER"') {
   Run e1_main -Fast
   Run e1_camo_explore -Fast   # exploratory (Amendment A8)
   Run e1_minimax -Fast        # W0 and W1 on the full grid (Amendment A9)
+  Run e1_sybil_sweep -Fast    # Sybils per adversarial provider (Amendment A10)
 }
 Run e3a
 Run e3b
@@ -88,9 +89,9 @@ Write-Host "`n== analysis =="
 Push-Location (Join-Path $eval "analysis")
 & $py analyze.py $Out
 & $py make_figs.py $Out
-# minimax.py (the A9 rule), b2l.py (exploratory) and prereg_extra.py require 20 seeds per cell.
+# minimax.py (A9), b2l.py, prereg_extra.py and sybil_sweep.py (A10) require 20 seeds per cell.
 if ($Quick) {
-  Write-Host "  -Quick: skipping minimax.py, b2l.py and prereg_extra.py (they require 20 seeds per cell)"
+  Write-Host "  -Quick: skipping minimax.py, b2l.py, prereg_extra.py and sybil_sweep.py (they require 20 seeds per cell)"
 } elseif (Test-Path (Join-Path $Out "e1-main.csv")) {
   & $py minimax.py $Out | Out-Null
   if ($LASTEXITCODE -ne 0) { Pop-Location; Write-Error "minimax.py failed" }
@@ -98,6 +99,8 @@ if ($Quick) {
   if ($LASTEXITCODE -ne 0) { Pop-Location; Write-Error "b2l.py failed" }
   & $py prereg_extra.py $Out | Out-Null
   if ($LASTEXITCODE -ne 0) { Pop-Location; Write-Error "prereg_extra.py failed" }
+  & $py sybil_sweep.py $Out | Out-Null
+  if ($LASTEXITCODE -ne 0) { Pop-Location; Write-Error "sybil_sweep.py failed" }
 }
 Pop-Location
 Write-Host "`nReport: $(Join-Path $Out 'REPORT.md')"

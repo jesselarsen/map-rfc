@@ -26,9 +26,11 @@ ingestion path, can raise a score without evidence.
 
 What G2 does \emph{not} give is Sybil-proofness against an adversary who
 buys agreement with real work. Camouflaging Sybils earn W1 weight by
-rating honest providers truthfully. W1 bounds what that buys to each
-observer's direct agreement; E1 shows W2's propagation does not bound it
-(\S\ref{sec:eval-trust}). Cheng and Friedman~\cite{cheng2005sybilproof}
+rating honest providers truthfully. W1 bounds what \emph{one} Sybil buys
+to its direct agreement with the observer, but not what many buy
+together. W1 falls behind self-only weighting once camouflaging Sybils
+outnumber honest requesters about six to one (A10). W2's propagation
+fails sooner (\S\ref{sec:eval-trust}). Cheng and Friedman~\cite{cheng2005sybilproof}
 showed that no
 \emph{symmetric} reputation function is Sybil-proof. \sys{}'s weighting
 is asymmetric, because each observer computes its own. That does not

@@ -36,7 +36,9 @@ charges for feedback.
 Two decisions changed after results were seen:
 \begin{itemize}
 \item the D5 rule's repair (A4), after two-seed numbers;
-\item the minimax re-test (A9), after W2's collapse.
+\item the minimax re-test (A9), after W2's collapse;
+\item the Sybil-count grid (A10), after a one-seed timing probe whose
+  numbers the amendment discloses.
 \end{itemize}
 Both are disclosed with the original readings. The minimax rule was
 pushed before its run, but it was written knowing W2's worst cell. W1's
@@ -49,6 +51,9 @@ worst cell was the new information.
   scope.
 \item \textbf{Cold start.} It favours canary-style verification (L1).
 \item \textbf{Behaviour changes.} On-off attackers exploit decay lag (L3).
+\item \textbf{Camouflage at scale.} Direct agreement bounds each Sybil's
+  weight, not how many Sybils there are. W1 falls behind self-only trust
+  at 6.4 camouflaging Sybils per honest requester (A10).
 \item \textbf{Formal coverage.} We have no model of receipt or checkpoint
   non-repudiation.
 \item \textbf{Keys and privacy.} Key compromise is unrecoverable within

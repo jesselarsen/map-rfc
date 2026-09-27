@@ -892,6 +892,15 @@ receipts the observer itself issued or verified.
 - Honest agreement can be bought: Sybils can run truthful tasks to earn
   weight (the camouflage attack below). W1 bounds what that buys to
   direct agreement with the observer. No weight is passed on to others.
+- *Caveat (informative, evaluation A10).* That bound applies per issuer.
+  It does not limit how many issuers there are. At α = 0.2 under
+  camouflage, W1 held at 1.6 camouflaging Sybils per honest requester.
+  At 6.4 it fell behind W0 (attacker share 0.077 against 0.072), and at
+  25.6 it reached 0.165. It never became worse than random. Each such
+  Sybil buys real tasks, 6.4 times the honest workload at the 6.4 ratio.
+  A deployment that expects camouflaging Sybils to outnumber its honest
+  requesters several-fold should consider W0, or a cap on the total
+  weight of second-hand evidence.
 
 Recompute the weights off the routing critical path, at most once per
 decay period (the evaluation used once per simulated day).

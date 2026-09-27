@@ -11,7 +11,7 @@ We did this because one author, working with a single AI model family
 (Acknowledgments), produced \sys{}, the baselines and the simulator.
 That is the main threat to validity~\cite{nosek2018prereg}.
 After the tag, the plan changed only through dated, appended amendments
-(A1--A9, Appendix~\ref{app:amendments}), and we report every hypothesis
+(A1--A10, Appendix~\ref{app:amendments}), and we report every hypothesis
 whatever its outcome. Two amendments changed a decision and are disclosed
 where they apply:
 \begin{itemize}
@@ -324,6 +324,47 @@ The price is small. Outside on-off and camouflage, W2 is ahead by at most
 on-off it is ahead by 0.003 to 0.040. H1 and the other E1
 verdicts stay as pre-registered, computed with W2.
 
+\paragraph{Sybil count (exploratory, A10).}
+E1 fixes 20 Sybil requesters per adversarial provider. Identities are
+free, though, and W1 weights each camouflaging Sybil by its own agreement
+with the observer, so nothing bounds how many count. Amendment A10,
+pushed before its run, sweeps that number at $\alpha{=}0.2$
+(Table~\ref{tab:sybils}):
+\begin{itemize}
+\item W1 held at 5 and 20 Sybils per provider, which is 0.4 and 1.6 per
+  honest requester.
+\item At 80, or 6.4 per honest requester, it lost to self-only weighting:
+  0.077 against 0.072. At 320 it reached 0.165. It never became worse
+  than random (0.2).
+\item W2 was worse than random at 320 (0.526), even at $\alpha{=}0.2$.
+\item Farming without camouflage stayed flat at every count, so the
+  damage comes from bought agreement.
+\end{itemize}
+The attack is not cheap. Each camouflaging Sybil runs two real tasks per
+round, so at 80 Sybils per provider the attacker buys 6.4 times the
+honest workload. W1's minimax win therefore holds at the Sybil ratio of
+the main grid, not in general, and the specification now says so.
+
+\begin{table}[t]
+\caption{Exploratory (A10): steady-state attacker share under camouflage
+at $\alpha{=}0.2$ versus Sybils per adversarial provider (20 seeds; every
+95\% CI is within $\pm$0.004 of the mean). ``Bought'' is the camouflage
+tasks per round as a multiple of the honest workload. Random selection
+gives 0.2.}
+\label{tab:sybils}
+\small
+\begin{tabular}{@{}rrrrrr@{}}
+\toprule
+Sybils/prov. & Sybils/honest & Bought & W0 & W1 & W2 \\
+\midrule
+5 & 0.4 & 0.4$\times$ & 0.073 & 0.031 & 0.027 \\
+20 & 1.6 & 1.6$\times$ & 0.072 & 0.041 & 0.045 \\
+80 & 6.4 & 6.4$\times$ & 0.072 & 0.077 & 0.196 \\
+320 & 25.6 & 25.6$\times$ & 0.072 & 0.165 & 0.526 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
 \begin{table}[t]
 \caption{A9 minimax re-test: each weighting's worst cell over
 $\alpha\in\{0.05,\ldots,0.5\}\times$ seven attacks (steady-state attacker
@@ -346,7 +387,8 @@ W2 propagation & 0.5, camouflage & 0.550\ci{0.543}{0.557} & 0.867 \\
   \includegraphics[width=\columnwidth]{figs/e1_minimax}
   \caption{Issuer weightings under camouflage and on-off (20 seeds, 95\%
   CIs). W2's propagation collapses once camouflaging Sybils outnumber
-  honest requesters. W1 never does worse than random.}
+  honest requesters. W1 never does worse than random at the 20 Sybils per
+  adversarial provider used here; Table~\ref{tab:sybils} varies that.}
   \label{fig:minimax}
 \end{figure}
 

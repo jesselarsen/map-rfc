@@ -18,7 +18,7 @@ The artifact is one repository, to be released under Apache-2.0 at tag
 \end{itemize}
 \texttt{eval/run\_all.ps1} reproduces every table and figure. It first
 checks golden hashes and that fast and real signing agree. On one 16-thread
-desktop the full run takes about three and a half hours, most of it the W2 trust grid.
+desktop the full run takes about four hours, most of it the W2 trust grid.
 The paper's figures come from \texttt{eval/analysis/make\_figs.py} and
 \texttt{paper/figs/make\_flow.py}.
 
@@ -50,6 +50,11 @@ above them is unchanged since \texttt{prereg-v1}.
   (0.551), while W1 does not (0.206).
 \item[A9] Minimax re-test of the recommended weighting, pushed before its
   run. W1 wins with a worst case of 0.200; W0 reaches 0.348 and W2 0.550.
+\item[A10] Exploratory, pushed before its run: the number of Sybils per
+  adversarial provider, swept at $\alpha{=}0.2$. W1 loses to W0 from 80
+  Sybils per provider (6.4 per honest requester), and W2 becomes worse
+  than random at 320. It adds a Sybil-ratio caveat to the W1
+  recommendation.
 \end{description}
 
 \section{Recommended Parameters}

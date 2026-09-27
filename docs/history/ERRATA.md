@@ -26,6 +26,32 @@ Findings are registered in `paper/REVIEW-redteam-1.md` (RT-xx) and
 `paper/REVIEW-redteam-2.md` (R2-xx), against the paper draft at `c67ad76`.
 Rulings below follow `REVIEW-PROCESS.md` Stage 2.
 
+RULED 2026-09-27 (review finding R2-04, roles 2/3 — Protocol red team,
+Methodology) — the threat model makes identities free, but E1 fixed 20 Sybil
+requesters per adversarial provider. W1's per-issuer cap bounds each issuer,
+not how many issuers there are. So "W1 never does worse than random" and the
+A9 minimax win were shown only at that ratio, and the attack's cost in real
+tasks was never reported. — RULING: **ACCEPT**. Amendment A10 (exploratory)
+was committed and pushed before its run (`e35aed3`). It discloses a one-seed
+timing probe seen before it was written. The sweep covers 5 / 20 / 80 / 320
+Sybils per provider at α = 0.2, camouflage plus a farming control, 20 seeds:
+- W1 held at 1.6 Sybils per honest requester, lost to W0 at 6.4 (0.077
+  against 0.072) and reached 0.165 at 25.6. It was never worse than random.
+- W2 was worse than random at 25.6 (0.526).
+- Farming was flat. The attacker buys 6.4× the honest workload at 6.4.
+The paper changes:
+- evaluation: a new "Sybil count" paragraph and Table `tab:sybils`; the
+  Fig. 4 caption now names the Sybil ratio;
+- security: G2 says the bound is per Sybil, not in aggregate;
+- related work, conclusion, Limitations and the Appendix A10 entry match;
+- Limitations discloses the probe.
+Spec layer §8.4 gains the informative caveat pre-committed in A10.
+Editorial; no wire change. — Implemented in `eval/configs/e1_sybil_sweep.toml`,
+`eval/analysis/sybil_sweep.py`, `eval/results/5bc7702/{e1-sybil-sweep.csv,
+SYBIL-SWEEP.md}`, `eval/run_all.ps1`, `eval/HYPOTHESES.md`, `spec/layer.md`
+§8.4, `spec/CHANGELOG.md`, and
+`paper/sections/{evaluation,security,related,conclusion,limitations,appendix}.tex`.
+
 RULED 2026-09-27 (review finding R2-08, roles 1/2/3 — PC, Protocol red team,
 Methodology) — resuming from the output prefix assumes that all task state is
 in the delivered Parts. It does not carry hidden provider state (tool results,

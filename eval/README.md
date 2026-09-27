@@ -30,6 +30,8 @@
     `REPORT.md` does not cover. These are E1 time to detect and
     all-rounds share, checkpoint bytes per Part, the 16-core E3b, and the
     E3d message-rate crossover;
+  - `sybil_sweep.py` (Amendment A10) writes `SYBIL-SWEEP.md` from
+    `e1-sybil-sweep.csv`;
   - `stats.py` is the percentile bootstrap (10,000 resamples, seeds
     resampled jointly for comparisons).
 
@@ -48,8 +50,8 @@ pwsh eval/run_all.ps1 -Quick     # 2 seeds per point: plumbing only, not a resul
 3. runs the Criterion benches (`map-rs/sim/benches/crypto.rs`) and copies
    their estimates in;
 4. writes `REPORT.md`, `figs/`, `PREREG-EXTRA.md`, `MINIMAX.md` (the
-   Amendment A9 rule) and `B2L.md` (exploratory). The last three need 20
-   seeds per cell, so `-Quick` skips them.
+   Amendment A9 rule), `B2L.md` (exploratory) and `SYBIL-SWEEP.md` (A10).
+   All but the first two need 20 seeds per cell, so `-Quick` skips them.
 
 `e1_main.toml` carries `weights = "D5_WINNER"` until the D5 decision has
 been made from `e1-d5.csv` and recorded as an Amendment.

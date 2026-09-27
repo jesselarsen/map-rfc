@@ -507,3 +507,22 @@ run it describes).**
   gets a stated Sybil-ratio caveat. That is a P8-style spec decision,
   recorded separately.
 - *Script:* `analysis/sybil_sweep.py` writes `results/5bc7702/SYBIL-SWEEP.md`.
+
+**A10 result (2026-09-27).** `e1-sybil-sweep` built from `e35aed3` (the
+commit that carries A10): 480 jobs, CSV SHA-256 `2d1be571…`.
+`analysis/sybil_sweep.py` writes `results/5bc7702/SYBIL-SWEEP.md`.
+Camouflage, α = 0.2, steady-state attacker share at 5 / 20 / 80 / 320
+Sybils per adversarial provider:
+- W0: 0.073 / 0.072 / 0.072 / 0.072;
+- W1: 0.031 / 0.041 / 0.077 / 0.165;
+- W2: 0.027 / 0.045 / 0.196 / 0.526.
+
+Readings by the rules above:
+- W1 degrades and loses to self-only at 80 and 320. It is never worse
+  than random.
+- W2 degrades and loses to self-only at 80 and 320, and is worse than
+  random at 320.
+- The farming control is flat for every arm, W1 at 0.027 at every count.
+
+As fixed above, layer §8.4 gains an informative Sybil-ratio caveat on the
+W1 recommendation.
