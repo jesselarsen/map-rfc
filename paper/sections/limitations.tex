@@ -1,11 +1,16 @@
 \section{Limitations and Threats to Validity}
 \label{sec:limitations}
 
-\paragraph{One author.}
-The same person wrote \sys{}, both implementations, the baselines and the
-simulator. The Go implementation was written with the Rust source open,
-so it is a second implementation, not an independent one. Our
-mitigations:
+\paragraph{One author, one model family.}
+One person directed \sys{}, both implementations, the baselines and the
+simulator. Much of that work, and of this paper, was written with a
+single AI model family (Acknowledgments). That concentrates the risk of
+correlated error: the same model lineage built the system and the
+baselines that test it, and it also ran the reviews of both. Those
+reviews ran in separate sessions without the drafting context, but they
+are not independent human review. The Go implementation was written with
+the Rust source open, so it is a second implementation, not an
+independent one. Our mitigations:
 \begin{itemize}
 \item the pre-registration;
 \item replicating a third party's published curve before comparing
@@ -14,7 +19,7 @@ mitigations:
   weighting, which makes H1 harder to meet;
 \item publishing all code, configurations and per-seed CSVs.
 \end{itemize}
-None of these substitutes for independent replication.
+None of these substitutes for independent replication or for review by people.
 
 \paragraph{Simulation, not deployment.}
 E1--E4 run in simulation. The world model has fixed success probabilities,

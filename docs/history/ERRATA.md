@@ -26,6 +26,29 @@ Findings are registered in `paper/REVIEW-redteam-1.md` (RT-xx) and
 `paper/REVIEW-redteam-2.md` (R2-xx), against the paper draft at `c67ad76`.
 Rulings below follow `REVIEW-PROCESS.md` Stage 2.
 
+RULED 2026-09-27 (review finding R2-09, roles 1/4 — PC, Claims auditor) — the
+paper had no generative-AI disclosure. Of the 90 commits up to its first
+draft, 81 carry a Claude co-author trailer, and review 1 was run by the model
+that drafted the paper. Yet the Limitations section said "the same person
+wrote MAP, both implementations, the baselines and the simulator", and the
+v1 review was called "an external review". `MAP Review Results/` shows that
+review was eight AI-model sessions. — RULING: **ACCEPT**. Changes:
+- a new `acks` section discloses the use of Claude (Claude Code) for code,
+  specification and paper text, and all the reviews, and gives the commit
+  count. ACM requires disclosure in the work; arXiv holds authors
+  responsible for all content;
+- Limitations now reads "One author, one model family" and names the
+  correlated-error risk: the same model lineage built the system and the
+  baselines and reviewed both;
+- the design, security, evaluation and implementation sections say the
+  earlier review was model sessions, and they no longer say one person
+  "wrote" the code.
+The author's own attestation ("directed the work, reviewed the results,
+takes full responsibility") is listed in `paper/README.md` for the author to
+confirm before posting. Editorial; no wire change. — Implemented in
+`paper/main.tex`, `paper/sections/{limitations,design,security,evaluation,implementation}.tex`
+and `paper/README.md`.
+
 RULED 2026-09-27 (review finding RT-08, roles 1/3 — PC, Methodology; widened
 in register 2) — the abstract and conclusion quoted the favourable half of H1
 (27 of 28 against the canary baseline B2), not the pre-registered verdict

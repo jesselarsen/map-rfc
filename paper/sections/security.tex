@@ -58,8 +58,10 @@ more than one interval ahead of a covering voucher. Simulation asserted
 both bounds in every run (H5).
 
 \paragraph{Reviewer findings.}
-Before this work, an external review demonstrated exploits against the
-first version of the code. Here is how each was resolved:
+Before this work, a role-based review demonstrated exploits against the
+first version of the code. It ran as eight AI-model sessions with no
+access to the implementation sessions (Acknowledgments), and was not a
+human review. Here is how each finding was resolved:
 \begin{itemize}
 \item \textbf{Receipt farming.} A Sybil ring reached a score of 0.998 in
   about 150\,ms of receipt generation. Fixed by R-2 to R-4, T-2 and T-3.

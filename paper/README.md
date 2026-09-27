@@ -52,3 +52,11 @@ python paper/figs/make_flow.py
    an endorsement.
 4. **Compile and proofread the PDF.** Check the width of Table 3 (the
    related-work table spans both columns) and figure sizing.
+5. **Confirm the generative-AI disclosure** (`main.tex`, the `acks`
+   environment). Its factual parts come from the repository: the commit
+   trailers, the review registers, and `MAP Review Results/`. Two
+   sentences are the author's own attestation and need the author's
+   confirmation: that the author "directed the work, reviewed the results,
+   and takes full responsibility for the paper's contents". ACM requires
+   AI use to be disclosed in the work, and arXiv holds authors responsible
+   for all content, however it was generated.
