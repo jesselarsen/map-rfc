@@ -22,6 +22,11 @@ pub const ALL: &[Scenario] = &[
         run: e1::run,
     },
     Scenario {
+        name: "e1t",
+        metrics: e1::METRICS_T,
+        run: e1::run_targeted,
+    },
+    Scenario {
         name: "e2",
         metrics: e2::METRICS,
         run: e2::run,

@@ -600,3 +600,49 @@ Readings by the rules above:
 The expectation held for established requesters: without memory the share
 tracks discovery's once honest candidates become rare, and memory recovers
 most of it. New requesters are not protected.
+
+**A12 (2026-09-27, EXPLORATORY; not a hypothesis test; written and pushed
+before any run of the code it describes).**
+- *Trigger:* review finding RT-04. The strongest attack on W1 was never run.
+  In it, camouflaging Sybils report truthfully on most providers, which
+  earns them nearly full agreement weight, and lie about a few targets. E1's
+  "combined" attack has no camouflage, and "slander" spreads its negatives
+  over all honest providers.
+- *Simulator change (map-sim), which leaves every existing E1 result
+  unchanged:*
+  - A new attack, `targeted_slander`. Each Sybil runs `camouflage_tasks`
+    truthful, dual-signed tasks per round against honest *non-target*
+    providers. It also files `slander_receipts` unilateral negatives per
+    round, only against `slander_targets` fixed honest providers (default
+    5, the first 5 honest indices; qualities are i.i.d.).
+  - A new scenario, `e1t`. It is E1 plus two metrics: `target_share_ss`
+    and `target_share_all`, the share of honest requesters' executions that
+    go to the targets.
+  - The E1 scenario, its CSV columns and its RNG stream are untouched.
+    Before this amendment the golden smoke test and the E1 and weighting
+    equivalence tests passed, and `e1_camo_explore` reproduced its
+    committed CSV hash.
+- *No probe:* no `targeted_slander` or `e1t` configuration has been run
+  before this amendment was pushed.
+- *Config:* `configs/e1_targeted_slander.toml`: α = 0.2, 5 targets, 20 seeds,
+  `--fast-crypto` (A1).
+  - attack ∈ {none, targeted_slander}; camouflage_tasks ∈ {0, 2}.
+  - arm ∈ {B1, Ours-L}; weights ∈ {W0, W1, W2}. B1 ignores weights, so its
+    three rows are replicates, and `none` does not vary with
+    camouflage_tasks.
+  - Output: `results/5bc7702/e1-targeted-slander.csv`.
+- *Reported, whatever the outcome:* per cell, mean [95% CI] of the
+  steady-state target share and attacker share, and the relative harm
+  1 − share(attack) / share(none).
+- *Reading, fixed now:*
+  - the attack *harms the targets* in a cell if its steady-state target
+    share CI lies entirely below the same arm and weights under `none`;
+  - *camouflage worsens it* if, under the attack, the camouflage_tasks = 2
+    CI lies entirely below the camouflage_tasks = 0 CI.
+- *Expectation, written down now:*
+  - B1 harms the targets with or without camouflage;
+  - W0 does not harm them;
+  - W1 and W2 do not harm them without camouflage (the Sybils have no
+    agreement), and do with it. That is RT-04's claim.
+- *Script:* `analysis/targeted_slander.py` writes
+  `results/5bc7702/TARGETED-SLANDER.md`.

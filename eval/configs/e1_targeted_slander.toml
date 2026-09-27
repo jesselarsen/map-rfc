@@ -1,0 +1,16 @@
+# EXPLORATORY (Amendment A12): review finding RT-04. Camouflaging Sybils
+# that slander a few fixed honest targets. camouflage_tasks = 0 is the
+# uncamouflaged control; attack = "none" is the target-share baseline.
+scenario = "e1t"
+name = "e1-targeted-slander"
+seeds = 20
+
+[params]
+alpha = 0.2
+slander_targets = 5
+
+[sweep]
+attack = ["none", "targeted_slander"]
+camouflage_tasks = [0, 2]
+arm = ["b1", "ours"]
+weights = ["w0", "w1", "w2"]

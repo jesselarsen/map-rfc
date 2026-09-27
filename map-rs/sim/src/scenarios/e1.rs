@@ -55,6 +55,21 @@ pub const METRICS: &[&str] = &[
     "receipts",
 ];
 
+/// Scenario `e1t` (Amendment A12): E1's metrics plus the share of honest
+/// requesters' executions that go to the slander targets.
+pub const METRICS_T: &[&str] = &[
+    "attacker_share_ss",
+    "attacker_share_all",
+    "honest_success_ss",
+    "honest_success_all",
+    "time_to_detect",
+    "attacker_share_r1_5",
+    "attacker_share_off_start",
+    "receipts",
+    "target_share_ss",
+    "target_share_all",
+];
+
 pub const CAP: &str = "map:cap:e1";
 pub const DAY_MS: u64 = 86_400_000;
 const SKEW_MS: u64 = 120_000;
@@ -88,6 +103,9 @@ pub enum Attack {
     OnOff,
     Slander,
     Combined,
+    /// A12: camouflaging Sybils that file negatives only against a few
+    /// fixed honest targets.
+    TargetedSlander,
 }
 
 impl Attack {
@@ -117,6 +135,8 @@ pub struct Cfg {
     pub camouflage_tasks: usize,
     pub collusion_receipts: usize,
     pub slander_receipts: usize,
+    /// A12: number of honest providers `TargetedSlander` slanders.
+    pub slander_targets: usize,
     pub whitewash_every: usize,
     pub onoff_period: usize,
     pub q_adv: f64,
@@ -161,6 +181,7 @@ pub fn cfg_from(p: &Params) -> Result<Cfg, String> {
         "onoff" => Attack::OnOff,
         "slander" => Attack::Slander,
         "combined" => Attack::Combined,
+        "targeted_slander" => Attack::TargetedSlander,
         a => return Err(format!("unknown attack `{a}`")),
     };
     Ok(Cfg {
@@ -181,6 +202,7 @@ pub fn cfg_from(p: &Params) -> Result<Cfg, String> {
         camouflage_tasks: p.u64_or("camouflage_tasks", 2)? as usize,
         collusion_receipts: p.u64_or("collusion_receipts", 10)? as usize,
         slander_receipts: p.u64_or("slander_receipts", 10)? as usize,
+        slander_targets: p.u64_or("slander_targets", 5)? as usize,
         whitewash_every: p.u64_or("whitewash_every", 5)? as usize,
         onoff_period: p.u64_or("onoff_period", 10)? as usize,
         q_adv: p.f64_or("q_adv", 0.20)?,
@@ -289,10 +311,26 @@ pub fn run(p: &Params, rng: &mut Rng, mode: CryptoMode) -> Result<Vec<f64>, Stri
     Ok(simulate(&cfg, rng, mode, None))
 }
 
+/// Scenario `e1t` (A12): E1 plus target-share metrics.
+pub fn run_targeted(p: &Params, rng: &mut Rng, mode: CryptoMode) -> Result<Vec<f64>, String> {
+    let cfg = cfg_from(p)?;
+    let mut target = [0.0f64; 2];
+    let mut out = simulate_with(&cfg, rng, mode, None, Some(&mut target));
+    out.extend_from_slice(&target);
+    Ok(out)
+}
+
 /// Run E1. If `dump` is set, every admitted receipt is also appended to it
 /// (issuer, provider identity, ended_ms, Verified), for the
 /// TrustProjection equivalence test.
-pub fn simulate(cfg: &Cfg, rng: &mut Rng, mode: CryptoMode, mut dump: Option<&mut Dump>) -> Vec<f64> {
+pub fn simulate(cfg: &Cfg, rng: &mut Rng, mode: CryptoMode, dump: Option<&mut Dump>) -> Vec<f64> {
+    simulate_with(cfg, rng, mode, dump, None)
+}
+
+/// As `simulate`. If `target_out` is set, it receives the steady-state and
+/// all-rounds share of honest executions that went to the slander targets
+/// (A12). Tracking the targets draws nothing from the RNG.
+pub fn simulate_with(cfg: &Cfg, rng: &mut Rng, mode: CryptoMode, mut dump: Option<&mut Dump>, target_out: Option<&mut [f64; 2]>) -> Vec<f64> {
     let n_adv = (cfg.alpha * cfg.providers as f64).round() as usize;
     let mut next_ident: u32 = 0;
     let mut providers: Vec<Provider> = (0..cfg.providers)
@@ -307,7 +345,7 @@ pub fn simulate(cfg: &Cfg, rng: &mut Rng, mode: CryptoMode, mut dump: Option<&mu
     // Issuer indices: 0..R honest requesters, then Sybils, then colluding
     // providers acting as requesters.
     let requesters: Vec<Keypair> = (0..cfg.requesters).map(|_| Keypair::from_seed(rng.bytes32())).collect();
-    let uses_sybils = cfg.attack.farming() || cfg.attack.slander();
+    let uses_sybils = cfg.attack.farming() || cfg.attack.slander() || cfg.attack == Attack::TargetedSlander;
     let sybils: Vec<Keypair> = if uses_sybils {
         (0..n_adv * cfg.sybils_per_adv).map(|_| Keypair::from_seed(rng.bytes32())).collect()
     } else {
@@ -330,6 +368,14 @@ pub fn simulate(cfg: &Cfg, rng: &mut Rng, mode: CryptoMode, mut dump: Option<&mu
 
     let mut execs = vec![0u64; cfg.rounds];
     let mut adv_execs = vec![0u64; cfg.rounds];
+    // A12 slander targets: the first `slander_targets` honest providers
+    // (honest qualities are i.i.d., so this is a random choice). No RNG.
+    let targets: Vec<usize> = (n_adv..cfg.providers).take(cfg.slander_targets).collect();
+    let mut is_target = vec![false; providers.len()];
+    for &i in &targets {
+        is_target[i] = true;
+    }
+    let mut tgt_execs = vec![0u64; cfg.rounds];
     let mut tasks = vec![0u64; cfg.rounds];
     let mut successes = vec![0u64; cfg.rounds];
     // Per-observer issuer weights for W1/W2 (issuer -> weight, self excluded).
@@ -435,6 +481,9 @@ pub fn simulate(cfg: &Cfg, rng: &mut Rng, mode: CryptoMode, mut dump: Option<&mu
                     if pv.adv {
                         adv_execs[r] += 1;
                     }
+                    if is_target[i] {
+                        tgt_execs[r] += 1;
+                    }
                     let ok = rng.bernoulli(pv.q);
                     if evidence_arm {
                         receipt_n += 1;
@@ -489,6 +538,25 @@ pub fn simulate(cfg: &Cfg, rng: &mut Rng, mode: CryptoMode, mut dump: Option<&mu
                 pending.push(Pending { issuer, provider: pv.ident, ended_ms, v });
             };
             let honest: Vec<usize> = (0..providers.len()).filter(|i| !providers[*i].adv).collect();
+            if cfg.attack == Attack::TargetedSlander && !targets.is_empty() {
+                // Camouflage on honest non-targets (truthful, dual-signed), and
+                // unilateral negatives against the targets only.
+                let cover: Vec<usize> = honest.iter().copied().filter(|i| !is_target[*i]).collect();
+                for si in 0..sybils.len() {
+                    if !cover.is_empty() {
+                        for _ in 0..cfg.camouflage_tasks {
+                            let h = cover[rng.below(cover.len())];
+                            let ok = rng.bernoulli(providers[h].q);
+                            let out = if ok { Outcome::Ok } else { Outcome::Failed };
+                            attack_receipt(&sybils[si], sybil_base + si as u32, &providers[h], out, true, &mut receipt_n, &mut pending);
+                        }
+                    }
+                    for _ in 0..cfg.slander_receipts {
+                        let h = targets[rng.below(targets.len())];
+                        attack_receipt(&sybils[si], sybil_base + si as u32, &providers[h], Outcome::Failed, false, &mut receipt_n, &mut pending);
+                    }
+                }
+            }
             for a in 0..n_adv {
                 if cfg.attack.farming() {
                     for s in 0..cfg.sybils_per_adv {
@@ -541,6 +609,13 @@ pub fn simulate(cfg: &Cfg, rng: &mut Rng, mode: CryptoMode, mut dump: Option<&mu
                 }
             }
         }
+    }
+    if let Some(out) = target_out {
+        let share = |lo: usize, hi: usize| -> f64 {
+            let (a, b): (u64, u64) = (tgt_execs[lo..hi].iter().sum(), execs[lo..hi].iter().sum());
+            if b == 0 { 0.0 } else { a as f64 / b as f64 }
+        };
+        *out = [share(cfg.rounds / 2, cfg.rounds), share(0, cfg.rounds)];
     }
     metrics(cfg, n_adv, &execs, &adv_execs, &tasks, &successes, receipt_n)
 }
