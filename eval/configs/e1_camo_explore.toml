@@ -1,0 +1,14 @@
+# EXPLORATORY (Amendment A8), not pre-registered: e1_main showed W2 losing
+# to random selection under farming-with-camouflage at alpha = 0.5. The D5
+# comparison only ran at alpha = 0.2, so this repeats it at alpha 0.3 and 0.5.
+scenario = "e1"
+name = "e1-camo-explore"
+seeds = 20
+
+[params]
+arm = "ours"
+attack = "camouflage"
+
+[sweep]
+alpha = [0.3, 0.5]
+weights = ["w0", "w1", "w2"]

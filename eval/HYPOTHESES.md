@@ -405,3 +405,25 @@ changes).**
     combined, takes 245 s.
 - The full evaluation is re-run at the commit that carries this
   amendment.
+
+**A8 (2026-09-27, EXPLORATORY; not a hypothesis test).**
+- *Trigger:* in `e1_main` at 5bc7702, Ours-L (W2) under farming with
+  camouflage had a steady-state attacker share of 0.550 at α = 0.5. That
+  is worse than random selection (B0 0.500). D5 compared the weightings
+  only at α = 0.2.
+- `configs/e1_camo_explore.toml` repeats the D5 comparison under
+  camouflage at α ∈ {0.3, 0.5}: arm `ours`, W0/W1/W2, 20 seeds, binary
+  at 5bc7702. Output: `results/5bc7702/e1-camo-explore.csv`. Steady-state
+  attacker share [95% CI]:
+  - α = 0.3: W0 0.118 [0.117, 0.119], W1 0.072 [0.071, 0.074], W2 0.116
+    [0.114, 0.118].
+  - α = 0.5: W0 0.237 [0.236, 0.238], W1 0.206 [0.201, 0.212], W2 0.551
+    [0.545, 0.558]. Honest success is 0.961 / 0.978 / 0.866.
+- *Reading:* at α = 0.5 each adversarial provider's 20 camouflaging
+  Sybils outnumber the honest requesters 4 : 1 (2,000 against 500).
+  Their truthful reports about honest providers earn them agreement
+  edges, and W2's propagation concentrates mass in that cluster. W1 uses
+  only direct agreement with the observer and does not collapse.
+- This does not change D5 as pre-registered: W2 won at α = 0.2 under the
+  A4 rule. Whether the spec's recommended default follows D5 or this
+  exploratory result is a P8 decision, recorded separately.
