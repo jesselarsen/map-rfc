@@ -14,9 +14,13 @@ thin layer over A2A and has three parts:
 Against pre-registered hypotheses, \sys{}'s local trust cut the attacker
 share to at most half that of a canary baseline in 27 of 28 settings. It
 survived the slander that collapses a global ledger, and countersigned
-resumption wasted 0.42\% of what restarting does. The evaluation also
-exposed where \sys{} loses: cold start, on-off behaviour, and identifier
-grinding. It showed that our own pre-registered trust propagation
+resumption wasted 0.42\% of what restarting does. In an exploratory
+comparison with the canary-plus-ledger design that Wang et al.\ describe,
+\sys{} with the same canary was better in 25 of 35 settings, with
+overlapping CIs in the other 10. The canary and \sys{}'s memory are
+complementary. The evaluation also exposed where \sys{} loses: cold
+start, on-off behaviour, identifier grinding, and, without a canary,
+whitewashing and slander relative to that design. It showed that our own pre-registered trust propagation
 collapses under Sybil-majority camouflage. That finding changed the
 recommended default.
 
