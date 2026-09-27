@@ -26,6 +26,20 @@ Findings are registered in `paper/REVIEW-redteam-1.md` (RT-xx) and
 `paper/REVIEW-redteam-2.md` (R2-xx), against the paper draft at `c67ad76`.
 Rulings below follow `REVIEW-PROCESS.md` Stage 2.
 
+RULED 2026-09-27 (review finding R2-28, role 4 — Claims auditor; raised while
+fixing R2-02) — Appendix A says `eval/run_all.ps1` reproduces every table and
+figure. It did not run the A8/A9 sweeps (`e1_camo_explore`, `e1_minimax`),
+`minimax.py` or `b2l.py`. Without `e1-minimax.csv`, `make_figs.py` silently
+skipped Fig. 4, so Table 2 (minimax) and Fig. 4 came from one-off commands. —
+RULING: **ACCEPT**. `run_all.ps1` now runs both sweeps after `e1_main`, in fast
+mode as the committed runs did, and then `minimax.py` and `b2l.py`. `-Quick`
+skips the two scripts because they require 20 seeds per cell. Verified: the
+sweeps re-run at HEAD reproduce the committed CSV SHA-256s. The only simulator
+change since 5bc7702 is the additive `ProjParams::recommended()` constructor.
+`minimax.py` and `b2l.py` reproduce the committed MINIMAX.md and B2L.md byte
+for byte. Tooling only; no paper text or wire change. — Implemented in
+`eval/run_all.ps1` and `eval/README.md`.
+
 RULED 2026-09-27 (review finding R2-02, roles 1/3/4 — PC, Methodology, Claims
 auditor) — E1 ran B2L, the canary plus provider-signed ledger that Wang et al.'s
 prose describes, and Fig. 3 plotted it, but the text never reported it. B2L

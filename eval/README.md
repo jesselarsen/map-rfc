@@ -43,7 +43,9 @@ pwsh eval/run_all.ps1 -Quick     # 2 seeds per point: plumbing only, not a resul
    re-checks the E1 realcheck;
 3. runs the Criterion benches (`map-rs/sim/benches/crypto.rs`) and copies
    their estimates in;
-4. writes `REPORT.md` and `figs/`.
+4. writes `REPORT.md`, `figs/`, `MINIMAX.md` (the Amendment A9 rule) and
+   `B2L.md` (exploratory). The last two need 20 seeds per cell, so `-Quick`
+   skips them.
 
 `e1_main.toml` carries `weights = "D5_WINNER"` until the D5 decision has
 been made from `e1-d5.csv` and recorded as an Amendment.

@@ -79,6 +79,7 @@ figure matches REPORT.md/MINIMAX.md. Three do not; see R2-07 and R2-11.
 | R2-25 | MINOR | 1,3 | E2; related work | E2's c trade-off is Young's first-order optimum (c* ≈ √(2κ/λ); Young 1974, Daly 2006), and nothing on checkpoint-interval theory is cited. Per-checkpoint countersigning is also gradual fair exchange, where c − 1 is the classic exposure bound (Asokan et al.) | ACCEPT-EDITORIAL |
 | R2-26 | NIT | 4 | impl §Rust | "A 2,535-line A2A adapter" includes `ollama-provider` (363 lines, v1); the `a2a` adapter alone is 2,172 lines. The Rust count leaves out conformance and adapters, while Go's 9,274 includes its conformance suite (878) and `cmd` (614), so the two are not comparable | fix |
 | R2-27 | NIT | 4 | eval L1 bullet | "Up to 0.217 at α = 0.5": the maximum is 0.220 (on-off) | fix |
+| R2-28 | MINOR | 4 | appendix A "`run_all.ps1` reproduces every table and figure" | Found while fixing R2-02. `run_all.ps1` does not run the A8/A9 sweeps (`e1_camo_explore`, `e1_minimax`), `minimax.py` or `b2l.py`. Without `e1-minimax.csv`, `make_figs.py` silently skips Fig. 4, so Table 2 and Fig. 4 were not reproduced by the one command | ACCEPT |
 
 ---
 

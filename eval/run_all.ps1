@@ -1,6 +1,7 @@
 # One-command evaluation (eval/HYPOTHESES.md). Results go to
 # eval/results/<git-sha>/: one CSV + env.json per experiment, bench/,
-# REPORT.md (every hypothesis verdict) and figs/.
+# REPORT.md (every hypothesis verdict), MINIMAX.md (Amendment A9), B2L.md
+# (exploratory) and figs/.
 #
 # Usage:  pwsh eval/run_all.ps1 [-Quick] [-Out DIR] [-SkipBench]
 #   -Quick     2 seeds per point (plumbing check; not a result)
@@ -49,6 +50,8 @@ if ($main -match 'weights = "D5_WINNER"') {
   Write-Warning "e1_main.toml still has weights = D5_WINNER: apply the D5 rule (REPORT.md), record it in HYPOTHESES.md Amendments, set it, and re-run."
 } else {
   Run e1_main -Fast
+  Run e1_camo_explore -Fast   # exploratory (Amendment A8)
+  Run e1_minimax -Fast        # W0 and W1 on the full grid (Amendment A9)
 }
 Run e3a
 Run e3b
@@ -84,5 +87,14 @@ Write-Host "`n== analysis =="
 Push-Location (Join-Path $eval "analysis")
 & $py analyze.py $Out
 & $py make_figs.py $Out
+# minimax.py (the A9 rule) and b2l.py (exploratory) require 20 seeds per cell.
+if ($Quick) {
+  Write-Host "  -Quick: skipping minimax.py and b2l.py (they require 20 seeds per cell)"
+} elseif (Test-Path (Join-Path $Out "e1-main.csv")) {
+  & $py minimax.py $Out | Out-Null
+  if ($LASTEXITCODE -ne 0) { Pop-Location; Write-Error "minimax.py failed" }
+  & $py b2l.py $Out | Out-Null
+  if ($LASTEXITCODE -ne 0) { Pop-Location; Write-Error "b2l.py failed" }
+}
 Pop-Location
 Write-Host "`nReport: $(Join-Path $Out 'REPORT.md')"
