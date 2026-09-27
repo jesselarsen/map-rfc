@@ -58,9 +58,39 @@ without the requester signing that wider label (Z-3).
 \paragraph{G4 Bounded exposure.}
 Suppose vouchers are issued per checkpoint and the requester follows M-6.
 Then the requester never authorizes more than the price of acknowledged
-usage plus the credit it chooses to extend. The provider never delivers
-more than one interval ahead of a covering voucher. Simulation asserted
-both bounds in every run (H5).
+usage plus the credit it chooses to extend. That is not one interval: its
+exposure is whatever credit it decides to extend. The provider never
+delivers more than one interval ahead of a covering voucher. Its unpaid
+work per task is therefore at most $\min(L,c)$ Parts on the fallback
+path, plus the 2.5--5 Parts in flight on the primary path
+(\S\ref{sec:eval-meter}). The simulation checks both bounds in every run
+(H5), but they hold by construction.
+
+\paragraph{Dishonest requesters.}
+\sys{} protects requesters from providers far better than it protects
+providers from requesters.
+\begin{itemize}
+\item \textbf{Free-riding.} A requester that stops countersigning or
+  paying gets at most the unpaid work above for free: $\min(L,c)$ Parts
+  per task. Requester identities are free, and \sys{} computes no trust
+  \emph{in requesters}, so a free-rider can repeat this indefinitely.
+  The C-6 trade-off sharpens it: at the synchronous default $c{=}32$, any
+  task of 32 Parts or fewer can be taken whole. A provider's defences are
+  local policy, outside this layer: a short first interval, a rail that
+  takes payment up front, or its own record of requesters.
+\item \textbf{Receipt refusal.} A requester can refuse to countersign the
+  final receipt. That withholds positive evidence the provider earned,
+  and R-4 leaves the provider no way to record it alone.
+\item \textbf{Vindictive customers.} A genuine customer's unilateral
+  negative receipt is admitted, weighted by the observer's agreement with
+  that customer. The provider can dispute it but cannot disprove it,
+  which is the same asymmetry \S\ref{sec:intro} criticises in
+  provider-signed receipts, with the roles reversed. Nothing binds the
+  receipt to a real task either, because the provider chose the A2A task
+  identifier and never signed. Issuer weighting bounds the damage one
+  customer can do (T-3, the per-issuer cap). It does not bound the damage
+  a customer the observer already agrees with can do.
+\end{itemize}
 
 \paragraph{Reviewer findings.}
 Before this work, a role-based review demonstrated exploits against the

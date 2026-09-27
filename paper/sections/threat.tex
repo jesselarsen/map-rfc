@@ -7,7 +7,11 @@ number of requester and provider identities at negligible cost (a key pair
 costs about $16\,\mu$s on one core, \S\ref{sec:eval-discovery}). It can
 collude across all of them, sign anything with keys it holds, publish
 arbitrary receipts to any shared store, refuse to countersign, and change
-behaviour over time. It controls a fraction $f$ of DHT routers and can
+behaviour over time. As a requester, it can accept Parts and then
+withhold countersignatures or vouchers, refuse to countersign a final
+receipt, and file unilateral negative receipts about providers it has
+used. We analyse these requester attacks (\S\ref{sec:security}) but do
+not simulate them, because their bounds follow directly from the rules. It controls a fraction $f$ of DHT routers and can
 answer lookups arbitrarily. It cannot forge signatures of honest keys or
 break SHA-256. We do not model network-level denial of service or
 compromised honest keys. Key rotation and revocation are out of scope in
@@ -48,8 +52,10 @@ records outside the shard they belong to), \emph{identifier grinding}
 \item[G3 Safe resumption.] A task resumes only from a state that the
   requester verified. A failed provider is owed at most the usage of its
   last countersigned checkpoint.
-\item[G4 Bounded exposure.] Under voucher-per-checkpoint metering, neither
-  side is exposed beyond one checkpoint interval of usage.
+\item[G4 Bounded exposure.] Under voucher-per-checkpoint metering, a
+  requester pays at most for acknowledged usage plus the credit it chooses
+  to extend. A provider's unpaid work per task is at most
+  $\min(L, c)$ Parts.
 \item[G5 Composability.] Plain A2A clients keep working, and \sys{} adds
   no payment method, transport or task protocol of its own.
 \end{description}

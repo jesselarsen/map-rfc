@@ -26,6 +26,36 @@ Findings are registered in `paper/REVIEW-redteam-1.md` (RT-xx) and
 `paper/REVIEW-redteam-2.md` (R2-xx), against the paper draft at `c67ad76`.
 Rulings below follow `REVIEW-PROCESS.md` Stage 2.
 
+RULED 2026-09-27 (review finding RT-05, role 2 — Protocol red team; also
+resolves RT-19) — dishonest requesters were not modelled. They can
+free-ride up to c Parts per task, refuse the final receipt, and file
+unilateral negatives about providers they did use. MAP has no provider-side
+trust in requesters. RT-19: G4's "neither side is exposed beyond one
+interval" is false for the requester, whose exposure is acknowledged usage
+plus the credit it chooses to extend (M-6). — RULING: **ACCEPT**, as an
+analytic model rather than a simulation. The bounds follow directly from
+C-5, M-6 and §9.4, so a simulation would only re-derive the arithmetic
+(RT-13's point). Changes:
+- the threat model now gives the adversary requester capabilities;
+- G4 is restated (RT-19);
+- a new security paragraph, "Dishonest requesters":
+  - free-riding is at most min(L, c) Parts per task (plus in-flight Parts
+    on the asynchronous path) and unbounded across fresh identities; at
+    the new synchronous default c = 32, any task of 32 Parts or fewer can
+    be taken whole, a trade-off RT-01's change sharpens. Mitigations are
+    local policy;
+  - receipt refusal withholds earned positive evidence;
+  - vindictive customers: a genuine customer's unilateral negatives can't
+    be disproved and aren't bound to a real task, the mirror of the
+    intro's critique; issuer weighting bounds a stranger, not an issuer
+    the observer already agrees with;
+- a Limitations bullet;
+- spec §6.6's gaming table gains two requester-side rows (informative),
+  recorded in CHANGELOG.
+The unpaid-Parts figure was reported under RT-06. Editorial; no wire
+change. — Implemented in `paper/sections/{threat,security,limitations}.tex`,
+`spec/layer.md` §6.6 and `spec/CHANGELOG.md`.
+
 RULED 2026-09-27 (review finding RT-07, roles 1/3 — PC, Methodology; also
 resolves R2-11) — H2's saving belongs to checkpointing, not countersigning.
 Provider-only resumption also checkpoints and wastes nothing.
