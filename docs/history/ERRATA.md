@@ -26,6 +26,24 @@ Findings are registered in `paper/REVIEW-redteam-1.md` (RT-xx) and
 `paper/REVIEW-redteam-2.md` (R2-xx), against the paper draft at `c67ad76`.
 Rulings below follow `REVIEW-PROCESS.md` Stage 2.
 
+RULED 2026-09-27 (review finding RT-08, roles 1/3 — PC, Methodology; widened
+in register 2) — the abstract and conclusion quoted the favourable half of H1
+(27 of 28 against the canary baseline B2), not the pre-registered verdict
+(PARTIAL, 18 of 28). They also did not name the weighting or say that H1 covers
+α ≤ 0.3 only; the prereg excluded α = 0.5, where W2 is 2.2× B2 under
+camouflage. — RULING: **ACCEPT-EDITORIAL**. Both now state H1 as
+pre-registered: local trust with the pre-registered weighting at least halves
+the attacker share of both B1 and B2, over seven attacks at α ≤ 0.3. It is
+partially supported at 18 of 28, and 27 of 28 remains as the canary-only
+figure. Both lists of losses now include camouflage relative to a global
+ledger (H1 fails against B1 at α = 0.2 and 0.3). The abstract was tightened to
+1,905 characters to fit arXiv's 1,920-character limit. That cut the sentence
+"Emerging trust layers answer them with global reputation ledgers or
+single-signer receipts", which also resolves **RT-09**: the claim
+contradicted the related-work section (Signet co-signs). Editorial; no wire
+change. — Implemented in `paper/main.tex` (abstract) and
+`paper/sections/conclusion.tex`.
+
 RULED 2026-09-27 (review finding R2-28, role 4 — Claims auditor; raised while
 fixing R2-02) — Appendix A says `eval/run_all.ps1` reproduces every table and
 figure. It did not run the A8/A9 sweeps (`e1_camo_explore`, `e1_minimax`),
