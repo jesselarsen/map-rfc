@@ -1692,3 +1692,159 @@ layer, not here.
   Algorithm for Reputation Management in P2P Networks," WWW 2003.
 - "Agentic Peer-to-Peer Networks: From Content Distribution to
   Capability and Action Sharing." arXiv:2603.03753, March 2026.
+
+## Appendix A. Task acceptance (EXPERIMENTAL, not in force)
+
+**Status.** This appendix is a draft. It is not part of 2.0-draft
+conformance. It has no test vectors, and neither implementation has it.
+Nothing above this appendix changes until it is adopted. §A.5 lists what
+adoption changes, including one frozen vector.
+
+### A.1 The gaps it closes
+
+Today the provider signs nothing until its first checkpoint (§7.2, C-1) or
+its receipt proposal (§6.3). Three things follow.
+
+1. *Negative evidence is unanchored.* R-4 admits a requester-only receipt
+   for outcomes 1, 2 and 4 with no proof that the provider ever took the
+   task (§6.6, last row). Outcome 2 is defined against "the task's agreed
+   deadline" (§6.2), and no artifact carries a deadline.
+2. *Terms are unsigned.* M-3 speaks of "one pricing agreement" and C-5 of
+   "the amount owed". No signed artifact carries a rate, an asset or a
+   checkpoint interval, so two parties holding the same dual-signed
+   checkpoint can disagree about the amount.
+3. *Zone attribution starts late.* Z-2 says a provider cannot deny its
+   zone claim. A provider that takes the payload and then goes silent has
+   signed no claim.
+
+A `TaskAcceptance` is the provider's signed statement that it took this
+task, under this zone, by this deadline, on these terms. It exists before
+the first transcript leaf.
+
+### A.2 Wire format
+
+```cddl
+TaskAcceptance = {
+  1 => bstr .cbor AcceptanceCore,  ; exact signed bytes — invariant I1 applies
+  3 => bstr .size 64               ; sig_prov = Ed25519(signing-input("MAPTaskAcceptance", 2, core-bytes))
+}                                   ; key 2 is unassigned: the requester does not
+                                    ;  sign this artifact (TA-3)
+
+AcceptanceCore = {
+  1 => TaskID,
+  2 => AgentID,                    ; requester
+  3 => AgentID,                    ; provider
+  4 => CapURI,
+  5 => uint .le 3,                 ; zone the provider accepts the task under (§10)
+  6 => Timestamp,                  ; accepted-at
+  7 => Timestamp,                  ; deadline: the provider commits to reach a
+                                    ;  terminal state by this time
+  ? 8 => Terms                     ; absent: the task is unmetered at this layer
+}
+
+Terms = {
+  1 => Asset,                      ; §9.1
+  2 => [+ Rate],                   ; at most one entry per unit code
+  ? 3 => uint                      ; checkpoint interval c, in transcript leaves (C-6)
+}
+
+Rate = [unit: uint .le 4, rate: Amount]   ; unit codes of §9.2; every rate
+                                           ;  shares one exponent (M-3)
+```
+
+Two optional keys reference it. Each holds the `Multihash` of the encoded
+`TaskAcceptance` bytes:
+
+```cddl
+ReceiptCore    //= ( ? 14 => Multihash )   ; acceptance
+CheckpointCore //= ( ? 11 => Multihash )   ; acceptance
+```
+
+Both are additive. A 2.0-draft receipt or checkpoint without them keeps its
+bytes.
+
+### A.3 Rules
+
+- **TA-1 (one per task, before work).** A provider MUST issue exactly one
+  `TaskAcceptance` for a TaskID, and MUST issue it before it delivers the
+  first transcript leaf. If asked again for the same TaskID it MUST return
+  the same bytes. A provider that declines a task issues none.
+- **TA-2 (requester check).** Before it relies on an acceptance, the
+  requester MUST verify the signature against core field 3 (§4.4), and
+  MUST check that:
+  - field 3 is the provider it addressed;
+  - fields 1, 2, 4 and 5 equal the TaskID, its own AgentID, the capability
+    and the zone it asked for;
+  - `accepted-at` is within the skew bound (R-3) of its own clock, and
+    `deadline` is later than `accepted-at`;
+  - the deadline and the `Terms` are ones its local policy accepts.
+
+  If any check fails, the requester MUST NOT send payload, countersign
+  anything, or sign a voucher for the task.
+- **TA-3 (the requester agrees by countersigning).** Every checkpoint and
+  receipt of the task MUST carry the acceptance digest (`CheckpointCore`
+  key 11, `ReceiptCore` key 14). A countersigner MUST refuse an artifact
+  whose digest differs from the acceptance it holds. The requester's
+  signature over a core that names the acceptance is its agreement to the
+  terms. No separate requester signature on the acceptance exists.
+- **TA-4 (R-5, anchored negatives).** A requester-only receipt contributes
+  to a projection only if the evaluator's store holds a `TaskAcceptance`
+  for which all of these hold:
+  - its digest equals the receipt's key 14;
+  - its signature verifies;
+  - its core fields 1–4 equal the receipt's core fields 1–4;
+  - for outcome 2, the receipt's `ended` is not earlier than the
+    acceptance's `deadline`.
+
+  Otherwise the receipt is excluded, exactly like a provider-only receipt.
+  This rule is part of the apply step (T-2). Acceptances are stored by
+  content address beside receipts, and a rebuild replays both. The
+  projection stays a pure function of the store: a receipt that arrives
+  before its acceptance contributes from the evaluation at which both are
+  present.
+- **TA-5 (amount owed).** The amount C-5 refers to is the `Terms` rates
+  applied to the `Usage` of the last dual-signed checkpoint that carries
+  this acceptance's digest, under M-3. With no `Terms`, this layer derives
+  no amount.
+- **TA-6 (zone before payload).** For a task labeled zone 0 or 1, the
+  requester MUST NOT transmit the task payload until it holds an
+  acceptance that passes TA-2. For zones 2 and 3 it MAY send the payload
+  with the request that opens the task. In that case Z-2 claims nothing
+  about the provider until the provider's first signed artifact exists.
+- **TA-7 (resumption).** A successor provider issues its own acceptance
+  for its own TaskID. Its zone MUST NOT be numerically greater than the
+  zone of the checkpoint it resumes from (Z-3). Its `Terms` are its own.
+  Nothing is inherited from the previous provider's acceptance.
+
+### A.4 What it does not do
+
+- *An unresponsive provider cannot be reported second-hand.* A provider
+  that never answers issues no acceptance, so no admissible negative
+  exists. The requester's own routing can still avoid it. That is local
+  policy, not evidence.
+- *It bounds fabrication to real engagements. It does not stop a false
+  verdict.* A requester that the provider did accept can still file an
+  untrue outcome 1, or an outcome 2 after the deadline for work that
+  arrived on time. T-3 still weights it by the evaluator's trust in the
+  issuer. The provider's remedy is to refuse that requester afterwards.
+- *It proves acceptance, not receipt of the payload.* Under TA-6 the
+  provider commits to the zone before the payload is sent. That the
+  payload arrived is still shown only by the provider's later signatures.
+- *Outcome 4 is unchanged.* This layer still defines no dispute process.
+
+### A.5 What adoption changes
+
+| Place | Change |
+|---|---|
+| §2 Evidence | Adds `TaskAcceptance` as a stored, verifiable fact that conditions requester-only receipts. It carries no weight of its own |
+| §6.2 | "Agreed deadline" becomes `AcceptanceCore` key 7 |
+| §6.4 R-4 | Requester-only receipts additionally need TA-4 |
+| §7.5 C-5, §9.1 M-3 | "Amount owed" and "pricing agreement" become TA-5 and `Terms` |
+| §10.2 Z-2 | Narrowed by TA-6 |
+| TV-023 | Cases 04–06 count a requester-only negative with no acceptance. They conflict with TA-4. Per the vector policy TV-023 is RETIRED, never renumbered, and a new vector pins the amended rule |
+| New vectors | A `TaskAcceptance`; a requester-only negative with and without one; an outcome 2 dated before the deadline |
+| `binding-a2a.md` | Appendix A there: carriage, the two-step open, error code 8 |
+| Evaluation | E1's slander and combined arms file negatives against providers never used. Under TA-4 those are inadmissible, so those cells need a re-run before any number is quoted for the amended rule |
+
+Costs: one more signature and one more stored artifact per task, and a
+round trip before the payload for zones 0 and 1.

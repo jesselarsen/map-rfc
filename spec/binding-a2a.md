@@ -599,3 +599,74 @@ https://a2a-protocol.org/latest/specification/ ; source verified against
 Extensions topic, https://a2a-protocol.org/latest/topics/extensions/. x402
 Foundation, `transports-v2/a2a.md` (`coinbase/x402`, informative — cited in
 §0 for the stale `X-A2A-Extensions` header name it still documents).
+
+## Appendix A. Task acceptance over A2A (EXPERIMENTAL, not in force)
+
+**Status.** Draft carriage for the layer spec's Appendix A
+(`TaskAcceptance`, rules TA-1..TA-7). It is not part of this binding's
+conformance, has no test vectors, and is in neither implementation. Rule
+IDs A2A-32..A2A-37 are reserved for it.
+
+A2A-32 (deadline in the opening Message): the session-opening `Message`
+(§3) additionally carries `deadline` under `metadata."map/v2"`: the
+requester's requested deadline in milliseconds since the Unix epoch, as a
+decimal string. It is a string for the reason A2A-3a gives.
+
+A2A-33 (carriage): the provider returns the `TaskAcceptance` as
+`metadata."map/v2".acceptance`, base64url-without-padding of its CBOR
+bytes, on the first `Task` or `TaskStatusUpdateEvent` it sends for the
+task. That is the response that returns `Task.id` (A2A-10), so the TaskID
+is computable by both sides at that point. The provider MUST NOT send a
+`TaskArtifactUpdateEvent`, or any `Part` that A2A-12 counts as a leaf,
+before it (layer TA-1). A repeated request for the same task returns the
+same bytes.
+
+A2A-34 (single-step open, zones 2 and 3): the opening `Message` MAY carry
+the task payload. The provider returns the acceptance as in A2A-33 and
+starts work. The requester applies layer TA-2 when the acceptance arrives.
+If a check fails it calls `CancelTask` and countersigns nothing.
+
+A2A-35 (two-step open, zones 0 and 1 — REQUIRED by layer TA-6):
+
+1. The opening `Message` carries `agentId`, `taskNonce`, `zone` and
+   `deadline`, and no task payload. Its `parts` hold one `text` Part that
+   names the capability requested. **UNVERIFIED:** whether A2A v1.0
+   permits a `Message` with no `parts`; this binding does not depend on
+   it.
+2. The provider answers with a `TaskStatusUpdateEvent` in state
+   `INPUT_REQUIRED` that carries the acceptance. This is the state A2A-21
+   already uses for a provider that needs something from the client.
+3. The requester applies layer TA-2. On success it sends the payload as a
+   `Message` with `taskId` set to the task, and the provider moves to
+   `WORKING`. On failure it calls `CancelTask`.
+
+The transcript is unaffected: its leaves are Parts the provider delivers
+(A2A-12), and neither opening step delivers one.
+
+A2A-36 (no acceptance, no receipt): a task that ends before the provider
+issued an acceptance (`REJECTED`, or a cancel under A2A-34/A2A-35)
+produces no Receipt from either party. This extends D-A2A-2.
+
+A2A-37 (error code): code 8 `bad-acceptance` joins the table of §9. It
+means that an acceptance is missing where this appendix requires one, that
+it fails layer TA-2, or that a checkpoint or receipt names a different
+acceptance digest than the one the receiver holds (layer TA-3).
+
+A2A-28 is unchanged: a client that never activated the extension gets no
+acceptance, no `INPUT_REQUIRED` pause for one, and an ordinary A2A task.
+
+Worked example, the provider's first response under A2A-35 (placeholder
+material, as in §14):
+
+```json
+{
+  "taskId": "task-abc123",
+  "contextId": "ctx-789",
+  "status": { "state": "TASK_STATE_INPUT_REQUIRED" },
+  "metadata": {
+    "map/v2": {
+      "acceptance": "PLACEHOLDER_base64url_CBOR_TaskAcceptance_provider_signed"
+    }
+  }
+}
+```

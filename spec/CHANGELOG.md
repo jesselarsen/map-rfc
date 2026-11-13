@@ -106,3 +106,9 @@ No wire format changed in P8, so all vector bytes are unchanged.
 | Gaming table, badmouthing row: informative caveat that camouflaged issuers can aim their weight at chosen targets (A12: W1 cuts target traffic 68%, W2 88%) | editorial (informative) | layer §6.6 | RT-04; `eval/results/5bc7702/TARGETED-SLANDER.md` |
 | §14.2 evidence-availability note (informative): no receipt dissemination is defined. A13 measurements show W1 falls behind W0 under camouflage at v ≤ 0.2, and a global ledger is worse than random there; prefer W0 when camouflage and limited disclosure are expected | editorial (informative) | layer §14.2 | RT-03; `eval/results/5bc7702/VISIBILITY.md` |
 | D-9 rationale: the small-mesh figure is qualified to no churn, and churned figures come from the corrected E3c colluder model (single path 0.88–0.95, d = 3 ≥ 0.989 at 30% churn) | editorial | layer §11.6 | R2-12; evaluation A14, `eval/results/5bc7702/E3C-LIVE.md` |
+
+### Spec design review (2026-11-13)
+
+| Change | Class | Where | Evidence |
+|---|---|---|---|
+| **Draft, not in force:** `TaskAcceptance`, a provider-signed statement of TaskID, zone, deadline and terms issued before the first transcript leaf (rules TA-1..TA-7), with A2A carriage (A2A-32..A2A-37, error code 8). It anchors requester-only negatives to a task the provider accepted, gives "agreed deadline" and "amount owed" a signed source, and puts the provider's zone commitment before the payload for zones 0 and 1 | experimental appendix; no change to 2.0-draft conformance. If adopted: additive on the wire (ReceiptCore key 14, CheckpointCore key 11), **breaking** for admissibility (TV-023 cases 04–06 retire) | layer Appendix A; binding-a2a Appendix A | Design review findings 1, 6, 7. No vectors, no implementation, no evaluation run yet |
