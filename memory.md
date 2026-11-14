@@ -67,16 +67,15 @@ flight. Every commit is pushed, and the working tree was clean at `ef5b084`.
   run through A14.
 - **Paper:** first full draft. **The PDF has never been compiled.**
   - `paper/paper-overleaf.zip` is stale (2026-09-27) and git-ignored.
-  - Appendix A and the conclusion still say the artifact "will be
-    released" at tag `paper-v1`. That tag does not exist yet, even
-    though the repo is now public.
+  - Tag **`paper-v1`** (annotated, 2026-11-14) marks the released
+    artifact; Appendix A gives the repo URL. Never move it: if the paper
+    changes before posting, tag `paper-v2`.
 - **Still open from `paper/README.md`** (author decisions):
   - the affiliation country;
   - D7, the arXiv category and an endorser;
   - compile and proofread;
   - confirm the generative-AI disclosure;
-  - item 2, repository visibility: the repo is now public, but the
-    `paper-v1` tag (or a Zenodo DOI) and the URL in Appendix A remain.
+  - (item 2, repository visibility, is done; a Zenodo DOI is optional.)
 
 **To resume, first:**
 1. Read the replies on INAM #173–#176 and #50. Check whether INAM's spec
@@ -85,8 +84,8 @@ flight. Every commit is pushed, and the working tree was clean at `ef5b084`.
    novelty claim.
 2. Re-check prior art since 2026-11-13. The INAM miss shows a two-month
    gap is enough for something important to appear.
-3. Decide the paper's fate: post it (finish the TODOs above, tag
-   `paper-v1`, rebuild the Overleaf zip), or re-scope it as complementary
+3. Decide the paper's fate: post it (finish the TODOs above, rebuild the
+   Overleaf zip, and tag `paper-v2` if the paper changed), or re-scope it as complementary
    to INAM (MAP as the in-task layer that emits and ingests INAM
    receipts; that composition is **not implemented**).
 4. Before building or running anything, re-read `AGENTS.md` for the

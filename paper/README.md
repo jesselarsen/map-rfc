@@ -55,10 +55,11 @@ python paper/figs/make_flow.py
 ## Before submission (author decisions)
 
 1. **Affiliation country.** `main.tex` has `\country{}` with a TODO.
-2. **Repository visibility.** `jesselarsen/map-rfc` is private. The paper
-   says the artifact "will be released" at tag `paper-v1`. Make it
-   public, or archive it on Zenodo for a DOI, before posting, and update
-   Appendix A with the URL/DOI.
+2. ~~**Repository visibility.**~~ Done 2026-11-14: `jesselarsen/map-rfc`
+   is public, Appendix A gives its URL, and tag `paper-v1` marks the
+   released artifact. A Zenodo DOI is still optional. If the paper
+   changes before posting, release a new tag (`paper-v2`); never move
+   `paper-v1`.
 3. **arXiv category and endorser (D7).** The plan is cs.CR primary,
    cross-listed to cs.MA and cs.NI. First-time submitters to cs.CR need
    an endorsement.
