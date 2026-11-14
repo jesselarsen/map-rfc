@@ -27,6 +27,12 @@ drafts) is frozen at tag `map-v1-ietf`; `main` stays at that snapshot.
 Retired v1 text is still readable with `git show map-v1-ietf:<path>`, for
 example `git show map-v1-ietf:map-spec/draft-map-trust-01.md`.
 
+## Workflow
+
+For planning, implementation, verification and review, read the project workflow
+guide: [docs/agent-engineering.md](docs/agent-engineering.md). It maps the current
+authorities and lists the pending decisions.
+
 ## Layout
 
 - `spec/layer.md`: the normative layer. Rule IDs R-*, C-*, T-*, M-*, Z-*,
