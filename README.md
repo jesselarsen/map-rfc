@@ -210,4 +210,4 @@ Genuinely open work (deferred, not claimed done):
   session-layer and delegation models do establish.
 
 License: Apache-2.0. Naming: "MAP" honors the MP2P
-lineage; "Hermes" remains free as an implementation name.
+lineage.
