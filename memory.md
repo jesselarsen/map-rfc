@@ -6,7 +6,94 @@ unverified, and what to do next. Tip: in Claude Code, either rename this to
 `CLAUDE.md` or add the line `@memory.md` to your `CLAUDE.md` so it loads
 automatically.
 
-## 0. 2026-09 PIVOT — RESUME HERE (supersedes §1–§8 where they conflict)
+## 00. 2026-11 SUSPENSION — RESUME HERE (supersedes §0 where they conflict)
+
+**Development is suspended (author's decision, 2026-11-13).** Nothing is in
+flight. Every commit is pushed, and the working tree was clean at `ef5b084`.
+
+**Why.**
+- [INAM](https://inamprotocol.org/) (spec v0.44-draft, public since
+  2026-08-22, Apache-2.0, live registry, JS/Python SDKs, MCP server)
+  already ships MAP's receipt-and-reputation core:
+  - did:key Ed25519 identities, byte-compatible with AgentID;
+  - receipts the worker drafts and the requester countersigns, with the
+    same admission rule as R-4;
+  - reputation computed only from receipts;
+  - A2A and x402 integrations.
+- The 2026-09 prior-art sweep missed it.
+- INAM has no checkpoints/resumption, no metering bound to evidence, no
+  zones, and no observer-local trust. Its registry computes one global
+  score, which its own §5.4 calls a hint. So MAP is **not moot**, but
+  adoption is on INAM's side.
+- The author chose to hand MAP's non-overlapping parts to INAM rather
+  than continue alone.
+
+**What was done before suspending.**
+- **Paper** (`677010e`): INAM added to the related-work table and prose
+  (itemized like the Signet comparison) and to the intro's "What we do
+  not claim". TrustChain is now "closest outside the agent setting".
+  Bib key `inam`. `lint_tex.py` is green.
+- **Filed with INAM** on 2026-11-13 from the `jesselarsen` account, each
+  saying the author won't implement it. Links into this repo are pinned
+  to `6cc324e`.
+  - [#173](https://github.com/inamprotocol/inam-protocol/issues/173):
+    relying-party appraisal, `appraiseLocally()` with T-3 + W1, SDK-only.
+  - [#174](https://github.com/inamprotocol/inam-protocol/issues/174):
+    non-performance slander, citing A12 (camouflage harm W1 0.68, W2
+    0.88). Asks for a test.
+  - [#175](https://github.com/inamprotocol/inam-protocol/issues/175):
+    signed `settlement.usage` + `voucherDigest` (a wire change).
+  - [#176](https://github.com/inamprotocol/inam-protocol/issues/176):
+    dual-signed checkpoints + `resumedFrom`, reusing INAM's RFC 6962 tree
+    (a wire change).
+  - A [comment on #50](https://github.com/inamprotocol/inam-protocol/issues/50#issuecomment-6874208967)
+    pointing to MAP's Rust/Go did:key, strict-Ed25519 and JCS code for
+    INAM's requested offline verifier.
+  - Zones were deliberately not proposed: INAM excludes authorization.
+  - The posted text and the issue map are in `docs/inam-issues/`.
+- **Repository:**
+  - `jesselarsen/map-rfc` is now **public**.
+  - Its **default branch is `accountability-layer`**.
+  - `main` is the v1 snapshot (tag `map-v1-ietf` = `4107aaa`) plus one
+    README formatting edit, `804586b`.
+  - `.cto-toolkit/` is git-ignored.
+
+**State of each piece at suspension.**
+- **Spec** `spec/` 2.0-draft is P8-final. Appendix A (TaskAcceptance) is
+  an experimental draft, not in force.
+- **Vectors:** frozen through TV-025.
+- **Rust and Go:** green at P5/P6. Interop matrix 28/28.
+- **Eval:** P7 complete, results at `eval/results/5bc7702/`. Amendments
+  run through A14.
+- **Paper:** first full draft. **The PDF has never been compiled.**
+  - `paper/paper-overleaf.zip` is stale (2026-09-27) and git-ignored.
+  - Appendix A and the conclusion still say the artifact "will be
+    released" at tag `paper-v1`. That tag does not exist yet, even
+    though the repo is now public.
+- **Still open from `paper/README.md`** (author decisions):
+  - the affiliation country;
+  - D7, the arXiv category and an endorser;
+  - compile and proofread;
+  - confirm the generative-AI disclosure;
+  - item 2, repository visibility: the repo is now public, but the
+    `paper-v1` tag (or a Zenodo DOI) and the URL in Appendix A remain.
+
+**To resume, first:**
+1. Read the replies on INAM #173–#176 and #50. Check whether INAM's spec
+   has moved past v0.44-draft. If it adopted any proposal, update the
+   paper's INAM row and prose, the `inam-prior-art` comparison, and the
+   novelty claim.
+2. Re-check prior art since 2026-11-13. The INAM miss shows a two-month
+   gap is enough for something important to appear.
+3. Decide the paper's fate: post it (finish the TODOs above, tag
+   `paper-v1`, rebuild the Overleaf zip), or re-scope it as complementary
+   to INAM (MAP as the in-task layer that emits and ingests INAM
+   receipts; that composition is **not implemented**).
+4. Before building or running anything, re-read `AGENTS.md` for the
+   toolchain notes (GNU Rust toolchain, mingw on PATH). ProVerif runs
+   only under WSL2 (CLAUDE.md layout, §8 step 12).
+
+## 0. 2026-09 PIVOT (supersedes §1–§8 where they conflict; superseded by §00)
 
 **Everything from §1 on is historical (v1).** Read it for the protocol decisions
 that carry over (deterministic CBOR + COSE, verify the received bytes, one

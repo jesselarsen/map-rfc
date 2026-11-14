@@ -22,7 +22,8 @@ The v1 IETF-style family (the "Manolito Agent Protocol", a full stack in 11
 drafts) is frozen at tag `map-v1-ietf`; `main` stays at that snapshot.
 **All work happens on branch `accountability-layer`.**
 - Why the project changed: `docs/ADR-0001-thin-accountability-layer.md`.
-- Phase plan, decisions and resume point: `memory.md` §0.
+- Resume point: `memory.md` §00 (development suspended 2026-11-13).
+  Phase plan and decisions: `memory.md` §0.
 
 Retired v1 text is still readable with `git show map-v1-ietf:<path>`, for
 example `git show map-v1-ietf:map-spec/draft-map-trust-01.md`.
