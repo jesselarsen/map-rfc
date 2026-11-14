@@ -16,6 +16,7 @@ System & Evidence signed by & Trust computed & Resume & Metering $\leftrightarro
 Agentic P2P~\cite{wang2026agenticp2p} & provider & local + federated ledger$^{a}$ & no & no & simulation \\
 MG-EigenTrust~\cite{zhang2026distributed} & n/s & global (EigenTrust-style) & no & no & simulation, prototype \\
 ERC-8004~\cite{erc8004} & feedback author & global, on-chain & no & n/s & measured by~\cite{xiong2026erc8004} \\
+INAM~\cite{inam} & worker, then requester & registry (a hint)$^{b}$ & no & no$^{c}$ & live deployment$^{d}$ \\
 Cairn~\cite{chard2026cairn} & n/s & community (decayed Beta) & no & no & simulation, case study \\
 AgentReputation~\cite{chishti2026agentreputation} & n/s & decentralized service & no & no & vision paper \\
 \midrule
@@ -44,6 +45,11 @@ Beta reputation~\cite{josang2002beta} & --- & aggregated ratings & --- & --- & -
 \raggedright\footnotesize $^{a}$ As described in the paper's prose. Its
 released simulator ranks providers by a hint the provider reports about
 itself (\S\ref{sec:background}).
+$^{b}$ The registry computes one score per agent; the specification calls
+it a hint that relying parties re-derive from the signed receipts.
+$^{c}$ A settlement reference reported by the parties and not verified.
+$^{d}$ A live registry. We found no published measurement of its scoring
+under attack (checked 2026-11-13).
 \end{table*}
 
 \paragraph{Agent networks and reputation.}
@@ -66,6 +72,47 @@ directly. Its global ledger B1 holds up under farming (0.094 at
 $\alpha{=}0.2$, half of random) and collapses under slander. Unlike
 ERC-8004's feedback, it also admits positive evidence only when
 dual-signed.
+
+INAM~\cite{inam} is the closest agent-specific system, so we compare it
+precisely. As of its specification version 0.44-draft:
+\begin{itemize}
+\item \textbf{Receipts.} The signing order is \sys{}'s over A2A: the
+  worker drafts an execution receipt and the requester countersigns it.
+  Only a receipt both have signed counts toward reputation, as under R-4.
+  INAM identities are did:key Ed25519 keys, byte-compatible with
+  AgentIDs. An INAM receipt covers one interaction and commits to a hash
+  of the task specification and a hash of the output. A \sys{} task has
+  countersigned checkpoints over a Merkle root of its streamed output.
+  INAM's HTTP binding states that a streamed response does not fit it.
+\item \textbf{Where trust is computed.} An INAM registry computes one
+  score per agent for every caller. It weights each receipt by the
+  counterparty's own score (a one-step relaxation of EigenTrust), caps
+  repeated receipts from one counterparty, and gives no weight to a
+  counterparty with no receipt outside the agent's own set of
+  counterparties. The specification calls this score a hint and tells a
+  relying party to re-derive the evidence from the signed receipts. It
+  does not say how that party should weight what it re-derives;
+  \sys{}'s projection is one answer. E1 did not test INAM's formula, but
+  two of its findings concern similar mechanisms. First, the global
+  ledger that admits unilateral complaints collapsed under slander; INAM
+  adds a job poster's one-sided non-performance report to the worker's
+  reputation, weighted by the poster's score. Second, propagation
+  collapsed once camouflaging Sybils outnumbered honest issuers; INAM's
+  specification notes that its one-hop check misses a ring whose members
+  each obtain one outside receipt.
+\item \textbf{What each lacks.} INAM has a transparency log of finalized
+  receipts in the style of RFC~6962, verifiers authorized by the registry
+  operator, dispute windows, key succession, and links to ERC-8004 and
+  to x402, where a payer can refuse a payee whose INAM identity has not
+  proved control of the receiving wallet. \sys{} has none of these. INAM
+  has no resumption and no zones, and its settlement field is a reference
+  the parties report, which INAM does not verify; it binds no usage to
+  evidence.
+\end{itemize}
+The two compose. One key can serve as both identities, a \sys{} task can
+end in an INAM receipt that names the task's TaskID, and a \sys{}
+observer could admit INAM receipts as evidence under T-3. We have not
+implemented either.
 
 Cairn~\cite{chard2026cairn} aggregates agents' ratings of shared
 resources with a time-decayed Beta model and tests it against lying,
@@ -112,7 +159,8 @@ dual signatures, so we compare them precisely. As of Signet version 0.11:
 The two are complementary. A Signet receipt could serve as the evidence
 for a single tool call made inside a \sys{} task.
 
-The closest prior design overall is TrustChain~\cite{otte2020trustchain}.
+Outside the agent setting, the closest prior design is
+TrustChain~\cite{otte2020trustchain}.
 It records each interaction only with both parties' signatures, so a
 Sybil can create trust only with itself, and each agent ranks others with
 a flow computation (NetFlow) over the interaction graph. \sys{}'s R-4 and

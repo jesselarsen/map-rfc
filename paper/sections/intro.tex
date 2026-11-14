@@ -108,8 +108,10 @@ Kademlia index carries discovery records, and MPP or x402 moves money.
 \paragraph{What we do not claim.}
 Dual-signed receipts are not new in themselves. TrustChain already uses
 records signed by both parties as a Sybil defence~\cite{otte2020trustchain},
-Signet's bilateral receipts co-sign MCP tool calls~\cite{signet}
-(\S\ref{sec:related} compares them with \sys{}'s in detail), and
+Signet's bilateral receipts co-sign MCP tool calls~\cite{signet},
+INAM computes agent reputation only from receipts that worker and
+requester both sign~\cite{inam} (\S\ref{sec:related} compares both with
+\sys{} in detail), and
 accountable distributed systems have long used signed, tamper-evident
 logs~\cite{haeberlen2007peerreview}. Nor is agreement-weighted,
 observer-local trust new~\cite{xiong2004peertrust,walsh2006credence}.
