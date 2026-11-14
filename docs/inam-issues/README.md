@@ -1,30 +1,25 @@
-# Drafts: contributing MAP's non-overlapping parts to INAM
+# MAP contributions filed with INAM
 
-These are drafts to paste into GitHub for
-https://github.com/inamprotocol/inam-protocol. Nothing has been filed.
-They were written on 2026-11-13 against INAM spec v0.44-draft.
+The parts of MAP that INAM (spec v0.44-draft) lacks were filed with
+https://github.com/inamprotocol/inam-protocol on 2026-11-13, from the
+`jesselarsen` account, after MAP development was suspended. Each one
+states that the author isn't implementing it. Links into this repo are
+pinned to commit `6cc324e`.
 
-| # | File | Where it goes | INAM process cost |
-|---|---|---|---|
-| 1 | `01-issue50-comment.md` | Comment on issue #50, then a PR | Low: requested by the maintainer, no spec change |
-| 2 | `02-nonperformance-slander.md` | New issue | Low (test); medium if a cap follows |
-| 3 | `03-relying-party-appraisal.md` | New issue, then a PR | Medium: SDK-only, no wire change |
-| 4 | `04-metering-binding.md` | New issue | High: wire change; payments are out of INAM's stated scope |
-| 5 | `05-checkpoints-resumption.md` | New issue (design discussion) | High: new resource, wire and signature change |
+| Draft | Filed as | What it is |
+|---|---|---|
+| `01-issue50-comment.md` | [comment on #50](https://github.com/inamprotocol/inam-protocol/issues/50#issuecomment-6874208967) | A pointer to MAP's reusable Rust and Go code (did:key, strict Ed25519, JCS) for INAM's requested offline verifier |
+| `02-nonperformance-slander.md` | [#174](https://github.com/inamprotocol/inam-protocol/issues/174) | MAP's A12 targeted-slander measurement applied to INAM's stated smearing risk; asks for a test |
+| `03-relying-party-appraisal.md` | [#173](https://github.com/inamprotocol/inam-protocol/issues/173) | Proposes `appraiseLocally()` with T-3 and W1 weighting; SDK-only |
+| `04-metering-binding.md` | [#175](https://github.com/inamprotocol/inam-protocol/issues/175) | Optional signed `settlement.usage` and `voucherDigest`; a wire change |
+| `05-checkpoints-resumption.md` | [#176](https://github.com/inamprotocol/inam-protocol/issues/176) | Design proposal for dual-signed checkpoints and `resumedFrom`; a wire change |
 
-Zones are deliberately left out: they classify counterparties on the
-requester's side, and INAM defines itself as not doing authorization.
+The files hold the text as posted, below each file's first `---` line.
+The one exception is the posted #50 comment, which is the whole
+remainder of its file. Zones were deliberately not proposed: INAM
+defines itself as not doing authorization.
 
-## Before filing
-
-- Replace `<MAP_REPO_URL>` and `<PAPER_URL>`. The MAP repo is private, so
-  either make it public or tag a release first, or drop the links and
-  quote the needed rules inline.
-- Re-check INAM's SPEC version and section numbers. The drafts cite
-  v0.44-draft, and INAM moves fast.
-- File in order, and wait for a reply on #1 before opening 4 and 5. One
-  maintainer reviews everything (GOVERNANCE.md).
-- Every commit needs DCO sign-off: `git commit -s`.
-- Changes to wire format or reputation wait 7 days for comment and need
-  both runtimes (Node, Worker), both SDKs (JS, Python), tests, and
-  cross-language vectors.
+Under INAM's GOVERNANCE.md, changes to wire format or reputation (#174's
+cap, #175, #176) need a 7-day comment period and an implementation in
+both runtimes and both SDKs, with tests and cross-language vectors.
+Nobody has committed to that work.

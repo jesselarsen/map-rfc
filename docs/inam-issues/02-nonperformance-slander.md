@@ -22,10 +22,10 @@ against chosen targets.
 
 ## Evidence (from a different system, so it's an analogy, not a result about INAM)
 
-MAP (`<MAP_REPO_URL>`, paper `<PAPER_URL>`) ran a pre-registered
+MAP ([spec](https://github.com/jesselarsen/map-rfc/blob/6cc324e/spec/layer.md)) ran a pre-registered
 simulation of the same pattern: one-sided negative evidence weighted by
 the complainer's earned standing. In its targeted-slander experiment
-(exploratory amendment A12; α = 0.2, 20 Sybils per adversarial provider,
+([exploratory amendment A12](https://github.com/jesselarsen/map-rfc/blob/6cc324e/eval/HYPOTHESES.md), [results](https://github.com/jesselarsen/map-rfc/blob/6cc324e/eval/results/5bc7702/TARGETED-SLANDER.md); α = 0.2, 20 Sybils per adversarial provider,
 5 fixed honest targets, 20 seeds), each Sybil runs 2 truthful tasks per
 round against honest non-target providers and files negatives only
 against the targets. Relative harm is the drop in the targets' share of
@@ -66,9 +66,13 @@ not assume them:
      `components`, so a relying party can discount them;
    - recommend in §5.4 that a relying party weigh reports by its *own*
      relationship with each reporter rather than by the registry's score
-     (see the companion issue on relying-party appraisal).
+     (see #173, relying-party appraisal).
 
 ## What it breaks
 
 Nothing for step 1. Step 2's cap changes how reputation is computed, so
 it needs the 7-day comment period and a SPEC bump under GOVERNANCE.md.
+
+---
+
+*Context: this comes from MAP, the Mutual Attestation Protocol ([spec](https://github.com/jesselarsen/map-rfc/blob/6cc324e/spec/layer.md), [pre-registered evaluation](https://github.com/jesselarsen/map-rfc/blob/6cc324e/eval/HYPOTHESES.md), [paper draft](https://github.com/jesselarsen/map-rfc/tree/6cc324e/paper)), an Apache-2.0 accountability layer over A2A. I've suspended its development and won't be implementing this. I'm filing it so the design and the evidence are on record here for whoever wants them.*

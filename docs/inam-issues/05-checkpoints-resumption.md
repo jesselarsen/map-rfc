@@ -2,8 +2,6 @@
 
 **Labels to suggest:** spec, design
 
-> This is the largest of the proposals. File it as a design discussion and
-> don't write code unless the maintainer wants the feature.
 
 ---
 
@@ -48,7 +46,7 @@ the parties and doesn't have to go to the registry.
 `resumedFrom` is optional and names the predecessor's checkpoint when the
 job was handed over.
 
-Rules, adapted from MAP's layer §7 (`<MAP_REPO_URL>/spec/layer.md`):
+Rules, adapted from MAP's [layer §7](https://github.com/jesselarsen/map-rfc/blob/6cc324e/spec/layer.md#7-checkpoints-and-cross-provider-resumption):
 
 - **Transcript root.** The parts delivered so far are the leaves of an
   RFC 6962 tree, with entry bytes `canonical({seq, part})`, computed by the
@@ -96,5 +94,9 @@ worker's hidden state, and a successor may repeat external side effects
 New optional resources and fields; existing receipts are unchanged. It's
 a wire and signature change, so the full GOVERNANCE.md process applies.
 A §15-style HTTP or A2A carriage for checkpoints would be a follow-up.
-MAP has an A2A carriage (`binding-a2a.md`, A2A-20/21) that could serve as
+MAP has an A2A carriage ([`binding-a2a.md`](https://github.com/jesselarsen/map-rfc/blob/6cc324e/spec/binding-a2a.md), A2A-20/21) that could serve as
 the model.
+
+---
+
+*Context: this comes from MAP, the Mutual Attestation Protocol ([spec](https://github.com/jesselarsen/map-rfc/blob/6cc324e/spec/layer.md), [pre-registered evaluation](https://github.com/jesselarsen/map-rfc/blob/6cc324e/eval/HYPOTHESES.md), [paper draft](https://github.com/jesselarsen/map-rfc/tree/6cc324e/paper)), an Apache-2.0 accountability layer over A2A. I've suspended its development and won't be implementing this. I'm filing it so the design and the evidence are on record here for whoever wants them.*

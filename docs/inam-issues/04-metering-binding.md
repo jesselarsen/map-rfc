@@ -2,10 +2,6 @@
 
 **Labels to suggest:** spec, payments
 
-> Check README's "Deliberate simplifications" before filing: payments and
-> stake are listed as intentionally out of scope. This proposal doesn't
-> move money or verify settlement; it only adds two optional signed fields.
-> Say so up front.
 
 ---
 
@@ -50,7 +46,7 @@ content hashed into `receiptId` (§4.2), so both signatures cover them:
   authorization; for x402 `batch-settlement` and MPP sessions it is the
   cumulative voucher covering `usage`. Never a re-encoding by INAM, so
   anyone can re-derive it from the rail's record. Per-rail byte rules are
-  worked out in MAP's `spec/mapping-payment-rails.md` (`<MAP_REPO_URL>`),
+  worked out in MAP's [`spec/mapping-payment-rails.md`](https://github.com/jesselarsen/map-rfc/blob/6cc324e/spec/mapping-payment-rails.md),
   including where a rail names fields but defines no canonical byte form.
   For MPP that form is unverified.
 
@@ -68,3 +64,7 @@ Open question for the maintainer: does `receiptContent.ts` copy
 `settlement` through verbatim, or pick known fields? If it picks, older
 SDKs would compute a different `receiptId` for a receipt carrying the
 new fields. That would decide whether this needs `receiptVersion: "1.1"`.
+
+---
+
+*Context: this comes from MAP, the Mutual Attestation Protocol ([spec](https://github.com/jesselarsen/map-rfc/blob/6cc324e/spec/layer.md), [pre-registered evaluation](https://github.com/jesselarsen/map-rfc/blob/6cc324e/eval/HYPOTHESES.md), [paper draft](https://github.com/jesselarsen/map-rfc/tree/6cc324e/paper)), an Apache-2.0 accountability layer over A2A. I've suspended its development and won't be implementing this. I'm filing it so the design and the evidence are on record here for whoever wants them.*

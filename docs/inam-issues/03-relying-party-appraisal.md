@@ -28,7 +28,7 @@ appraiseLocally(
 ```
 
 with these rules, adapted from MAP's local trust projection
-(`<MAP_REPO_URL>/spec/layer.md` §8):
+([layer §8](https://github.com/jesselarsen/map-rfc/blob/6cc324e/spec/layer.md#8-local-trust-projection)):
 
 1. **Admissibility.** Use only finalized receipts whose ID and both
    signatures verify locally. A receipt that fails a check is dropped and
@@ -56,7 +56,7 @@ unchanged on a locally derived result.
 
 In MAP's pre-registered evaluation (seven attacks, α from 0.05 to 0.5, 20
 seeds), these rules (W1) had the best worst case of the three weightings
-tested. Worst-case attacker task share: W1 0.200, self-only 0.348,
+tested ([results](https://github.com/jesselarsen/map-rfc/blob/6cc324e/eval/results/5bc7702/MINIMAX.md)). Worst-case attacker task share: W1 0.200, self-only 0.348,
 propagated agreement 0.550, against 0.500 for random selection. The
 propagated, EigenTrust-like variant failed once camouflaging Sybils
 outnumbered honest requesters. That matters for the full EigenTrust solve
@@ -75,7 +75,6 @@ Known limits, to state in the section:
 Nothing: it's a new, optional client-side function and an informative
 section. No wire, signature, or registry change.
 
-## Offer
+---
 
-I can write the TypeScript and Python versions with shared test vectors:
-fixed receipt sets with an expected appraisal for a given observer.
+*Context: this comes from MAP, the Mutual Attestation Protocol ([spec](https://github.com/jesselarsen/map-rfc/blob/6cc324e/spec/layer.md), [pre-registered evaluation](https://github.com/jesselarsen/map-rfc/blob/6cc324e/eval/HYPOTHESES.md), [paper draft](https://github.com/jesselarsen/map-rfc/tree/6cc324e/paper)), an Apache-2.0 accountability layer over A2A. I've suspended its development and won't be implementing this. I'm filing it so the design and the evidence are on record here for whoever wants them.*
